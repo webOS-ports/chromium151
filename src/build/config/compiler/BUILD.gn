@@ -600,14 +600,6 @@ config("compiler") {
   if (is_clang) {
     # Flags for diagnostics.
     cflags += [ "-fcolor-diagnostics" ]
-    if (!is_wasm) {
-      if (!is_win) {
-        cflags += [ "-fdiagnostics-show-inlining-chain" ]
-      } else {
-        # Combine after https://github.com/llvm/llvm-project/pull/192241
-        cflags += [ "/clang:-fdiagnostics-show-inlining-chain" ]
-      }
-    }
     if (diagnostics_print_source_range_info && !is_win) {
       cflags += [ "-fdiagnostics-print-source-range-info" ]
     }
@@ -636,13 +628,6 @@ config("compiler") {
         "-fcrash-diagnostics=all",
         "-fcrash-diagnostics-dir=" + clang_diagnostic_dir,
       ]
-    }
-
-    # The performance improvement does not seem worth the risk. See
-    # https://crbug.com/484082200 for background and https://crrev.com/c/7593035
-    # for discussion.
-    if (!is_wasm) {
-      cflags += [ "-fno-lifetime-dse" ]
     }
 
     # TODO(hans): Remove this once Clang generates better optimized debug info
@@ -682,13 +667,6 @@ config("compiler") {
       cflags += [ "-ffp-contract=off" ]
     }
 
-    # Enable ELF CREL (see crbug.com/357878242) for all platforms that use ELF.
-    # TODO(crbug.com/376278218): This causes segfault on Linux ARM builds.
-    # It also causes segfault on Linux s390x:
-    # https://github.com/llvm/llvm-project/issues/149511
-    if (is_linux && use_lld && current_cpu != "arm" && current_cpu != "s390x") {
-      cflags += [ "-Wa,--crel,--allow-experimental-crel" ]
-    }
   }
 
   # C11/C++11 compiler flags setup.
@@ -1919,6 +1897,11 @@ config("default_warnings") {
 
   if (is_clang) {
     cflags += [
+      # Disable unknown warnings, since system clang may not have
+      # backported newer warning yet unlike internal clang that
+      # chromium uses.
+      "-Wno-unknown-warning-option",
+
       "-Wloop-analysis",
 
       # TODO(thakis): This used to be implied by -Wno-unused-function,
