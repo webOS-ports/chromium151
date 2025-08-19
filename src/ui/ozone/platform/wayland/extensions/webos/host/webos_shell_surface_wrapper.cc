@@ -135,6 +135,7 @@ bool WebosShellSurfaceWrapper::Initialize() {
   static const wl_webos_shell_surface_listener webos_shell_surface_listener = {
       WebosShellSurfaceWrapper::StateChanged,
       WebosShellSurfaceWrapper::PositionChanged,
+      WebosShellSurfaceWrapper::ClientSizeChanged,
       WebosShellSurfaceWrapper::Close, WebosShellSurfaceWrapper::Exposed,
       WebosShellSurfaceWrapper::StateAboutToChange};
 
@@ -269,6 +270,27 @@ void WebosShellSurfaceWrapper::PositionChanged(
     int32_t x,
     int32_t y) {
   NOTIMPLEMENTED_LOG_ONCE();
+}
+
+void WebosShellSurfaceWrapper::ClientSizeChanged(
+    void* data,
+    wl_webos_shell_surface* webos_shell_surface,
+    int32_t width,
+    int32_t height) {
+  VLOG(1) << __PRETTY_FUNCTION__ << " ClientSize changed(" << width << "," << height
+          << ") from LSM";
+  WebosShellSurfaceWrapper* shell_surface_wrapper =
+      static_cast<WebosShellSurfaceWrapper*>(data);
+  DCHECK(shell_surface_wrapper);
+  DCHECK(shell_surface_wrapper->wayland_window_);
+
+  if (shell_surface_wrapper->wayland_window_) {
+    VLOG(1) << __PRETTY_FUNCTION__ << ": size=" << width << "," << height;
+    shell_surface_wrapper->wayland_window_->SetBoundsInPixels(gfx::Rect(0,0,width,height));
+  } else {
+    LOG(INFO) << __PRETTY_FUNCTION__ << ": size=" << width << "," << height
+              << ", but no window for this shell";
+  }
 }
 
 void WebosShellSurfaceWrapper::Close(

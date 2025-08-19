@@ -62,6 +62,12 @@ class WebosShellSurface : public WLShellSurface {
       int32_t x,
       int32_t y);
 
+  static void HandleClientSizeChanged(
+      void* data,
+      struct wl_webos_shell_surface* webos_shell_surface,
+      int32_t width,
+      int32_t height);
+
   static void HandleClose(void* data,
                           struct wl_webos_shell_surface* webos_shell_surface);
 

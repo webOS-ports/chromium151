@@ -112,6 +112,7 @@ void WebosShellSurface::InitializeShellSurface(WaylandWindow* window,
   static const wl_webos_shell_surface_listener webos_shell_surface_listener = {
       WebosShellSurface::HandleStateChanged,
       WebosShellSurface::HandlePositionChanged,
+      WebosShellSurface::HandleClientSizeChanged,
       WebosShellSurface::HandleClose,
       WebosShellSurface::HandleExposed,
       WebosShellSurface::HandleStateAboutToChange};
@@ -260,6 +261,12 @@ void WebosShellSurface::HandlePositionChanged(
     struct wl_webos_shell_surface* webos_shell_surface,
     int32_t x,
     int32_t y) {}
+
+void WebosShellSurface::HandleClientSizeChanged(
+    void* data,
+    struct wl_webos_shell_surface* webos_shell_surface,
+    int32_t width,
+    int32_t height) {}
 
 void WebosShellSurface::HandleClose(
     void* data,

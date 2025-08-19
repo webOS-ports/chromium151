@@ -70,6 +70,11 @@ class WebosShellSurfaceWrapper : public WaylandShellSurfaceWrapper {
                               wl_webos_shell_surface* webos_shell_surface,
                               int32_t x,
                               int32_t y);
+  // Called to notify a client that the surface size is changed.
+  static void ClientSizeChanged(void* data,
+                              wl_webos_shell_surface* webos_shell_surface,
+                              int32_t width,
+                              int32_t height);
   // Called by the compositor to request closing of the window.
   static void Close(void* data, wl_webos_shell_surface* webos_shell_surface);
   // Called to notify a client which surface areas are now exposed (visible).
