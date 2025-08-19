@@ -153,6 +153,11 @@ DragOperation DesktopDragDropClientOzone::StartDragAndDrop(
     const gfx::Point& root_location,
     int allowed_operations,
     ui::mojom::DragEventSource source) {
+#if defined(OS_WEBOS)
+  // NEVA: dragging is disabled on webOS.
+  return DragOperation::kNone;
+#endif
+
   if (!drag_handler_) {
     return DragOperation::kNone;
   }

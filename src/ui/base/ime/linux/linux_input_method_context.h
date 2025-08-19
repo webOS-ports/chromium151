@@ -19,6 +19,11 @@
 #include "ui/gfx/native_ui_types.h"
 #include "ui/gfx/range/range.h"
 
+///@name USE_NEVA_APPRUNTIME
+///@{
+#include "ui/base/ime/linux/neva/linux_input_method_context_neva.h"
+///@}
+
 namespace gfx {
 class Rect;
 class Range;
@@ -83,7 +88,12 @@ class COMPONENT_EXPORT(UI_BASE_IME_LINUX) LinuxInputMethodContext {
 };
 
 // An interface of callback functions called from LinuxInputMethodContext.
-class COMPONENT_EXPORT(UI_BASE_IME_LINUX) LinuxInputMethodContextDelegate {
+class COMPONENT_EXPORT(UI_BASE_IME_LINUX) LinuxInputMethodContextDelegate
+    ///@name USE_NEVA_APPRUNTIME
+    ///@{
+    : public NevaLinuxInputMethodContextDelegate
+    ///@}
+    {
  public:
   virtual ~LinuxInputMethodContextDelegate() {}
 
@@ -99,6 +109,10 @@ class COMPONENT_EXPORT(UI_BASE_IME_LINUX) LinuxInputMethodContextDelegate {
   // Deletes the surrounding text around selection. |before| and |after|
   // are in UTF-16 code points.
   virtual void OnDeleteSurroundingText(size_t before, size_t after) = 0;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  virtual void OnMarkToSendKeyPressEvent() = 0;
+#endif
 
   // Sets the composition text to the text input client.
   virtual void OnPreeditChanged(const CompositionText& composition_text) = 0;

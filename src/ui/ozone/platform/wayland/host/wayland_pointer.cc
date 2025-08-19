@@ -87,11 +87,22 @@ void WaylandPointer::OnEnter(void* data,
   if (!window) {
     return;
   }
+#if defined(OS_WEBOS)
+  if (auto* window_manager = self->connection_->window_manager()) {
+    window_manager->GrabPointerEvents(self->id(), window);
+  }
+#endif  // defined(OS_WEBOS)
+
   self->delegate_->OnPointerFocusChanged(
       window,
       gfx::PointF(static_cast<float>(wl_fixed_to_double(surface_x)),
                   static_cast<float>(wl_fixed_to_double(surface_y))),
-      timestamp, GetEventDispatchPolicy());
+      timestamp, GetEventDispatchPolicy()
+#if defined(OS_WEBOS)
+      ,
+      self->id()
+#endif  // defined(OS_WEBOS)
+  );
 }
 
 // static
@@ -107,10 +118,21 @@ void WaylandPointer::OnLeave(void* data,
   TRACE_EVENT_INSTANT("wayland.debug", "WaylandPointer::OnLeave", "window",
                       window ? window->GetBoundsInDIP().ToString() : "null");
 
+#if defined(OS_WEBOS)
+  if (auto* window_manager = self->connection_->window_manager()) {
+    window_manager->UngrabPointerEvents(self->id(), window);
+  }
+#endif  // defined(OS_WEBOS)
+
   self->connection_->serial_tracker().ResetSerial(wl::SerialType::kMouseEnter);
   self->delegate_->OnPointerFocusChanged(nullptr,
                                          self->delegate_->GetPointerLocation(),
-                                         timestamp, GetEventDispatchPolicy());
+                                         timestamp, GetEventDispatchPolicy()
+#if defined(OS_WEBOS)
+                                         ,
+                                         self->id()
+#endif  // defined(OS_WEBOS)
+  );
 }
 
 // static
@@ -126,7 +148,12 @@ void WaylandPointer::OnMotion(void* data,
   self->delegate_->OnPointerMotionEvent(
       gfx::PointF(wl_fixed_to_double(surface_x), wl_fixed_to_double(surface_y)),
       wl::EventMillisecondsToTimeTicks(time), GetEventDispatchPolicy(),
-      /*is_synthesized=*/false);
+      /*is_synthesized=*/false
+#if defined(OS_WEBOS)
+      ,
+      self->id()
+#endif  // defined(OS_WEBOS)
+  );
 }
 
 // static
@@ -172,7 +199,12 @@ void WaylandPointer::OnButton(void* data,
   self->delegate_->OnPointerButtonEvent(
       type, changed_button, wl::EventMillisecondsToTimeTicks(time),
       /*window=*/nullptr, GetEventDispatchPolicy(),
-      /*allow_release_of_unpressed_button=*/false, /*is_synthesized=*/false);
+      /*allow_release_of_unpressed_button=*/false, /*is_synthesized=*/false
+#if defined(OS_WEBOS)
+      ,
+      self->id()
+#endif  // defined(OS_WEBOS)
+  );
 }
 
 // static

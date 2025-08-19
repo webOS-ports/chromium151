@@ -352,6 +352,7 @@ void SelectFileDialogLinuxGtk::SelectFileImpl(
     gtk_file_chooser_set_preview_widget(GTK_FILE_CHOOSER(dialog), preview);
   }
 
+#if !(defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL))
   base::OnceClosure reenable_input_events =
       DisableHostInputHandling(dialog, owning_window);
 
@@ -359,6 +360,7 @@ void SelectFileDialogLinuxGtk::SelectFileImpl(
                     std::move(reenable_input_events));
   state.preview_widget = preview;
   dialogs_[dialog] = std::move(state);
+#endif  // !(defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL))
 
   if (!GtkCheckVersion(4))
     gtk_widget_show_all(dialog);

@@ -21,6 +21,10 @@
 #include "ui/platform_window/platform_window.h"
 #include "ui/platform_window/platform_window_delegate.h"
 
+#if defined(USE_NEVA_MEDIA)
+#include "ui/platform_window/neva/video_window_geometry_manager.h"
+#endif  // defined(USE_NEVA_MEDIA)
+
 namespace display {
 class NativeDisplayDelegate;
 }
@@ -34,6 +38,9 @@ enum class DomCode : uint32_t;
 enum class PlatformKeyboardHookTypes;
 
 class CursorFactory;
+#if defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+class GpuPlatformSupport;
+#endif
 class GpuPlatformSupportHost;
 class ImeKeyEventDispatcher;
 class InputMethod;
@@ -274,6 +281,15 @@ class COMPONENT_EXPORT(OZONE) OzonePlatform {
   static std::string GetPlatformNameForTest();
   static bool RunningOnWaylandForTest();
 
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  // Returns true if currently selected ozone platform is "wayland".
+  static bool IsWayland();
+
+  // Returns true if currently selected ozone platform is "wayland_external".
+  static bool IsWaylandExternal();
+  ///@}
+
   // Factory getters to override in subclasses. The returned objects will be
   // injected into the appropriate layer at startup. Subclasses should not
   // inject these objects themselves. Ownership is retained by OzonePlatform.
@@ -281,6 +297,9 @@ class COMPONENT_EXPORT(OZONE) OzonePlatform {
   virtual ui::OverlayManagerOzone* GetOverlayManager() = 0;
   virtual ui::CursorFactory* GetCursorFactory() = 0;
   virtual ui::InputController* GetInputController() = 0;
+#if defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+  virtual ui::GpuPlatformSupport* GetGpuPlatformSupport();
+#endif
   virtual ui::GpuPlatformSupportHost* GetGpuPlatformSupportHost() = 0;
   virtual std::unique_ptr<SystemInputInjector> CreateSystemInputInjector() = 0;
   virtual std::unique_ptr<PlatformWindow> CreatePlatformWindow(
@@ -366,6 +385,10 @@ class COMPONENT_EXPORT(OZONE) OzonePlatform {
   // implementations to ignore sandboxing and any associated launch ordering
   // issues.
   virtual void AfterSandboxEntry();
+
+#if defined(USE_NEVA_MEDIA)
+  virtual ui::VideoWindowGeometryManager* GetVideoWindowGeometryManager();
+#endif  // defined(USE_NEVA_MEDIA)
 
   // Creates a user input monitor.
   // The user input comes from I/O devices and must be handled on the IO thread.

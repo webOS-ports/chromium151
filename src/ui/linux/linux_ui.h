@@ -60,6 +60,43 @@ class WindowFrameProvider;
 enum class FrameType;
 enum class TextEditCommand;
 
+struct DisplayGeometry {
+  bool operator==(const DisplayGeometry& other) const {
+    return bounds_px == other.bounds_px && scale == other.scale;
+  }
+
+  gfx::Rect bounds_px;
+  float scale;
+};
+
+struct DisplayConfig {
+  explicit DisplayConfig(float primary_scale);
+  DisplayConfig();
+  DisplayConfig(DisplayConfig&& other);
+  DisplayConfig& operator=(DisplayConfig&& other);
+  ~DisplayConfig();
+
+  std::vector<DisplayGeometry> display_geometries;
+  float primary_scale = 1.0f;
+
+  bool operator==(const DisplayConfig& other) const {
+    return display_geometries == other.display_geometries &&
+           primary_scale == other.primary_scale;
+  }
+// TODO(neva): Remove this when Neva GCC starts supporting C++20.
+#if (__cplusplus < 202002L)
+  bool operator!=(const DisplayConfig& other) const {
+    return !(*this == other);
+  }
+#endif  // (__cplusplus < 202002L)
+};
+inline DisplayConfig::DisplayConfig(float primary_scale)
+    : primary_scale(primary_scale) {}
+inline DisplayConfig::DisplayConfig() = default;
+inline DisplayConfig::DisplayConfig(DisplayConfig&& other) = default;
+inline DisplayConfig& DisplayConfig::operator=(DisplayConfig&& other) = default;
+inline DisplayConfig::~DisplayConfig() = default;
+
 // Adapter class with targets to render like different toolkits. Set by any
 // project that wants to do linux desktop native rendering.
 class COMPONENT_EXPORT(LINUX_UI) LinuxUi {

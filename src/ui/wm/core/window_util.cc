@@ -5,6 +5,7 @@
 #include "ui/wm/core/window_util.h"
 
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
@@ -102,8 +103,10 @@ void SetWindowFullscreen(aura::Window* window,
       current_show_state == ui::mojom::WindowShowState::kFullscreen;
   if (fullscreen == is_fullscreen &&
       target_display_id == display::kInvalidDisplayId) {
+    LOG(INFO) << __PRETTY_FUNCTION__ << ": skip";
     return;
   }
+  VLOG(1) << __PRETTY_FUNCTION__ << ": fullscreen=" << fullscreen;
   if (fullscreen) {
     // We only want the current display id if the window is rooted in a display.
     // Need to check for root window, otherwise GetDisplayNearestWindow() would

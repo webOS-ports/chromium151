@@ -98,7 +98,7 @@ class VIEWS_EXPORT WidgetAXManager : public ui::AXModeObserver,
 
   // Sets a test callback that is invoked on every exit from
   // SendPendingUpdate(). If updates/events were actually sent, the optional
-  // contains the ui::AXUpdatesAndEvents; otherwise it is absl::nullopt.
+  // contains the ui::AXUpdatesAndEvents; otherwise it is std::nullopt.
   void SetUpdatesAndEventsCallbackForTesting(
       base::RepeatingCallback<
           void(const std::optional<ui::AXUpdatesAndEvents>&)> callback) {

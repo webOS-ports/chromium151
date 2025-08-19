@@ -10,6 +10,10 @@
 #include "base/containers/flat_map.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#if defined(OS_WEBOS)
+// NEVA: webOS sysroot puts drm_fourcc.h under drm/.
+#include "drm/drm_fourcc.h"
+#endif
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/native_ui_types.h"
 #include "ui/ozone/platform/wayland/common/wayland_object.h"

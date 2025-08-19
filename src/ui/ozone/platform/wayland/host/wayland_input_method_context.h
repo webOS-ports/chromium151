@@ -27,6 +27,9 @@
 namespace ui {
 
 class WaylandConnection;
+#if defined(OS_WEBOS)
+class WebosTextModelWrapper;
+#endif  // defined(OS_WEBOS)
 
 class WaylandInputMethodContext : public LinuxInputMethodContext,
                                   public VirtualKeyboardController,
@@ -43,6 +46,11 @@ class WaylandInputMethodContext : public LinuxInputMethodContext,
   ~WaylandInputMethodContext() override;
 
   void Init();
+
+#if defined(OS_WEBOS)
+  // Add or remove related text model to delegate.
+  void SetTextModelWrapper(WebosTextModelWrapper* webos_text_model_wrapper);
+#endif  // defined(OS_WEBOS)
 
   // LinuxInputMethodContext overrides:
   bool DispatchKeyEvent(const KeyEvent& key_event) override;
@@ -131,6 +139,12 @@ class WaylandInputMethodContext : public LinuxInputMethodContext,
   std::unique_ptr<ZwpTextInputV3Client> text_input_v3_client_;
   raw_ptr<ZwpTextInputV1> text_input_v1_;
   raw_ptr<ZwpTextInputV3> text_input_v3_;
+
+#if defined(OS_WEBOS)
+  // For information about finish IME composition save pointer to
+  // text_model.
+  WebosTextModelWrapper* webos_text_model_wrapper_ = nullptr;
+#endif  // defined(OS_WEBOS)
 
   // Tracks whether InputMethod in Chrome has some focus.
   bool focused_ = false;

@@ -36,7 +36,13 @@ enum TextInputFlags {
   // Whether an input field is or has been a custom password field. This is a
   // best effort heuristic to determine what a "password" is based on the
   // field's behavior.
-  TEXT_INPUT_FLAG_HAS_BEEN_CUSTOM_PASSWORD = 1 << 14
+  TEXT_INPUT_FLAG_HAS_BEEN_CUSTOM_PASSWORD = 1 << 14,
+
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  TEXT_INPUT_FLAG_SENSITIVE_ON = 1 << 15,
+  TEXT_INPUT_FLAG_SENSITIVE_OFF = 1 << 16
+  ///@}
 };
 // LINT.ThenChange(//third_party/blink/public/platform/web_text_input_type.h:WebTextInputFlags)
 

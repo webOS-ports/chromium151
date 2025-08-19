@@ -177,6 +177,10 @@ class InProcessContextFactory::PerCompositorData
     standalone_begin_frame_observer_.SetStandaloneObserver(std::move(observer));
   }
 
+#if defined(USE_NEVA_APPRUNTIME)
+  void RenderProcessGone() override {}
+#endif
+
   void SetSurfaceHandle(gpu::SurfaceHandle surface_handle) {
     surface_handle_ = surface_handle;
   }

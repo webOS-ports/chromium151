@@ -14,6 +14,7 @@
 #include "base/containers/adapters.h"
 #include "base/functional/bind.h"
 #include "base/i18n/rtl.h"
+#include "base/logging.h"
 #include "base/notreached.h"
 #include "base/observer_list.h"
 #include "base/strings/utf_string_conversions.h"
@@ -102,13 +103,18 @@ NativeWidget* CreateNativeWidget(const Widget::InitParams& params,
     return params.native_widget;
   }
 
-  const auto& factory = ViewsDelegate::GetInstance()->native_widget_factory();
-  if (!factory.is_null()) {
-    NativeWidget* native_widget = factory.Run(params, delegate);
-    if (native_widget) {
-      return native_widget;
+  // NEVA: app_shell installs no ViewsDelegate, which crashed here during
+  // tooltip init.
+  if (ViewsDelegate::GetInstance()) {
+    const auto& factory = ViewsDelegate::GetInstance()->native_widget_factory();
+    if (!factory.is_null()) {
+      NativeWidget* native_widget = factory.Run(params, delegate);
+      if (native_widget) {
+        return native_widget;
+      }
     }
   }
+
   return internal::NativeWidgetPrivate::CreateNativeWidget(delegate);
 }
 
@@ -512,7 +518,10 @@ void Widget::Init(InitParams params) {
   // ViewsDelegate::OnBeforeWidgetInit() may change `params.delegate` either by
   // setting it to null or assigning a different value to it, so handle both
   // cases.
-  ViewsDelegate::GetInstance()->OnBeforeWidgetInit(&params, this);
+  // NEVA: app_shell does not install a ViewsDelegate.
+  if (ViewsDelegate::GetInstance()) {
+    ViewsDelegate::GetInstance()->OnBeforeWidgetInit(&params, this);
+  }
 
   if (params.delegate) {
     widget_delegate_ = params.delegate->AttachWidgetAndGetHandle(this);
@@ -1197,18 +1206,21 @@ void Widget::MoveToActiveFullscreenSpace() {
 
 void Widget::Maximize() {
   if (native_widget_) {
+    VLOG(1) << __PRETTY_FUNCTION__;
     native_widget_->Maximize();
   }
 }
 
 void Widget::Minimize() {
   if (native_widget_) {
+    VLOG(1) << __PRETTY_FUNCTION__;
     native_widget_->Minimize();
   }
 }
 
 void Widget::Restore() {
   if (native_widget_) {
+    VLOG(1) << __PRETTY_FUNCTION__;
     native_widget_->Restore();
   }
 }
@@ -1237,11 +1249,14 @@ void Widget::SetFullscreen(bool fullscreen, int64_t target_display_id) {
   }
   if (IsFullscreen() == fullscreen &&
       target_display_id == display::kInvalidDisplayId) {
+    LOG(INFO) << __PRETTY_FUNCTION__ << ": fullscreen=" << fullscreen
+              << ", skip";
     return;
   }
 
   auto weak_ptr = GetWeakPtr();
   native_widget_->SetFullscreen(fullscreen, target_display_id);
+  VLOG(1) << __PRETTY_FUNCTION__ << ": fullscreen=" << fullscreen;
   if (!weak_ptr) {
     return;
   }

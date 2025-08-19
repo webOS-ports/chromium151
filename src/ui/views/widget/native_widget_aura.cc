@@ -13,6 +13,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/location.h"
+#include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/notimplemented.h"
 #include "base/strings/string_number_conversions.h"
@@ -76,7 +77,9 @@
 #include "ui/views/widget/desktop_aura/desktop_window_tree_host.h"
 #endif
 
-#if BUILDFLAG(ENABLE_DESKTOP_AURA) && BUILDFLAG(IS_OZONE)
+#if BUILDFLAG(ENABLE_DESKTOP_AURA) && BUILDFLAG(IS_OZONE) && \
+    !defined(NEVA_OZONE_PLATFORM_WAYLAND) && \
+    !defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
 #include "ui/views/widget/desktop_aura/desktop_window_tree_host_platform.h"
 #endif
 
@@ -870,6 +873,7 @@ bool NativeWidgetAura::IsVisibleOnAllWorkspaces() const {
 }
 
 void NativeWidgetAura::Maximize() {
+  VLOG(1) << __PRETTY_FUNCTION__;
   if (window_) {
     window_->SetProperty(aura::client::kShowStateKey,
                          ui::mojom::WindowShowState::kMaximized);
@@ -877,6 +881,7 @@ void NativeWidgetAura::Maximize() {
 }
 
 void NativeWidgetAura::Minimize() {
+  VLOG(1) << __PRETTY_FUNCTION__;
   if (window_) {
     window_->SetProperty(aura::client::kShowStateKey,
                          ui::mojom::WindowShowState::kMinimized);
@@ -902,8 +907,11 @@ void NativeWidgetAura::Restore() {
 void NativeWidgetAura::SetFullscreen(bool fullscreen,
                                      int64_t target_display_id) {
   if (!window_) {
+    LOG(INFO) << __PRETTY_FUNCTION__ << ": skip";
     return;
   }
+
+  VLOG(1) << __PRETTY_FUNCTION__ << ": fullscreen=" << fullscreen;
   wm::SetWindowFullscreen(window_, fullscreen, target_display_id);
 }
 
@@ -1460,7 +1468,10 @@ void NativeWidgetAura::SetInitialFocus(ui::mojom::WindowShowState show_state) {
 // Widget, public:
 
 namespace {
-#if BUILDFLAG(ENABLE_DESKTOP_AURA) && (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_OZONE))
+#if BUILDFLAG(ENABLE_DESKTOP_AURA) && \
+    (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_OZONE)) && \
+    !defined(NEVA_OZONE_PLATFORM_WAYLAND) && \
+    !defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
 void CloseWindow(aura::Window* window) {
   if (window) {
     if (Widget* widget = Widget::GetWidgetForNativeView(window)) {
@@ -1490,7 +1501,9 @@ void Widget::CloseAllWidgets() {
   EnumThreadWindows(GetCurrentThreadId(), WindowCallbackProc, 0);
 #endif
 
-#if BUILDFLAG(ENABLE_DESKTOP_AURA) && BUILDFLAG(IS_OZONE)
+#if BUILDFLAG(ENABLE_DESKTOP_AURA) && BUILDFLAG(IS_OZONE) && \
+    !defined(NEVA_OZONE_PLATFORM_WAYLAND) && \
+    !defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
   DesktopWindowTreeHostPlatform::CleanUpWindowList(CloseWindow);
 #endif
 }

@@ -17,6 +17,7 @@
 #include "ui/gl/gl_display.h"
 #include "ui/gl/gl_export.h"
 #include "ui/gl/gl_implementation.h"
+#include "components/viz/common/gpu/gpu_vsync_callback.h"
 #include "ui/gl/gl_surface_format.h"
 #include "ui/gl/gpu_preference.h"
 
@@ -217,6 +218,8 @@ class GL_EXPORT GLSurface : public base::RefCounted<GLSurface> {
   // If a gpu preference is forced (by GPU driver bug workaround, etc), return
   // it. Otherwise, return the original input preference.
   static GpuPreference AdjustGpuPreference(GpuPreference gpu_preference);
+
+  virtual void SetVSyncCallback(viz::GpuVSyncCallback callback){};
 
  protected:
   virtual ~GLSurface();

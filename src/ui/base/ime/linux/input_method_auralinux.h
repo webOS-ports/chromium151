@@ -39,11 +39,19 @@ class COMPONENT_EXPORT(UI_BASE_IME_LINUX) InputMethodAuraLinux
   bool IsCandidatePopupOpen() const override;
   VirtualKeyboardController* GetVirtualKeyboardController() override;
 
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  LinuxInputMethodContext* GetInputMethodContext() override;
+  ///@}
+
   // Overridden from ui::LinuxInputMethodContextDelegate
   gfx::AcceleratedWidget GetClientWindowKey() const override;
   void OnCommit(const std::u16string& text) override;
   void OnConfirmCompositionText(bool keep_selection) override;
   void OnDeleteSurroundingText(size_t before, size_t after) override;
+#if defined(USE_NEVA_APPRUNTIME)
+  void OnMarkToSendKeyPressEvent() override;
+#endif
   void OnPreeditChanged(const CompositionText& composition_text) override;
   void OnPreeditEnd() override;
   void OnPreeditStart() override {}
@@ -53,6 +61,21 @@ class COMPONENT_EXPORT(UI_BASE_IME_LINUX) InputMethodAuraLinux
       const gfx::Rect& screen_bounds) override;
   void OnInsertImage(const GURL& src) override;
 
+#if defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+  // NEVA: M151 passes gfx::AcceleratedWidget; use it instead of a
+  // separate handle.
+  unsigned GetAcceleratedWndHandle() const {
+    return static_cast<unsigned>(widget_);
+  }
+#endif
+
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  // Overriden from ui::NevaLinuxInputMethodContextDelegate through
+  // ui::LinuxInputMethodContextDelegate
+  bool SystemKeyboardDisabled() override;
+  ///@}
+
  protected:
   // Overridden from InputMethodBase.
   void OnWillChangeFocusedClient(TextInputClient* focused_before,
@@ -61,6 +84,11 @@ class COMPONENT_EXPORT(UI_BASE_IME_LINUX) InputMethodAuraLinux
                                 TextInputClient* focused) override;
 
  private:
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  friend class InputMethodAuraLinuxNeva;
+  ///@}
+
   // Continues to dispatch the EventType::kKeyPressed event to the client.
   // This needs to be called "before" committing the result string or
   // the composition string.
@@ -107,6 +135,10 @@ class COMPONENT_EXPORT(UI_BASE_IME_LINUX) InputMethodAuraLinux
 
   ui::CompositionText composition_;
 
+#if defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+  // Handle to accelerated window
+#endif
+
   // The current text input type used to indicates if |context_| and
   // |context_simple_| are focused or not.
   TextInputType text_input_type_;
@@ -121,6 +153,10 @@ class COMPONENT_EXPORT(UI_BASE_IME_LINUX) InputMethodAuraLinux
   // Ignore commit/preedit-changed/preedit-end signals if this time is still in
   // the future.
   base::TimeTicks suppress_non_key_input_until_;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  bool mark_send_key_press_event_ = false;
+#endif
 
   // Used for making callbacks.
   base::WeakPtrFactory<InputMethodAuraLinux> weak_ptr_factory_{this};

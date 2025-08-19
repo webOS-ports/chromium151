@@ -121,18 +121,33 @@ class WaylandPointer::Delegate {
       WaylandWindow* window,
       const gfx::PointF& location,
       base::TimeTicks timestamp,
-      wl::EventDispatchPolicy dispatch_policy) = 0;
+      wl::EventDispatchPolicy dispatch_policy
+#if defined(OS_WEBOS)
+      ,
+      int device_id = -1
+#endif  // defined(OS_WEBOS)
+      ) = 0;
   virtual void OnPointerButtonEvent(EventType evtype,
                                     int changed_button,
                                     base::TimeTicks timestamp,
                                     WaylandWindow* window,
                                     wl::EventDispatchPolicy dispatch_policy,
                                     bool allow_release_of_unpressed_button,
-                                    bool is_synthesized) = 0;
+                                    bool is_synthesized
+#if defined(OS_WEBOS)
+                                    ,
+                                    int device_id = -1
+#endif  // defined(OS_WEBOS)
+                                    ) = 0;
   virtual void OnPointerMotionEvent(const gfx::PointF& location,
                                     base::TimeTicks timestamp,
                                     wl::EventDispatchPolicy dispatch_policy,
-                                    bool is_synthesized) = 0;
+                                    bool is_synthesized
+#if defined(OS_WEBOS)
+                                    ,
+                                    int device_id = -1
+#endif  // defined(OS_WEBOS)
+                                    ) = 0;
   virtual void OnPointerAxisEvent(const gfx::Vector2dF& offset,
                                   std::optional<base::TimeTicks> timestamp,
                                   bool is_high_resolution) = 0;

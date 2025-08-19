@@ -685,6 +685,11 @@ bool BrowserAccessibilityManager::OnAccessibilityEvents(
 
   // Fire source events provided by the accessibility content source.
   for (const AXEvent& event : details.events) {
+    // NEVA: we already handled all focus events above.
+    if (delegate_ && !delegate_->AccessibilityViewHasFocus()) {
+      break;
+    }
+
     // Fire the native event.
     BrowserAccessibility* event_target = GetFromID(event.id);
     DCHECK(event_target) << "No event target for " << event.id

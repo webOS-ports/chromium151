@@ -4,6 +4,7 @@
 
 import("//build/config/ozone.gni")
 import("//build/config/ui.gni")
+import("//neva/neva.gni")
 import("//ui/gl/features.gni")
 
 assert(use_ozone)
@@ -37,6 +38,10 @@ source_set("common") {
     "//ui/ozone:ozone_base",
   ]
 
+  if (use_neva_media) {
+    public_deps += [ "//ui/ozone/common/neva" ]
+  }
+
   deps = [
     "//components/viz/common/resources:shared_image_format",
     "//ui/gl",
@@ -61,6 +66,10 @@ source_set("common") {
     ":*",
     "//ui/ozone/platform/*",
   ]
+
+  if (ozone_platform_wayland_external) {
+    visibility += [ "//ozone:ozone_wayland" ]
+  }
 
   # Out of tree platforms can depend on this.
   visibility += ozone_external_platform_visibility

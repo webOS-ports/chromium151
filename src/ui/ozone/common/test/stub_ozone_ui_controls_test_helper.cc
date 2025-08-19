@@ -25,4 +25,10 @@ OzoneUIControlsTestHelper* CreateOzoneUIControlsTestHelperCast() {
   NOTREACHED();
 }
 
+#if defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+OzoneUIControlsTestHelper* CreateOzoneUIControlsTestHelperWayland_external() {
+  return PrintErrorAndReturnNullptr();
+}
+#endif
+
 }  // namespace ui
