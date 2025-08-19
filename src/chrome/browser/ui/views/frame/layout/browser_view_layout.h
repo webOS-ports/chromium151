@@ -101,7 +101,7 @@ class BrowserViewLayout : public views::LayoutManager {
   // very small window, even on large monitors (which is why a minimum height is
   // not specified). This value is used for the main browser window only, not
   // for popups.
-  static constexpr int kMainBrowserContentsMinimumWidth = 500;
+  static constexpr int kMainBrowserContentsMinimumWidth = 480;
 
   // The minimum width of the contents area itself. Applies even when side
   // panels are open and prevents zero or negative contents sizes.
