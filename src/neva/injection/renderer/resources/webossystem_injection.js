@@ -18,6 +18,11 @@ window.webOSGetResource = function(p1, p2) {
   var a = p1 || "";
   var b = p2 || "";
 
+  if(a.indexOf("-webos/") !== -1){
+      var regex = /(file:\/\/)([a-z\.\-0-9]{1,}-webos)(\/[a-z0-9\.\-\/]{1,})/;
+      a = a.replace(regex, "$1$3");
+  }
+
   if(a.indexOf("file://") === 0){
       a = a.substring(7);
   }
