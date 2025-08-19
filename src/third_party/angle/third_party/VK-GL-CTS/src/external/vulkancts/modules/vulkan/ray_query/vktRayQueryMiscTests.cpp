@@ -1,0 +1,2567 @@
+/*-------------------------------------------------------------------------
+ * Vulkan Conformance Tests
+ * ------------------------
+ *
+ * Copyright (c) 2020 The Khronos Group Inc.
+ * Copyright (c) 2020 Valve Corporation.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ *//*!
+ * \file
+ * \brief Ray Query miscellaneous tests
+ *//*--------------------------------------------------------------------*/
+
+#include "vktRayQueryMiscTests.hpp"
+#include "vktTestCase.hpp"
+#include "vktTestCaseUtil.hpp"
+
+#include "vkRayTracingUtil.hpp"
+#include "vkBufferWithMemory.hpp"
+#include "vkObjUtil.hpp"
+#include "vkBuilderUtil.hpp"
+#include "vkTypeUtil.hpp"
+#include "vkCmdUtil.hpp"
+#include "vkBarrierUtil.hpp"
+#include "vkImageWithMemory.hpp"
+#include "vkImageUtil.hpp"
+
+#include "tcuVector.hpp"
+#include "tcuStringTemplate.hpp"
+#include "tcuImageCompare.hpp"
+
+#include "deUniquePtr.hpp"
+#include "deRandom.hpp"
+
+#include <sstream>
+#include <limits>
+#include <vector>
+#include <map>
+#include <memory>
+#include <array>
+
+namespace vkt
+{
+namespace RayQuery
+{
+
+namespace
+{
+
+using namespace vk;
+
+void checkRayQuerySupport(Context &context)
+{
+    context.requireDeviceFunctionality("VK_KHR_acceleration_structure");
+    context.requireDeviceFunctionality("VK_KHR_ray_query");
+}
+
+struct DynamicIndexingParams
+{
+    bool useFirst = false; // Make the code using the queries come before the code that initializes them.
+    bool useSpirv = false; // Use a SPIR-V shader. This allows us to test OpInBoundsAccessChain with arrays of queries.
+
+    uint32_t getLocalSizeX() const
+    {
+        return (useFirst ? 4u : 48u);
+    }
+
+    uint32_t getNumQueries() const
+    {
+        return (useFirst ? 4u : 48u);
+    }
+};
+
+class DynamicIndexingCase : public vkt::TestCase
+{
+public:
+    DynamicIndexingCase(tcu::TestContext &testCtx, const std::string &name, const DynamicIndexingParams &params);
+    virtual ~DynamicIndexingCase(void)
+    {
+    }
+
+    void initProgramsGLSL(vk::SourceCollections &programCollection) const;
+    void initProgramsSPV(vk::SourceCollections &programCollection) const;
+    virtual void initPrograms(vk::SourceCollections &programCollection) const override;
+    virtual void checkSupport(Context &context) const override;
+    virtual TestInstance *createInstance(Context &context) const override;
+
+    // This must match the shader.
+    struct InputData
+    {
+        uint32_t goodQueryIndex;
+        uint32_t proceedQueryIndex;
+    };
+
+protected:
+    const DynamicIndexingParams m_params;
+};
+
+class DynamicIndexingInstance : public vkt::TestInstance
+{
+public:
+    DynamicIndexingInstance(Context &context, const DynamicIndexingParams &params);
+    virtual ~DynamicIndexingInstance(void)
+    {
+    }
+
+    virtual tcu::TestStatus iterate(void);
+
+protected:
+    const DynamicIndexingParams m_params;
+};
+
+DynamicIndexingCase::DynamicIndexingCase(tcu::TestContext &testCtx, const std::string &name,
+                                         const DynamicIndexingParams &params)
+    : vkt::TestCase(testCtx, name)
+    , m_params(params)
+{
+}
+
+void DynamicIndexingCase::initPrograms(vk::SourceCollections &programCollection) const
+{
+    if (m_params.useSpirv)
+        initProgramsSPV(programCollection);
+    else
+        initProgramsGLSL(programCollection);
+}
+
+void DynamicIndexingCase::initProgramsSPV(vk::SourceCollections &programCollection) const
+{
+    DE_ASSERT(!m_params.useFirst);
+
+    // Equivalent to the GLSL shader, obtained from the same equivalent test but with a manual change. See below.
+    std::ostringstream comp;
+    comp << "; SPIR-V\n"
+         << "; Version: 1.4\n"
+         << "; Generator: Khronos Glslang Reference Front End; 11\n"
+         << "; Bound: 105\n"
+         << "; Schema: 0\n"
+         << "OpCapability Shader\n"
+         << "OpCapability RayQueryKHR\n"
+         << "OpExtension \"SPV_KHR_ray_query\"\n"
+         << "%1 = OpExtInstImport \"GLSL.std.450\"\n"
+         << "OpMemoryModel Logical GLSL450\n"
+         << "OpEntryPoint GLCompute %4 \"main\" %14 %19 %58 %64 %87\n"
+         << "OpExecutionMode %4 LocalSize " << m_params.getLocalSizeX() << " 1 1\n"
+         << "OpMemberDecorate %10 0 Offset 0\n"
+         << "OpMemberDecorate %10 1 Offset 4\n"
+         << "OpDecorate %11 ArrayStride 8\n"
+         << "OpDecorate %12 Block\n"
+         << "OpMemberDecorate %12 0 Offset 0\n"
+         << "OpDecorate %14 Binding 1\n"
+         << "OpDecorate %14 DescriptorSet 0\n"
+         << "OpDecorate %19 BuiltIn LocalInvocationId\n"
+         << "OpDecorate %64 Binding 0\n"
+         << "OpDecorate %64 DescriptorSet 0\n"
+         << "OpDecorate %84 ArrayStride 4\n"
+         << "OpDecorate %85 Block\n"
+         << "OpMemberDecorate %85 0 Offset 0\n"
+         << "OpDecorate %87 Binding 2\n"
+         << "OpDecorate %87 DescriptorSet 0\n"
+         << "OpDecorate %93 BuiltIn WorkgroupSize\n"
+         << "%2 = OpTypeVoid\n"
+         << "%3 = OpTypeFunction %2\n"
+         << "%6 = OpTypeInt 32 0\n"
+         << "%10 = OpTypeStruct %6 %6\n"
+         << "%11 = OpTypeRuntimeArray %10\n"
+         << "%12 = OpTypeStruct %11\n"
+         << "%13 = OpTypePointer StorageBuffer %12\n"
+         << "%14 = OpVariable %13 StorageBuffer\n"
+         << "%15 = OpTypeInt 32 1\n"
+         << "%16 = OpConstant %15 0\n"
+         << "%17 = OpTypeVector %6 3\n"
+         << "%18 = OpTypePointer Input %17\n"
+         << "%19 = OpVariable %18 Input\n"
+         << "%20 = OpConstant %6 0\n"
+         << "%21 = OpTypePointer Input %6\n"
+         << "%24 = OpTypePointer StorageBuffer %10\n"
+         << "%37 = OpConstant %6 " << m_params.getNumQueries() << "\n"
+         << "%38 = OpTypeBool\n"
+         << "%40 = OpTypeFloat 32\n"
+         << "%41 = OpTypeVector %40 3\n"
+         << "%50 = OpConstant %40 0\n"
+         << "%51 = OpConstantComposite %41 %50 %50 %50\n"
+         << "%52 = OpConstant %40 5\n"
+         << "%53 = OpConstantComposite %41 %52 %52 %50\n"
+         << "%55 = OpTypeRayQueryKHR\n"
+         << "%56 = OpTypeArray %55 %37\n"
+         << "%57 = OpTypePointer Private %56\n"
+         << "%58 = OpVariable %57 Private\n"
+         << "%60 = OpTypePointer Private %55\n"
+         << "%62 = OpTypeAccelerationStructureKHR\n"
+         << "%63 = OpTypePointer UniformConstant %62\n"
+         << "%64 = OpVariable %63 UniformConstant\n"
+         << "%66 = OpConstant %6 255\n"
+         << "%68 = OpConstant %40 0.100000001\n"
+         << "%69 = OpConstant %40 1\n"
+         << "%70 = OpConstantComposite %41 %50 %50 %69\n"
+         << "%71 = OpConstant %40 10\n"
+         << "%73 = OpConstant %15 1\n"
+         << "%84 = OpTypeRuntimeArray %6\n"
+         << "%85 = OpTypeStruct %84\n"
+         << "%86 = OpTypePointer StorageBuffer %85\n"
+         << "%87 = OpVariable %86 StorageBuffer\n"
+         << "%90 = OpConstant %6 1\n"
+         << "%91 = OpTypePointer StorageBuffer %6\n"
+         << "%93 = OpConstantComposite %17 %37 %90 %90\n"
+         << "%4 = OpFunction %2 None %3\n"
+         << "%5 = OpLabel\n"
+         << "%22 = OpAccessChain %21 %19 %20\n"
+         << "%23 = OpLoad %6 %22\n"
+         << "%25 = OpAccessChain %24 %14 %16 %23\n"
+         << "%101 = OpAccessChain %91 %25 %20\n"
+         << "%102 = OpLoad %6 %101\n"
+         << "%103 = OpAccessChain %91 %25 %90\n"
+         << "%104 = OpLoad %6 %103\n"
+         << "OpBranch %30\n"
+         << "%30 = OpLabel\n"
+         << "%98 = OpPhi %15 %16 %5 %74 %31\n"
+         << "%36 = OpBitcast %6 %98\n"
+         << "%39 = OpULessThan %38 %36 %37\n"
+         << "OpLoopMerge %32 %31 None\n"
+         << "OpBranchConditional %39 %31 %32\n"
+         << "%31 = OpLabel\n"
+         << "%49 = OpIEqual %38 %36 %102\n"
+         << "%54 = OpSelect %41 %49 %51 %53\n"
+         << "%61 = OpInBoundsAccessChain %60 %58 %98\n" // <-- Changed to OpInBoundsAccessChain here!
+         << "%65 = OpLoad %62 %64\n"
+         << "OpRayQueryInitializeKHR %61 %65 %20 %66 %54 %68 %70 %71\n"
+         << "%74 = OpIAdd %15 %98 %73\n"
+         << "OpBranch %30\n"
+         << "%32 = OpLabel\n"
+         << "OpBranch %75\n"
+         << "%75 = OpLabel\n"
+         << "%82 = OpInBoundsAccessChain %60 %58 %104\n" // <-- Changed to OpInBoundsAccessChain here!
+         << "%83 = OpRayQueryProceedKHR %38 %82\n"
+         << "OpLoopMerge %77 %76 None\n"
+         << "OpBranchConditional %83 %76 %77\n"
+         << "%76 = OpLabel\n"
+         << "%92 = OpAccessChain %91 %87 %16 %23\n"
+         << "OpStore %92 %90\n"
+         << "OpBranch %75\n"
+         << "%77 = OpLabel\n"
+         << "OpReturn\n"
+         << "OpFunctionEnd\n";
+
+    const SpirVAsmBuildOptions buildOptions(programCollection.usedVulkanVersion, SPIRV_VERSION_1_4, true);
+    programCollection.spirvAsmSources.add("comp") << comp.str() << buildOptions;
+}
+
+void DynamicIndexingCase::initProgramsGLSL(vk::SourceCollections &programCollection) const
+{
+    const vk::ShaderBuildOptions buildOptions(programCollection.usedVulkanVersion, vk::SPIRV_VERSION_1_4, 0u, true);
+
+    std::ostringstream src;
+
+    const std::string initializationLoop =
+        "    // Initialize all queries. Only goodQueryIndex will have the right origin for a hit.\n"
+        "    for (int i = 0; i < numQueries; i++) {\n"
+        "        origin = ((i == inputValues.goodQueryIndex) ? vec3(0, 0, 0) : vec3(5, 5, 0));\n"
+        "        rayQueryInitializeEXT(rayQueries[i], topLevelAS, rayFlags, cullMask, origin, tmin, direct, tmax);\n"
+        "    }\n";
+
+    const std::string usageLoop = "    // Attempt to proceed with the good query to confirm a hit.\n"
+                                  "    while (rayQueryProceedEXT(rayQueries[inputValues.proceedQueryIndex]))\n"
+                                  "        outputBlock.outputData[gl_LocalInvocationID.x] = 1u; \n";
+
+    src << "#version 460\n"
+        << "#extension GL_EXT_ray_query : require\n"
+        << "#extension GL_EXT_ray_tracing : require\n"
+        << "\n"
+        << "layout (local_size_x=" << m_params.getLocalSizeX() << ", local_size_y=1, local_size_z=1) in; \n"
+        << "\n"
+        << "struct InputData {\n"
+        << "    uint goodQueryIndex;\n"
+        << "    uint proceedQueryIndex; // Note: same index as the one above in practice.\n"
+        << "};\n"
+        << "\n"
+        << "layout (set=0, binding=0) uniform accelerationStructureEXT topLevelAS;\n"
+        << "layout (set=0, binding=1, std430) buffer InputBlock {\n"
+        << "    InputData inputData[];\n"
+        << "} inputBlock;\n"
+        << "layout (set=0, binding=2, std430) buffer OutputBlock {\n"
+        << "    uint outputData[];\n"
+        << "} outputBlock;\n"
+        << "\n"
+        << "void main()\n"
+        << "{\n"
+        << "    const uint numQueries = " << m_params.getNumQueries() << ";\n"
+        << "\n"
+        << "    const uint rayFlags = 0u; \n"
+        << "    const uint cullMask = 0xFFu;\n"
+        << "    const float tmin = 0.1;\n"
+        << "    const float tmax = 10.0;\n"
+        << "    const vec3 direct = vec3(0, 0, 1); \n"
+        << "\n"
+        << "    rayQueryEXT rayQueries[numQueries];\n"
+        << "    vec3 origin;\n"
+        << "\n"
+        << "    InputData inputValues = inputBlock.inputData[gl_LocalInvocationID.x];\n"
+        << "\n";
+
+    if (m_params.useFirst)
+    {
+        src << "    for (int i = 0; i < 2; ++i) {\n"
+            << "        if (i > 0) {\n"
+            << usageLoop << "            continue;\n"
+            << "        }\n"
+            << initializationLoop << "    }\n";
+    }
+    else
+    {
+        src << initializationLoop << "\n" << usageLoop;
+    }
+
+    src << "}\n";
+
+    programCollection.glslSources.add("comp") << glu::ComputeSource(updateRayTracingGLSL(src.str())) << buildOptions;
+}
+
+void DynamicIndexingCase::checkSupport(Context &context) const
+{
+    checkRayQuerySupport(context);
+
+    const auto &rayQueryFeaturesKHR = context.getRayQueryFeatures();
+    if (!rayQueryFeaturesKHR.rayQuery)
+        TCU_THROW(NotSupportedError, "Ray queries not supported");
+
+    const auto &accelerationStructureFeaturesKHR = context.getAccelerationStructureFeatures();
+    if (!accelerationStructureFeaturesKHR.accelerationStructure)
+        TCU_FAIL("Acceleration structures not supported but ray queries supported");
+}
+
+vkt::TestInstance *DynamicIndexingCase::createInstance(Context &context) const
+{
+    return new DynamicIndexingInstance(context, m_params);
+}
+
+DynamicIndexingInstance::DynamicIndexingInstance(Context &context, const DynamicIndexingParams &params)
+    : vkt::TestInstance(context)
+    , m_params(params)
+{
+}
+
+uint32_t getRndIndex(de::Random &rng, uint32_t size)
+{
+    DE_ASSERT(size > 0u);
+    DE_ASSERT(size <= static_cast<uint32_t>(std::numeric_limits<int>::max()));
+
+    const int iMin = 0;
+    const int iMax = static_cast<int>(size) - 1;
+
+    return static_cast<uint32_t>(rng.getInt(iMin, iMax));
+}
+
+tcu::TestStatus DynamicIndexingInstance::iterate(void)
+{
+    using InputData        = DynamicIndexingCase::InputData;
+    const auto kLocalSizeX = m_params.getLocalSizeX();
+    const auto kNumQueries = m_params.getNumQueries();
+
+    const auto &vkd   = m_context.getDeviceInterface();
+    const auto device = m_context.getDevice();
+    auto &alloc       = m_context.getDefaultAllocator();
+    const auto queue  = m_context.getUniversalQueue();
+    const auto qIndex = m_context.getUniversalQueueFamilyIndex();
+
+    de::Random rng(1604936737u);
+    std::vector<InputData> inputDataArray(kLocalSizeX);
+    std::vector<uint32_t> outputDataArray(kLocalSizeX);
+
+    // Prepare input buffer.
+    for (size_t i = 0; i < inputDataArray.size(); ++i)
+    {
+        // The two values will contain the same query index.
+        inputDataArray[i].goodQueryIndex    = getRndIndex(rng, kNumQueries);
+        inputDataArray[i].proceedQueryIndex = inputDataArray[i].goodQueryIndex;
+    }
+
+    const auto inputBufferSize = static_cast<VkDeviceSize>(de::dataSize(inputDataArray));
+    const auto inputBufferInfo = makeBufferCreateInfo(inputBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    BufferWithMemory inputBuffer(vkd, device, alloc, inputBufferInfo, MemoryRequirement::HostVisible);
+    auto &inputBufferAlloc = inputBuffer.getAllocation();
+    void *inputBufferPtr   = inputBufferAlloc.getHostPtr();
+
+    memcpy(inputBufferPtr, de::dataOrNull(inputDataArray), de::dataSize(inputDataArray));
+    flushAlloc(vkd, device, inputBufferAlloc);
+
+    // Prepare output buffer.
+    const auto outputBufferSize = static_cast<VkDeviceSize>(de::dataSize(outputDataArray));
+    const auto outputBufferInfo = makeBufferCreateInfo(outputBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    BufferWithMemory outputBuffer(vkd, device, alloc, outputBufferInfo, MemoryRequirement::HostVisible);
+    auto &outputBufferAlloc = outputBuffer.getAllocation();
+    void *outputBufferPtr   = outputBufferAlloc.getHostPtr();
+
+    memset(outputBufferPtr, 0, static_cast<size_t>(outputBufferSize));
+    flushAlloc(vkd, device, outputBufferAlloc);
+
+    // Prepare acceleration structures.
+    const auto cmdPool      = makeCommandPool(vkd, device, qIndex);
+    const auto cmdBufferPtr = allocateCommandBuffer(vkd, device, cmdPool.get(), VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+    const auto cmdBuffer    = cmdBufferPtr.get();
+    beginCommandBuffer(vkd, cmdBuffer);
+
+    de::SharedPtr<TopLevelAccelerationStructure> topLevelAS(makeTopLevelAccelerationStructure().release());
+    de::SharedPtr<BottomLevelAccelerationStructure> bottomLevelAS(makeBottomLevelAccelerationStructure().release());
+
+    AccelerationStructBufferProperties bufferProps;
+    bufferProps.props.residency = ResourceResidency::TRADITIONAL;
+
+    // These need to match the origin and direction in the shader for a hit.
+    const std::vector<tcu::Vec3> vertices = {
+        tcu::Vec3(-1.0f, -1.0f, 1.0f), tcu::Vec3(-1.0f, 1.0f, 1.0f), tcu::Vec3(1.0f, -1.0f, 1.0f),
+
+        tcu::Vec3(-1.0f, 1.0f, 1.0f),  tcu::Vec3(1.0f, 1.0f, 1.0f),  tcu::Vec3(1.0f, -1.0f, 1.0f),
+    };
+
+    bottomLevelAS->addGeometry(vertices, /*triangles*/ true, VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR);
+    bottomLevelAS->createAndBuild(vkd, device, cmdBuffer, alloc, bufferProps);
+
+    topLevelAS->addInstance(bottomLevelAS);
+    topLevelAS->createAndBuild(vkd, device, cmdBuffer, alloc, bufferProps);
+
+    // Descriptor set layout.
+    const VkShaderStageFlagBits stageBit = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    DescriptorSetLayoutBuilder layoutBuilder;
+    layoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, stageBit);
+    layoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stageBit);
+    layoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stageBit);
+    const auto descriptorSetLayout = layoutBuilder.build(vkd, device);
+
+    // Shader module.
+    const auto shaderModule = createShaderModule(vkd, device, m_context.getBinaryCollection().get("comp"), 0u);
+
+    // Pipeline layout.
+    const auto pipelineLayout = makePipelineLayout(vkd, device, descriptorSetLayout.get());
+
+    const VkPipelineShaderStageCreateInfo shaderStageInfo = {
+        VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, // VkStructureType sType;
+        nullptr,                                             // const void* pNext;
+        0u,                                                  // VkPipelineShaderStageCreateFlags flags;
+        stageBit,                                            // VkShaderStageFlagBits stage;
+        shaderModule.get(),                                  // VkShaderModule module;
+        "main",                                              // const char* pName;
+        nullptr,                                             // const VkSpecializationInfo* pSpecializationInfo;
+    };
+
+    const VkComputePipelineCreateInfo pipelineInfo = {
+        VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO, // VkStructureType sType;
+        nullptr,                                        // const void* pNext;
+        0u,                                             // VkPipelineCreateFlags flags;
+        shaderStageInfo,                                // VkPipelineShaderStageCreateInfo stage;
+        pipelineLayout.get(),                           // VkPipelineLayout layout;
+        VK_NULL_HANDLE,                                 // VkPipeline basePipelineHandle;
+        0,                                              // int32_t basePipelineIndex;
+    };
+
+    const auto pipeline = createComputePipeline(vkd, device, VK_NULL_HANDLE, &pipelineInfo);
+
+    // Create and update descriptor set.
+    DescriptorPoolBuilder poolBuilder;
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2u);
+
+    const auto descriptorPool   = poolBuilder.build(vkd, device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1u);
+    const auto descriptorSetPtr = makeDescriptorSet(vkd, device, descriptorPool.get(), descriptorSetLayout.get());
+    const auto descriptorSet    = descriptorSetPtr.get();
+
+    const VkWriteDescriptorSetAccelerationStructureKHR asWrite = {
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR, // VkStructureType sType;
+        nullptr,                                                           // const void* pNext;
+        1u,                                                                // uint32_t accelerationStructureCount;
+        topLevelAS->getPtr(), // const VkAccelerationStructureKHR* pAccelerationStructures;
+    };
+
+    const auto inputBufferWriteInfo  = makeDescriptorBufferInfo(inputBuffer.get(), 0ull, inputBufferSize);
+    const auto outputBufferWriteInfo = makeDescriptorBufferInfo(outputBuffer.get(), 0ull, outputBufferSize);
+
+    DescriptorSetUpdateBuilder updateBuilder;
+    updateBuilder.writeSingle(descriptorSet, DescriptorSetUpdateBuilder::Location::binding(0u),
+                              VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &asWrite);
+    updateBuilder.writeSingle(descriptorSet, DescriptorSetUpdateBuilder::Location::binding(1u),
+                              VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &inputBufferWriteInfo);
+    updateBuilder.writeSingle(descriptorSet, DescriptorSetUpdateBuilder::Location::binding(2u),
+                              VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &outputBufferWriteInfo);
+    updateBuilder.update(vkd, device);
+
+    // Use pipeline.
+    vkd.cmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.get());
+    vkd.cmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipelineLayout.get(), 0u, 1u, &descriptorSet,
+                              0u, nullptr);
+    vkd.cmdDispatch(cmdBuffer, 1u, 1u, 1u);
+
+    const auto memBarrier = makeMemoryBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+    vkd.cmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0u, 1u,
+                           &memBarrier, 0u, nullptr, 0u, nullptr);
+
+    // Submit recorded commands.
+    endCommandBuffer(vkd, cmdBuffer);
+    submitCommandsAndWait(vkd, device, queue, cmdBuffer);
+
+    // Check output buffer.
+    invalidateAlloc(vkd, device, outputBufferAlloc);
+    memcpy(de::dataOrNull(outputDataArray), outputBufferPtr, de::dataSize(outputDataArray));
+
+    for (size_t i = 0; i < outputDataArray.size(); ++i)
+    {
+        constexpr auto expected = 1u;
+        const auto &value       = outputDataArray[i];
+
+        if (value != expected)
+        {
+            std::ostringstream msg;
+            msg << "Unexpected value found at position " << i << " in the output buffer: expected " << expected
+                << " but found " << value;
+            TCU_FAIL(msg.str());
+        }
+    }
+
+    return tcu::TestStatus::pass("Pass");
+}
+
+using namespace tcu;
+
+struct HelperInvocationsParamDefs
+{
+    enum DfStyle
+    {
+        Regular,
+        Coarse,
+        Fine
+    };
+
+    enum FuncType
+    {
+        LINEAR,
+        QUADRATIC,
+        CUBIC
+    };
+
+    typedef float (*F1D)(float);
+    struct func2D_t
+    {
+        F1D first;
+        F1D second;
+    };
+    struct func2D_mask
+    {
+        FuncType first;
+        FuncType second;
+    };
+    struct test_mode_t
+    {
+        func2D_t funcs;
+        func2D_mask types;
+    };
+
+    static float linear(float x)
+    {
+        return x;
+    }
+    static float quadratic(float x)
+    {
+        return (x * x);
+    }
+    static float cubic(float x)
+    {
+        return (x * x * x * 0.5f);
+    }
+
+    static float combine(const func2D_t &f2D, float x, float y)
+    {
+        DE_ASSERT((f2D.first) && (f2D.second));
+        const float z = ((*f2D.first)(x) + (*f2D.second)(y)) / 2.0f;
+        return z;
+    }
+
+    static constexpr func2D_t FUNC_LINEAR_QUADRATIC = {linear, quadratic};
+    static constexpr func2D_t FUNC_LINEAR_CUBIC     = {linear, cubic};
+    static constexpr func2D_t FUNC_CUBIC_QUADRATIC  = {cubic, quadratic};
+#ifdef ENABLE_ALL_HELPER_COMBINATIONS
+    static constexpr func2D_t FUNC_LINEAR_LINEAR       = {linear, linear};
+    static constexpr func2D_t FUNC_QUADRATIC_LINEAR    = {quadratic, linear};
+    static constexpr func2D_t FUNC_QUADRATIC_QUADRATIC = {quadratic, quadratic};
+    static constexpr func2D_t FUNC_QUADRATIC_CUBIC     = {quadratic, cubic};
+    static constexpr func2D_t FUNC_CUBIC_LINEAR        = {cubic, linear};
+    static constexpr func2D_t FUNC_CUBIC_CUBIC         = {cubic, cubic};
+#endif
+
+    static constexpr func2D_mask MASK_LINEAR_QUADRATIC = {LINEAR, QUADRATIC};
+    static constexpr func2D_mask MASK_LINEAR_CUBIC     = {LINEAR, CUBIC};
+    static constexpr func2D_mask MASK_CUBIC_QUADRATIC  = {CUBIC, QUADRATIC};
+#ifdef ENABLE_ALL_HELPER_COMBINATIONS
+    static constexpr func2D_mask MASK_LINEAR_LINEAR       = {LINEAR, LINEAR};
+    static constexpr func2D_mask MASK_QUADRATIC_LINEAR    = {QUADRATIC, LINEAR};
+    static constexpr func2D_mask MASK_QUADRATIC_QUADRATIC = {QUADRATIC, QUADRATIC};
+    static constexpr func2D_mask MASK_QUADRATIC_CUBIC     = {QUADRATIC, CUBIC};
+    static constexpr func2D_mask MASK_CUBIC_LINEAR        = {CUBIC, LINEAR};
+    static constexpr func2D_mask MASK_CUBIC_CUBIC         = {CUBIC, CUBIC};
+#endif
+
+    static constexpr test_mode_t MODE_LINEAR_QUADRATIC = {FUNC_LINEAR_QUADRATIC, MASK_LINEAR_QUADRATIC};
+    static constexpr test_mode_t MODE_LINEAR_CUBIC     = {FUNC_LINEAR_CUBIC, MASK_LINEAR_CUBIC};
+    static constexpr test_mode_t MODE_CUBIC_QUADRATIC  = {FUNC_CUBIC_QUADRATIC, MASK_CUBIC_QUADRATIC};
+#ifdef ENABLE_ALL_HELPER_COMBINATIONS
+    static constexpr test_mode_t MODE_LINEAR_LINEAR       = {FUNC_LINEAR_LINEAR, MASK_LINEAR_LINEAR};
+    static constexpr test_mode_t MODE_QUADRATIC_LINEAR    = {FUNC_QUADRATIC_LINEAR, MASK_QUADRATIC_LINEAR};
+    static constexpr test_mode_t MODE_QUADRATIC_QUADRATIC = {FUNC_QUADRATIC_QUADRATIC, MASK_QUADRATIC_QUADRATIC};
+    static constexpr test_mode_t MODE_QUADRATIC_CUBIC     = {FUNC_QUADRATIC_CUBIC, MASK_QUADRATIC_CUBIC};
+    static constexpr test_mode_t MODE_CUBIC_LINEAR        = {FUNC_CUBIC_LINEAR, MASK_CUBIC_LINEAR};
+    static constexpr test_mode_t MODE_CUBIC_CUBIC         = {FUNC_CUBIC_CUBIC, MASK_CUBIC_CUBIC};
+#endif
+};
+
+constexpr HelperInvocationsParamDefs::test_mode_t HelperInvocationsParamDefs::MODE_LINEAR_QUADRATIC;
+constexpr HelperInvocationsParamDefs::test_mode_t HelperInvocationsParamDefs::MODE_LINEAR_CUBIC;
+constexpr HelperInvocationsParamDefs::test_mode_t HelperInvocationsParamDefs::MODE_CUBIC_QUADRATIC;
+#ifdef ENABLE_ALL_HELPER_COMBINATIONS
+constexpr HelperInvocationsParamDefs::test_mode_t HelperInvocationsParamDefs::MODE_LINEAR_LINEAR;
+constexpr HelperInvocationsParamDefs::test_mode_t HelperInvocationsParamDefs::MODE_QUADRATIC_LINEAR;
+constexpr HelperInvocationsParamDefs::test_mode_t HelperInvocationsParamDefs::MODE_QUADRATIC_QUADRATIC;
+constexpr HelperInvocationsParamDefs::test_mode_t HelperInvocationsParamDefs::MODE_QUADRATIC_CUBIC;
+constexpr HelperInvocationsParamDefs::test_mode_t HelperInvocationsParamDefs::MODE_CUBIC_LINEAR;
+constexpr HelperInvocationsParamDefs::test_mode_t HelperInvocationsParamDefs::MODE_CUBIC_CUBIC;
+#endif
+
+struct HelperInvocationsParams : HelperInvocationsParamDefs
+{
+    test_mode_t mode;
+    std::pair<uint32_t, uint32_t> screen;
+    std::pair<uint32_t, uint32_t> model;
+    DfStyle style;
+    bool buildGPU;
+};
+
+class HelperInvocationsCase : public TestCase
+{
+public:
+    HelperInvocationsCase(TestContext &testCtx, const HelperInvocationsParams &params, const std::string &name);
+    virtual void initPrograms(SourceCollections &programs) const override;
+    virtual TestInstance *createInstance(Context &context) const override;
+    virtual void checkSupport(Context &context) const override;
+
+private:
+    HelperInvocationsParams m_params;
+};
+
+class HelperInvocationsInstance : public TestInstance
+{
+public:
+    typedef de::MovePtr<TopLevelAccelerationStructure> TopLevelAccelerationStructurePtr;
+    enum Points
+    {
+        Vertices,
+        Coords,
+        Centers
+    };
+
+    HelperInvocationsInstance(Context &context, const HelperInvocationsParams &params);
+    virtual TestStatus iterate(void) override;
+    static std::vector<Vec3> createSurface(const Points points, const uint32_t divX, const uint32_t divY,
+                                           const HelperInvocationsParams::func2D_t &f2D, bool clockWise = false);
+    VkImageCreateInfo makeImgInfo(uint32_t queueFamilyIndexCount, const uint32_t *pQueueFamilyIndices) const;
+    Move<VkPipeline> makePipeline(const DeviceInterface &vk, const VkDevice device,
+                                  const VkPipelineLayout pipelineLayout, const VkShaderModule vertexShader,
+                                  const VkShaderModule fragmentShader, const VkRenderPass renderPass) const;
+    de::MovePtr<BufferWithMemory> makeResultBuff(const DeviceInterface &vk, const VkDevice device,
+                                                 Allocator &allocator) const;
+    de::MovePtr<BufferWithMemory> makeAttribBuff(const DeviceInterface &vk, const VkDevice device, Allocator &allocator,
+                                                 const std::vector<Vec3> &vertices, const std::vector<Vec3> &coords,
+                                                 const std::vector<Vec3> &centers) const;
+    TopLevelAccelerationStructurePtr createAccStructs(const DeviceInterface &vk, const VkDevice device,
+                                                      Allocator &allocator, const VkCommandBuffer cmdBuffer,
+                                                      const std::vector<Vec3> coords) const;
+
+protected:
+    bool verifyResult(const DeviceInterface &vk, const VkDevice device, const BufferWithMemory &buffer) const;
+    bool onlyPipeline();
+
+private:
+    VkFormat m_format;
+    HelperInvocationsParams m_params;
+};
+
+HelperInvocationsCase::HelperInvocationsCase(TestContext &testCtx, const HelperInvocationsParams &params,
+                                             const std::string &name)
+    : TestCase(testCtx, name)
+    , m_params(params)
+{
+}
+
+TestInstance *HelperInvocationsCase::createInstance(Context &context) const
+{
+    return new HelperInvocationsInstance(context, m_params);
+}
+
+void HelperInvocationsCase::checkSupport(Context &context) const
+{
+    checkRayQuerySupport(context);
+
+    const auto &rayQueryFeaturesKHR              = context.getRayQueryFeatures();
+    const auto &accelerationStructureFeaturesKHR = context.getAccelerationStructureFeatures();
+
+    if (!rayQueryFeaturesKHR.rayQuery)
+        TCU_THROW(NotSupportedError, "Ray queries not supported");
+
+    if (!accelerationStructureFeaturesKHR.accelerationStructure)
+        TCU_THROW(NotSupportedError, "Acceleration structures not supported but ray queries supported");
+
+    if (m_params.buildGPU == false && accelerationStructureFeaturesKHR.accelerationStructureHostCommands == false)
+        TCU_THROW(NotSupportedError,
+                  "Requires VkPhysicalDeviceAccelerationStructureFeaturesKHR::accelerationStructureHostCommands");
+}
+
+void HelperInvocationsCase::initPrograms(SourceCollections &programs) const
+{
+    const ShaderBuildOptions buildOptions(programs.usedVulkanVersion, vk::SPIRV_VERSION_1_4, 0u, true);
+
+    std::string vertexCode(
+        R"(
+    #version 460
+    #extension GL_EXT_ray_query : require
+    #extension GL_EXT_ray_tracing : require
+
+    layout(location = 0) in vec3 pos;
+    layout(location = 1) in vec3 inCoord;
+    layout(location = 2) in vec3 inCenter;
+    layout(location = 0) out vec3 outCoord;
+    layout(location = 1) out vec3 outCenter;
+
+    void main()
+    {
+        gl_PointSize = 1.0;
+        gl_Position = vec4(pos.xyz, 1.0);
+        outCoord = inCoord;
+        outCenter = inCenter;
+    }
+    )");
+    programs.glslSources.add("vert") << glu::VertexSource(vertexCode) << buildOptions;
+
+    StringTemplate fragmentCode(
+        R"(
+    #version 460
+    #extension GL_EXT_ray_query : require
+    #extension GL_EXT_ray_tracing : require
+
+    #define LINEAR    0
+    #define QUADRATIC 1
+    #define CUBIC     2
+
+    layout(push_constant) uniform PC {
+        int fun_x;
+        int fun_y;
+        float width;
+        float height;
+    } params;
+    layout(location = 0) in vec3 coord;
+    layout(location = 1) in vec3 center;
+    layout(location = 0) out vec4 color;
+    layout(set = 0, binding = 0) uniform accelerationStructureEXT topLevelAS;
+
+    float d_linear   (in float t) { return 0.5; }            // (x/2)'
+    float d_quadratic(in float t) { return t; }                // (x^2/2)'
+    float d_cubic    (in float t) { return 0.75 * t * t; }  // (x^3/4)'
+
+    float derivate(in int fun, in float u)
+    {
+        switch (fun)
+        {
+            case LINEAR: return d_linear(u);
+            case QUADRATIC: return d_quadratic(u);
+            case CUBIC: return d_cubic(u);
+        }
+        return -1.0;
+    }
+    void main()
+    {
+        const uint rayFlags = 0u;
+        const uint cullMask = 0xFFu;
+        const float tmin = 0.0;
+        const float tmax = 10.0;
+        const vec3 direct = vec3(0.0, 0.0, 1.0);
+        const vec3 origin = vec3(center.x, center.y, -1.0);
+
+        rayQueryEXT query;
+        rayQueryInitializeEXT(query, topLevelAS, rayFlags, cullMask, origin, tmin, direct, tmax);
+
+        color = vec4(-1.0, -1.0, -1.0, -1.0);
+
+        while (rayQueryProceedEXT(query)) {
+            if (rayQueryGetIntersectionTypeEXT(query, false)
+ == gl_RayQueryCandidateIntersectionTriangleEXT)
+            {
+                float vx = derivate(params.fun_x, coord.x);
+                float vy = derivate(params.fun_y, coord.y);
+                float dx = ${DFDX}(coord.x);
+                float dy = ${DFDY}(coord.y);
+                float dzx = ${DFDX}(coord.z);
+                float dzy = ${DFDY}(coord.z);
+                float dfx = dzx / dx;
+                float dfy = dzy / dy;
+                float cx = dfx - vx;
+                float cy = dfy - vy;
+
+                color = vec4(cx, cy, sign(dx-abs(cx)), sign(dy-abs(cy)));
+            }
+            else
+            {
+                color = vec4(0.0, 0.0, -1.0, -1.0);
+            }
+            rayQueryConfirmIntersectionEXT(query);
+        }
+    })");
+
+    std::map<std::string, std::string> m;
+    switch (m_params.style)
+    {
+    case HelperInvocationsParams::DfStyle::Regular:
+        m["DFDX"] = "dFdx";
+        m["DFDY"] = "dFdy";
+        break;
+    case HelperInvocationsParams::DfStyle::Coarse:
+        m["DFDX"] = "dFdxCoarse";
+        m["DFDY"] = "dFdyCoarse";
+        break;
+    case HelperInvocationsParams::DfStyle::Fine:
+        m["DFDX"] = "dFdxFine";
+        m["DFDY"] = "dFdyFine";
+        break;
+    }
+
+    programs.glslSources.add("frag") << glu::FragmentSource(fragmentCode.specialize(m)) << buildOptions;
+}
+
+HelperInvocationsInstance::HelperInvocationsInstance(Context &context, const HelperInvocationsParams &params)
+    : TestInstance(context)
+    , m_format(VK_FORMAT_R32G32B32A32_SFLOAT)
+    , m_params(params)
+{
+}
+
+std::vector<Vec3> HelperInvocationsInstance::createSurface(const Points points, const uint32_t divX,
+                                                           const uint32_t divY,
+                                                           const HelperInvocationsParams::func2D_t &f2D, bool clockWise)
+{
+    std::vector<Vec3> s;
+    const float dx = (points == Points::Vertices ? 2.0f : 1.0f) / float(divX);
+    const float dy = (points == Points::Vertices ? 2.0f : 1.0f) / float(divY);
+    // Z is always scaled to range (0,1)
+    auto z = [&](const uint32_t n, const uint32_t m) -> float
+    {
+        const float x = float(n) / float(divX);
+        const float y = float(m) / float(divY);
+        return HelperInvocationsParams::combine(f2D, x, y);
+    };
+    float y = (points == Points::Vertices) ? -1.0f : 0.0f;
+    for (uint32_t j = 0; j < divY; ++j)
+    {
+        const float ny = ((j + 1) < divY) ? (y + dy) : 1.f;
+        float x        = (points == Points::Vertices) ? -1.0f : 0.0f;
+
+        for (uint32_t i = 0; i < divX; ++i)
+        {
+            const float nx = ((i + 1) < divX) ? (x + dx) : 1.f;
+
+            const Vec3 p0(x, y, z(i, j));
+            const Vec3 p1(nx, y, z(i + 1, j));
+            const Vec3 p2(nx, ny, z(i + 1, j + 1));
+            const Vec3 p3(x, ny, z(i, j + 1));
+
+            if (points == Points::Centers)
+            {
+                const float cx1 = (p0.x() + p1.x() + p2.x()) / 3.0f;
+                const float cy1 = (p0.y() + p1.y() + p2.y()) / 3.0f;
+                const float cz1 = (p0.z() + p1.z() + p2.z()) / 3.0f;
+                const float cx2 = (p0.x() + p2.x() + p3.x()) / 3.0f;
+                const float cy2 = (p0.y() + p2.y() + p3.y()) / 3.0f;
+                const float cz2 = (p0.z() + p2.z() + p3.z()) / 3.0f;
+
+                s.emplace_back(cx1, cy1, cz1);
+                s.emplace_back(cx1, cy1, cz1);
+                s.emplace_back(cx1, cy1, cz1);
+                s.emplace_back(cx2, cy2, cz2);
+                s.emplace_back(cx2, cy2, cz2);
+                s.emplace_back(cx2, cy2, cz2);
+            }
+            else if (clockWise)
+            {
+                s.push_back(p0);
+                s.push_back(p3);
+                s.push_back(p2);
+                s.push_back(p0);
+                s.push_back(p2);
+                s.push_back(p1);
+            }
+            else
+            {
+                s.push_back(p0);
+                s.push_back(p1);
+                s.push_back(p2);
+                s.push_back(p2);
+                s.push_back(p3);
+                s.push_back(p0);
+            }
+
+            x = nx;
+        }
+        y = ny;
+    }
+    return s;
+}
+
+VkImageCreateInfo HelperInvocationsInstance::makeImgInfo(uint32_t queueFamilyIndexCount,
+                                                         const uint32_t *pQueueFamilyIndices) const
+{
+    const VkImageUsageFlags usage =
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    return {
+        VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,                 // sType;
+        nullptr,                                             // pNext;
+        VkImageCreateFlags(0),                               // flags;
+        VK_IMAGE_TYPE_2D,                                    // imageType;
+        m_format,                                            // format;
+        {m_params.screen.first, m_params.screen.second, 1u}, // extent;
+        1u,                                                  // mipLevels;
+        1u,                                                  // arrayLayers;
+        VK_SAMPLE_COUNT_1_BIT,                               // samples;
+        VK_IMAGE_TILING_OPTIMAL,                             // tiling;
+        usage,                                               // usage;
+        VK_SHARING_MODE_EXCLUSIVE,                           // sharingMode;
+        queueFamilyIndexCount,                               // queueFamilyIndexCount;
+        pQueueFamilyIndices,                                 // pQueueFamilyIndices;
+        VK_IMAGE_LAYOUT_UNDEFINED                            // initialLayout;
+    };
+}
+
+Move<VkPipeline> HelperInvocationsInstance::makePipeline(const DeviceInterface &vk, const VkDevice device,
+                                                         const VkPipelineLayout pipelineLayout,
+                                                         const VkShaderModule vertexShader,
+                                                         const VkShaderModule fragmentShader,
+                                                         const VkRenderPass renderPass) const
+{
+    DE_ASSERT(sizeof(Vec3) == mapVkFormat(VK_FORMAT_R32G32B32_SFLOAT).getPixelSize());
+
+    const std::vector<VkViewport> viewports{makeViewport(m_params.screen.first, m_params.screen.second)};
+    const std::vector<VkRect2D> scissors{makeRect2D(m_params.screen.first, m_params.screen.second)};
+
+    const VkVertexInputBindingDescription vertexInputBindingDescription{
+        0u,                          // uint32_t             binding
+        uint32_t(sizeof(Vec3) * 3u), // uint32_t             stride
+        VK_VERTEX_INPUT_RATE_VERTEX, // VkVertexInputRate    inputRate
+    };
+
+    const VkVertexInputAttributeDescription vertexInputAttributeDescription[]{
+        {
+            0u,                         // uint32_t    location
+            0u,                         // uint32_t    binding
+            VK_FORMAT_R32G32B32_SFLOAT, // VkFormat    format
+            0u                          // uint32_t    offset
+        },                              // vertices
+        {
+            1u,                         // uint32_t    location
+            0u,                         // uint32_t    binding
+            VK_FORMAT_R32G32B32_SFLOAT, // VkFormat    format
+            uint32_t(sizeof(Vec3))      // uint32_t    offset
+        },                              // coords
+        {
+            2u,                         // uint32_t    location
+            0u,                         // uint32_t    binding
+            VK_FORMAT_R32G32B32_SFLOAT, // VkFormat    format
+            uint32_t(sizeof(Vec3) * 2u) // uint32_t    offset
+        }                               // centers
+    };
+
+    const VkPipelineVertexInputStateCreateInfo vertexInputStateCreateInfo{
+        VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, // VkStructureType                             sType
+        nullptr,                                                   // const void*                                 pNext
+        (VkPipelineVertexInputStateCreateFlags)0,                  // VkPipelineVertexInputStateCreateFlags       flags
+        1u,                             // uint32_t                                    vertexBindingDescriptionCount
+        &vertexInputBindingDescription, // const VkVertexInputBindingDescription*      pVertexBindingDescriptions
+        DE_LENGTH_OF_ARRAY(
+            vertexInputAttributeDescription), // uint32_t                                    vertexAttributeDescriptionCount
+        vertexInputAttributeDescription // const VkVertexInputAttributeDescription*    pVertexAttributeDescriptions
+    };
+
+    return makeGraphicsPipeline(vk, device, pipelineLayout, vertexShader, VK_NULL_HANDLE, VK_NULL_HANDLE,
+                                VK_NULL_HANDLE, fragmentShader, renderPass, viewports, scissors,
+                                VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0u, 0u, &vertexInputStateCreateInfo);
+}
+
+de::MovePtr<TopLevelAccelerationStructure> HelperInvocationsInstance::createAccStructs(
+    const DeviceInterface &vk, const VkDevice device, Allocator &allocator, const VkCommandBuffer cmdBuffer,
+    const std::vector<Vec3> coords) const
+{
+    const VkAccelerationStructureBuildTypeKHR buildType = m_params.buildGPU ?
+                                                              VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR :
+                                                              VK_ACCELERATION_STRUCTURE_BUILD_TYPE_HOST_KHR;
+    de::MovePtr<TopLevelAccelerationStructure> tlas     = makeTopLevelAccelerationStructure();
+    de::MovePtr<BottomLevelAccelerationStructure> blas  = makeBottomLevelAccelerationStructure();
+
+    AccelerationStructBufferProperties bufferProps;
+    bufferProps.props.residency = ResourceResidency::TRADITIONAL;
+
+    blas->setBuildType(buildType);
+    blas->addGeometry(coords, true, VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_KHR);
+    blas->createAndBuild(vk, device, cmdBuffer, allocator, bufferProps);
+
+    tlas->setBuildType(buildType);
+    tlas->addInstance(de::SharedPtr<BottomLevelAccelerationStructure>(blas.release()));
+    tlas->createAndBuild(vk, device, cmdBuffer, allocator, bufferProps);
+
+    return tlas;
+}
+
+de::MovePtr<BufferWithMemory> HelperInvocationsInstance::makeAttribBuff(const DeviceInterface &vk,
+                                                                        const VkDevice device, Allocator &allocator,
+                                                                        const std::vector<Vec3> &vertices,
+                                                                        const std::vector<Vec3> &coords,
+                                                                        const std::vector<Vec3> &centers) const
+{
+    DE_ASSERT(sizeof(Vec3) == mapVkFormat(VK_FORMAT_R32G32B32_SFLOAT).getPixelSize());
+    const uint32_t count = uint32_t(vertices.size());
+    DE_ASSERT(count && (count == coords.size()) && (count == centers.size()));
+    const VkDeviceSize bufferSize             = 3 * count * sizeof(Vec3);
+    const VkBufferCreateInfo bufferCreateInfo = makeBufferCreateInfo(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    de::MovePtr<BufferWithMemory> buffer(new BufferWithMemory(
+        vk, device, allocator, bufferCreateInfo, MemoryRequirement::Coherent | MemoryRequirement::HostVisible));
+
+    Allocation &allocation = buffer->getAllocation();
+    Vec3 *data             = static_cast<Vec3 *>(allocation.getHostPtr());
+    for (uint32_t c = 0; c < count; ++c)
+    {
+        data[3 * c]     = vertices.at(c);
+        data[3 * c + 1] = coords.at(c);
+        data[3 * c + 2] = centers.at(c);
+    }
+    flushMappedMemoryRange(vk, device, allocation.getMemory(), 0u, bufferSize);
+
+    return buffer;
+}
+
+de::MovePtr<BufferWithMemory> HelperInvocationsInstance::makeResultBuff(const DeviceInterface &vk,
+                                                                        const VkDevice device,
+                                                                        Allocator &allocator) const
+{
+    const TextureFormat texFormat = mapVkFormat(m_format);
+    const VkDeviceSize bufferSize = (m_params.screen.first * m_params.screen.second * texFormat.getPixelSize());
+    const VkBufferCreateInfo bufferCreateInfo = makeBufferCreateInfo(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    de::MovePtr<BufferWithMemory> buffer(new BufferWithMemory(
+        vk, device, allocator, bufferCreateInfo, MemoryRequirement::Coherent | MemoryRequirement::HostVisible));
+
+    Allocation &allocation = buffer->getAllocation();
+    PixelBufferAccess pixels(texFormat, m_params.screen.first, m_params.screen.second, 1u, allocation.getHostPtr());
+
+    for (uint32_t y = 0; y < m_params.screen.second; ++y)
+    {
+        for (uint32_t x = 0; x < m_params.screen.first; ++x)
+        {
+            pixels.setPixel(Vec4(0.0f, 0.0f, 0.0f, -1.0f), x, y);
+        }
+    }
+    flushMappedMemoryRange(vk, device, allocation.getMemory(), 0u, bufferSize);
+
+    return buffer;
+}
+
+bool HelperInvocationsInstance::verifyResult(const DeviceInterface &vk, const VkDevice device,
+                                             const BufferWithMemory &buffer) const
+{
+    int invalid       = 0;
+    Allocation &alloc = buffer.getAllocation();
+    invalidateMappedMemoryRange(vk, device, alloc.getMemory(), 0u, VK_WHOLE_SIZE);
+    ConstPixelBufferAccess pixels(mapVkFormat(m_format), m_params.screen.first, m_params.screen.second, 1u,
+                                  alloc.getHostPtr());
+
+    for (uint32_t y = 0; y < m_params.screen.second; ++y)
+    {
+        for (uint32_t x = 0; x < m_params.screen.first; ++x)
+        {
+            const Vec4 px = pixels.getPixel(x, y);
+            if (px.z() < 0.0f || px.w() < 0.0f)
+                invalid += 1;
+        }
+    }
+
+    return (0 == invalid);
+}
+
+VkWriteDescriptorSetAccelerationStructureKHR makeAccStructDescriptorWrite(const VkAccelerationStructureKHR *ptr,
+                                                                          uint32_t count = 1u)
+{
+    return {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR, // VkStructureType sType;
+            nullptr,                                                           // const void* pNext;
+            count,                                                             // uint32_t accelerationStructureCount;
+            ptr}; // const VkAccelerationStructureKHR* pAccelerationStructures;
+};
+
+TestStatus HelperInvocationsInstance::iterate(void)
+{
+    const VkDevice device           = m_context.getDevice();
+    const DeviceInterface &vk       = m_context.getDeviceInterface();
+    Allocator &allocator            = m_context.getDefaultAllocator();
+    const uint32_t queueFamilyIndex = m_context.getUniversalQueueFamilyIndex();
+    const VkQueue queue             = m_context.getUniversalQueue();
+
+    const VkRect2D renderArea               = makeRect2D(m_params.screen.first, m_params.screen.second);
+    const VkImageCreateInfo imageCreateInfo = makeImgInfo(1, &queueFamilyIndex);
+    const de::MovePtr<ImageWithMemory> image(
+        new ImageWithMemory(vk, device, allocator, imageCreateInfo, MemoryRequirement::Any));
+    const VkImageSubresourceRange imageSubresourceRange =
+        makeImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0u, 1u, 0, 1u);
+    const Move<VkImageView> view =
+        makeImageView(vk, device, **image, VK_IMAGE_VIEW_TYPE_2D, m_format, imageSubresourceRange);
+    const Move<VkRenderPass> renderPass = makeRenderPass(vk, device, m_format);
+    const Move<VkFramebuffer> frameBuffer =
+        makeFramebuffer(vk, device, *renderPass, *view, m_params.screen.first, m_params.screen.second);
+    const de::MovePtr<BufferWithMemory> resultBuffer = makeResultBuff(vk, device, allocator);
+    const VkImageSubresourceLayers imageSubresourceLayers =
+        makeImageSubresourceLayers(VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u);
+    const VkBufferImageCopy bufferCopyImageRegion = makeBufferImageCopy(
+        makeExtent3D(UVec3(m_params.screen.first, m_params.screen.second, 1u)), imageSubresourceLayers);
+
+    const HelperInvocationsParams::func2D_t funcs = m_params.mode.funcs;
+    struct PushConstants
+    {
+        int fun_x, fun_y;
+        float width, height;
+    } const pushConstants{m_params.mode.types.first, m_params.mode.types.second, (float)m_params.screen.first,
+                          (float)m_params.screen.second};
+    const VkPushConstantRange pushConstantRange{VK_SHADER_STAGE_FRAGMENT_BIT, 0u, uint32_t(sizeof(pushConstants))};
+    const std::vector<Vec3> vertices =
+        createSurface(Points::Vertices, m_params.model.first, m_params.model.second, funcs);
+    const std::vector<Vec3> coords = createSurface(Points::Coords, m_params.model.first, m_params.model.second, funcs);
+    const std::vector<Vec3> centers =
+        createSurface(Points::Centers, m_params.model.first, m_params.model.second, funcs);
+    const de::MovePtr<BufferWithMemory> attribBuffer = makeAttribBuff(vk, device, allocator, vertices, coords, centers);
+
+    TopLevelAccelerationStructurePtr topAccStruct{};
+    Move<VkDescriptorSetLayout> descriptorLayout =
+        DescriptorSetLayoutBuilder()
+            .addSingleBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build(vk, device);
+    Move<VkDescriptorPool> descriptorPool =
+        DescriptorPoolBuilder()
+            .addType(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR)
+            .build(vk, device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1u);
+    Move<VkDescriptorSet> descriptorSet = makeDescriptorSet(vk, device, *descriptorPool, *descriptorLayout);
+
+    Move<VkShaderModule> vertexShader = createShaderModule(vk, device, m_context.getBinaryCollection().get("vert"), 0u);
+    Move<VkShaderModule> fragmentShader =
+        createShaderModule(vk, device, m_context.getBinaryCollection().get("frag"), 0u);
+    Move<VkPipelineLayout> pipelineLayout =
+        makePipelineLayout(vk, device, 1u, &descriptorLayout.get(), 1u, &pushConstantRange);
+    Move<VkPipeline> pipeline = makePipeline(vk, device, *pipelineLayout, *vertexShader, *fragmentShader, *renderPass);
+    const Move<VkCommandPool> cmdPool =
+        createCommandPool(vk, device, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT, queueFamilyIndex);
+    const Move<VkCommandBuffer> cmdBuffer =
+        allocateCommandBuffer(vk, device, *cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+    const Vec4 clearColor(0.1f, 0.2f, 0.3f, 0.4f);
+    const VkImageMemoryBarrier postDrawImageBarrier = makeImageMemoryBarrier(
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, **image, imageSubresourceRange);
+    const VkMemoryBarrier postCopyMemoryBarrier =
+        makeMemoryBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+
+    beginCommandBuffer(vk, *cmdBuffer, 0u);
+
+    topAccStruct              = createAccStructs(vk, device, allocator, *cmdBuffer, coords);
+    const auto accStructWrite = makeAccStructDescriptorWrite(topAccStruct->getPtr());
+    DescriptorSetUpdateBuilder()
+        .writeSingle(*descriptorSet, DescriptorSetUpdateBuilder::Location::binding(0u),
+                     VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &accStructWrite)
+        .update(vk, device);
+
+    vk.cmdBindPipeline(*cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipeline);
+    vk.cmdBindVertexBuffers(*cmdBuffer, 0u, 1u, &static_cast<const VkBuffer &>(**attribBuffer),
+                            &static_cast<const VkDeviceSize &>(0u));
+    vk.cmdPushConstants(*cmdBuffer, *pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0u, uint32_t(sizeof(pushConstants)),
+                        &pushConstants);
+    vk.cmdBindDescriptorSets(*cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *pipelineLayout, 0u, 1u, &descriptorSet.get(),
+                             0u, nullptr);
+
+    beginRenderPass(vk, *cmdBuffer, *renderPass, *frameBuffer, renderArea, clearColor);
+    vk.cmdDraw(*cmdBuffer, uint32_t(vertices.size()), 1u, 0u, 0u);
+    endRenderPass(vk, *cmdBuffer);
+
+    cmdPipelineImageMemoryBarrier(vk, *cmdBuffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                  &postDrawImageBarrier);
+    vk.cmdCopyImageToBuffer(*cmdBuffer, **image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, **resultBuffer, 1u,
+                            &bufferCopyImageRegion);
+    cmdPipelineMemoryBarrier(vk, *cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                             &postCopyMemoryBarrier);
+
+    endCommandBuffer(vk, *cmdBuffer);
+
+    submitCommandsAndWait(vk, device, queue, *cmdBuffer);
+
+    return verifyResult(vk, device, *resultBuffer) ? TestStatus::pass("") : TestStatus::fail("");
+}
+
+void initReuseScratchBufferPrograms(vk::SourceCollections &programCollection)
+{
+    const vk::ShaderBuildOptions buildOptions(programCollection.usedVulkanVersion, vk::SPIRV_VERSION_1_4, 0u, true);
+
+    std::ostringstream vert;
+    vert << "#version 460\n"
+         << "layout (location=0) in vec4 inPos;\n"
+         << "void main(void) {\n"
+         << "    gl_Position = inPos;\n"
+         << "}\n";
+    programCollection.glslSources.add("vert") << glu::VertexSource(vert.str()) << buildOptions;
+
+    std::ostringstream frag;
+    frag << "#version 460\n"
+         << "#extension GL_EXT_ray_query : enable\n"
+         << "layout (location=0) out vec4 outColor;\n"
+         << "layout (set=0, binding=0) uniform accelerationStructureEXT topLevelAS;\n"
+         << "void main(void) {\n"
+         << "    const float tMin = 1.0;\n"
+         << "    const float tMax = 10.0;\n"
+         << "    const uint  cullMask = 0xFFu;\n"
+         << "    const vec3  origin = vec3(gl_FragCoord.xy, 0.0);\n"
+         << "    const vec3  direction = vec3(0.0, 0.0, 1.0);\n"
+         << "    const uint  rayFlags = gl_RayFlagsNoneEXT;\n"
+         << "    vec4 colorValue = vec4(0.0, 0.0, 0.0, 1.0);\n"
+         << "    bool intersectionFound = false;\n"
+         << "    rayQueryEXT query;\n"
+         << "    rayQueryInitializeEXT(query, topLevelAS, rayFlags, cullMask, origin, tMin, direction, tMax);\n"
+         << "    while (rayQueryProceedEXT(query)) {\n"
+         << "        const uint candidateType = rayQueryGetIntersectionTypeEXT(query, false);\n"
+         << "        if (candidateType == gl_RayQueryCandidateIntersectionTriangleEXT ||\n"
+         << "            candidateType == gl_RayQueryCandidateIntersectionAABBEXT) {\n"
+         << "            intersectionFound = true;\n"
+         << "        }\n"
+         << "    }\n"
+         << "    if (intersectionFound) {\n"
+         << "        colorValue = vec4(0.0, 0.0, 1.0, 1.0);\n"
+         << "    }\n"
+         << "    outColor = colorValue;\n"
+         << "}\n";
+    programCollection.glslSources.add("frag") << glu::FragmentSource(frag.str()) << buildOptions;
+}
+
+tcu::TestStatus reuseScratchBufferInstance(Context &context)
+{
+    const auto ctx = context.getContextCommonData();
+    const tcu::IVec3 extent(256, 256, 1);
+    const auto extentU                 = extent.asUint();
+    const auto pixelCount              = extentU.x() * extentU.y() * extentU.z();
+    const auto apiExtent               = makeExtent3D(extent);
+    const uint32_t blasCount           = 2u;                      // Number of bottom-level acceleration structures.
+    const uint32_t rowsPerAS           = extentU.y() / blasCount; // The last one could be larger but not in practice.
+    const float coordMargin            = 0.25f;
+    const uint32_t perTriangleVertices = 3u;
+    const uint32_t randomSeed          = 1722347394u;
+    const float geometryZ              = 5.0f; // Must be between tMin and tMax in the shaders.
+
+    const CommandPoolWithBuffer cmd(ctx.vkd, ctx.device, ctx.qfIndex);
+    const auto cmdBuffer = *cmd.cmdBuffer;
+    beginCommandBuffer(ctx.vkd, cmdBuffer);
+
+    // Create a pseudorandom mask for coverage.
+    de::Random rnd(randomSeed);
+    std::vector<bool> coverageMask;
+    coverageMask.reserve(pixelCount);
+    for (int y = 0; y < extent.y(); ++y)
+        for (int x = 0; x < extent.x(); ++x)
+            coverageMask.push_back(rnd.getBool());
+
+    // Each bottom level AS will contain a number of rows.
+    DE_ASSERT(blasCount > 0u);
+    BottomLevelAccelerationStructurePool blasPool;
+    for (uint32_t a = 0u; a < blasCount; ++a)
+    {
+        const auto prevRows = rowsPerAS * a;
+        const auto rowCount = ((a < blasCount - 1u) ? rowsPerAS : (extentU.y() - prevRows));
+        std::vector<tcu::Vec3> triangles;
+        triangles.reserve(rowCount * extentU.x() * perTriangleVertices);
+
+        for (uint32_t y = 0u; y < rowCount; ++y)
+            for (uint32_t x = 0u; x < extentU.x(); ++x)
+            {
+                const auto row       = y + prevRows;
+                const auto col       = x;
+                const auto maskIndex = row * extentU.x() + col;
+
+                if (!coverageMask.at(maskIndex))
+                    continue;
+
+                const float xCenter = static_cast<float>(col) + 0.5f;
+                const float yCenter = static_cast<float>(row) + 0.5f;
+
+                triangles.push_back(tcu::Vec3(xCenter - coordMargin, yCenter + coordMargin, geometryZ));
+                triangles.push_back(tcu::Vec3(xCenter + coordMargin, yCenter + coordMargin, geometryZ));
+                triangles.push_back(tcu::Vec3(xCenter, yCenter - coordMargin, geometryZ));
+            }
+
+        const auto blas = blasPool.add();
+        blas->addGeometry(triangles, true /* triangles */);
+    }
+
+    blasPool.batchCreateAdjust(ctx.vkd, ctx.device, ctx.allocator, ~0ull, false /* scratch buffer is host visible */);
+    blasPool.batchBuild(ctx.vkd, ctx.device, cmdBuffer);
+
+    const auto tlas = makeTopLevelAccelerationStructure();
+
+    AccelerationStructBufferProperties bufferProps;
+    bufferProps.props.residency = ResourceResidency::TRADITIONAL;
+
+    tlas->setInstanceCount(blasCount);
+    for (const auto &blas : blasPool.structures())
+        tlas->addInstance(blas, identityMatrix3x4, 0, 0xFFu, 0u,
+                          VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR);
+    tlas->createAndBuild(ctx.vkd, ctx.device, cmdBuffer, ctx.allocator, bufferProps);
+
+    // Create color buffer.
+    const auto colorFormat = VK_FORMAT_R8G8B8A8_UNORM; // Must match the shader declaration.
+    const auto colorUsage =
+        (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    const auto colorSSR = makeDefaultImageSubresourceRange();
+    ImageWithBuffer colorBuffer(ctx.vkd, ctx.device, ctx.allocator, apiExtent, colorFormat, colorUsage,
+                                VK_IMAGE_TYPE_2D, colorSSR);
+
+    // Descriptor pool and set.
+    DescriptorPoolBuilder poolBuilder;
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, blasCount);
+    const auto descritorPool =
+        poolBuilder.build(ctx.vkd, ctx.device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1u);
+
+    DescriptorSetLayoutBuilder setLayoutBuilder;
+    setLayoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_FRAGMENT_BIT);
+    const auto setLayout      = setLayoutBuilder.build(ctx.vkd, ctx.device);
+    const auto descriptorSet  = makeDescriptorSet(ctx.vkd, ctx.device, *descritorPool, *setLayout);
+    const auto pipelineLayout = makePipelineLayout(ctx.vkd, ctx.device, *setLayout);
+
+    DescriptorSetUpdateBuilder setUpdateBuilder;
+    using Location = DescriptorSetUpdateBuilder::Location;
+    {
+        const VkWriteDescriptorSetAccelerationStructureKHR accelerationStructure = {
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+            nullptr,
+            1u,
+            tlas->getPtr(),
+        };
+        setUpdateBuilder.writeSingle(*descriptorSet, Location::binding(0u),
+                                     VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &accelerationStructure);
+    }
+    setUpdateBuilder.update(ctx.vkd, ctx.device);
+
+    const auto &binaries = context.getBinaryCollection();
+    auto vertModule      = createShaderModule(ctx.vkd, ctx.device, binaries.get("vert"), 0);
+    auto fragModule      = createShaderModule(ctx.vkd, ctx.device, binaries.get("frag"), 0);
+
+    const auto renderPass  = makeRenderPass(ctx.vkd, ctx.device, colorFormat);
+    const auto framebuffer = makeFramebuffer(ctx.vkd, ctx.device, *renderPass, colorBuffer.getImageView(),
+                                             apiExtent.width, apiExtent.height);
+
+    const std::vector<VkViewport> viewports(1u, makeViewport(extent));
+    const std::vector<VkRect2D> scissors(1u, makeRect2D(extent));
+
+    // Pipeline.
+    const auto pipeline = makeGraphicsPipeline(ctx.vkd, ctx.device, *pipelineLayout, *vertModule, VK_NULL_HANDLE,
+                                               VK_NULL_HANDLE, VK_NULL_HANDLE, *fragModule, *renderPass, viewports,
+                                               scissors, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+
+    // Draw a full screen quad so the frag shader is invoked for every fragment.
+    std::vector<tcu::Vec4> vertices;
+    vertices.reserve(4u);
+    vertices.emplace_back(-1.0f, -1.0f, 0.0f, 1.0f);
+    vertices.emplace_back(-1.0f, 1.0f, 0.0f, 1.0f);
+    vertices.emplace_back(1.0f, -1.0f, 0.0f, 1.0f);
+    vertices.emplace_back(1.0f, 1.0f, 0.0f, 1.0f);
+
+    const auto vertexBufferInfo = makeBufferCreateInfo(de::dataSize(vertices), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT);
+    const VkDeviceSize vertexBufferOffset = 0ull;
+    BufferWithMemory vertexBuffer(ctx.vkd, ctx.device, ctx.allocator, vertexBufferInfo, MemoryRequirement::HostVisible);
+    {
+        auto &allocation = vertexBuffer.getAllocation();
+        void *dataPtr    = allocation.getHostPtr();
+        deMemcpy(dataPtr, de::dataOrNull(vertices), de::dataSize(vertices));
+    }
+
+    // Draw and trace rays.
+    const tcu::Vec4 clearColor(0.0f, 0.0f, 0.0f, 0.0f); // Notice this is none of the colors used in the frag shader.
+    const tcu::Vec4 missColor(0.0f, 0.0f, 0.0f, 1.0f);  // These match the frag shader colors.
+    const tcu::Vec4 hitColor(0.0f, 0.0f, 1.0f, 1.0f);
+
+    const auto bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    ctx.vkd.cmdBindDescriptorSets(cmdBuffer, bindPoint, *pipelineLayout, 0u, 1u, &descriptorSet.get(), 0u, nullptr);
+    ctx.vkd.cmdBindVertexBuffers(cmdBuffer, 0u, 1u, &vertexBuffer.get(), &vertexBufferOffset);
+    beginRenderPass(ctx.vkd, cmdBuffer, *renderPass, *framebuffer, scissors.at(0u), clearColor);
+    ctx.vkd.cmdBindPipeline(cmdBuffer, bindPoint, pipeline.get());
+    ctx.vkd.cmdDraw(cmdBuffer, de::sizeU32(vertices), 1u, 0u, 0u);
+    endRenderPass(ctx.vkd, cmdBuffer);
+    copyImageToBuffer(ctx.vkd, cmdBuffer, colorBuffer.getImage(), colorBuffer.getBuffer(), extent.swizzle(0, 1));
+    endCommandBuffer(ctx.vkd, cmdBuffer);
+    submitCommandsAndWait(ctx.vkd, ctx.device, ctx.queue, cmdBuffer);
+
+    invalidateAlloc(ctx.vkd, ctx.device, colorBuffer.getBufferAllocation());
+
+    // These must match the frag shader.
+
+    const auto tcuFormat = mapVkFormat(colorFormat);
+    tcu::TextureLevel referenceLevel(tcuFormat, extent.x(), extent.y(), extent.z());
+    tcu::PixelBufferAccess referenceAccess = referenceLevel.getAccess();
+
+    for (int y = 0; y < extent.y(); ++y)
+        for (int x = 0; x < extent.x(); ++x)
+        {
+            const auto maskIdx = static_cast<uint32_t>(y * extent.x() + x);
+            const auto &color  = (coverageMask.at(maskIdx) ? hitColor : missColor);
+            referenceAccess.setPixel(color, x, y);
+        }
+
+    tcu::ConstPixelBufferAccess resultAccess(tcuFormat, extent, colorBuffer.getBufferAllocation().getHostPtr());
+
+    const tcu::Vec4 threshold(0.0f, 0.0f, 0.0f, 0.0f); // Only 1.0 and 0.0 so we expect exact results.
+    auto &log = context.getTestContext().getLog();
+    if (!tcu::floatThresholdCompare(log, "Result", "", referenceAccess, resultAccess, threshold,
+                                    tcu::COMPARE_LOG_ON_ERROR))
+        return tcu::TestStatus::fail("Failed; check log for details");
+    return tcu::TestStatus::pass("Pass");
+}
+
+void initEmptyASPrograms(vk::SourceCollections &dst)
+{
+    const vk::ShaderBuildOptions buildOptions(dst.usedVulkanVersion, vk::SPIRV_VERSION_1_4, 0u, true);
+
+    std::ostringstream comp;
+    comp << "#version 460 core\n"
+         << "#extension GL_EXT_ray_query : require\n"
+         << "layout (local_size_x=1, local_size_y=1, local_size_z=1) in;\n"
+         << "layout (set=0, binding=0) uniform accelerationStructureEXT topLevelAS;\n"
+         << "layout (set=0, binding=1) buffer BufferBlock { vec4 color; } outBuffer;\n"
+         << "void main()\n"
+         << "{\n"
+         << "    const uint  cullMask  = 0xFF;\n"
+         << "    const vec3  origin    = vec3(0.0, 0.0, 0.0);\n"
+         << "    const vec3  direction = vec3(0.0, 0.0, 1.0);\n"
+         << "    const float tMin      = 1.0;\n"
+         << "    const float tMax      = 100.0;\n"
+         << "    vec4 outColor = vec4(0.0, 0.0, 1.0, 1.0);\n" // Expected value (runs no hits).
+         << "    rayQueryEXT rq;\n"
+         << "    rayQueryInitializeEXT(rq, topLevelAS, gl_RayFlagsNoneEXT, cullMask, origin, tMin, direction, tMax);\n"
+         << "    while (rayQueryProceedEXT(rq)) {\n"
+         << "        if (rayQueryGetIntersectionTypeEXT(rq, false) == gl_RayQueryCandidateIntersectionTriangleEXT) {\n"
+         << "            outColor = vec4(1.0, 0.0, 0.0, 1.0);\n" // Bad hit value.
+         << "        }\n"
+         << "    }\n"
+         << "    outBuffer.color = outColor;\n"
+         << "}\n";
+    dst.glslSources.add("comp") << glu::ComputeSource(comp.str()) << buildOptions;
+}
+
+// Auxiliar function to fill a buffer with pseudorandom bytes.
+void fillBufferRandomly(const DeviceInterface &vkd, VkDevice device, const BufferWithMemory &buffer, de::Random &rnd)
+{
+    DE_ASSERT(buffer.getBufferSize() <= std::numeric_limits<size_t>::max());
+
+    auto &alloc    = buffer.getAllocation();
+    uint8_t *bytes = reinterpret_cast<uint8_t *>(alloc.getHostPtr());
+
+    for (size_t i = 0; i < static_cast<size_t>(buffer.getBufferSize()); ++i)
+        *(bytes + i) = rnd.getUint8();
+
+    flushAlloc(vkd, device, alloc);
+}
+
+tcu::TestStatus updateEmptyBottomASInstance(Context &context)
+{
+    const auto ctx                    = context.getContextCommonData();
+    constexpr uint32_t kPaddingFactor = 8u;
+    de::Random rnd(1748512952u);
+    const auto scratchBufferUsage = (VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+    const auto asBufferUsage =
+        (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+    const auto scratchBufferMemReqs =
+        (MemoryRequirement::Coherent | MemoryRequirement::HostVisible | MemoryRequirement::DeviceAddress);
+    const auto asBufferMemReqs =
+        (MemoryRequirement::Coherent | MemoryRequirement::HostVisible | MemoryRequirement::DeviceAddress);
+    const auto asReadAccess   = static_cast<VkAccessFlags>(VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
+    const auto asModifyAccess = (asReadAccess | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
+    const auto asBuildStage   = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+    const auto asUsageStage   = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+
+    CommandPoolWithBuffer cmd(ctx.vkd, ctx.device, ctx.qfIndex);
+    const auto cmdBuffer = *cmd.cmdBuffer;
+    beginCommandBuffer(ctx.vkd, cmdBuffer);
+
+    // Bottom structure sizes.
+    const VkAccelerationStructureBuildGeometryInfoKHR blasGeometryInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        nullptr,
+        VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        VK_NULL_HANDLE,
+        VK_NULL_HANDLE,
+        0u,
+        nullptr,
+        nullptr,
+        makeDeviceOrHostAddressKHR(nullptr),
+    };
+
+    VkDeviceSize blasBufferSize = 0ull;
+    VkDeviceSize blasBuildSize  = 0ull;
+    VkDeviceSize blasUpdateSize = 0ull;
+
+    {
+        VkAccelerationStructureBuildSizesInfoKHR bottomBuildSizes = initVulkanStructure();
+        ctx.vkd.getAccelerationStructureBuildSizesKHR(ctx.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+                                                      &blasGeometryInfo, nullptr, &bottomBuildSizes);
+        blasBufferSize = bottomBuildSizes.accelerationStructureSize * kPaddingFactor;
+        blasBuildSize  = bottomBuildSizes.buildScratchSize * kPaddingFactor;
+        blasUpdateSize = bottomBuildSizes.updateScratchSize * kPaddingFactor;
+    }
+
+    // Top structure sizes.
+    VkAccelerationStructureGeometryDataKHR geometryData;
+    geometryData.instances = initVulkanStructure();
+
+    const VkAccelerationStructureGeometryKHR tlasGeometry = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+        nullptr,
+        VK_GEOMETRY_TYPE_INSTANCES_KHR,
+        geometryData,
+        0u,
+    };
+
+    const VkAccelerationStructureBuildGeometryInfoKHR tlasGeometryInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        nullptr,
+        VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        0u,
+        VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        VK_NULL_HANDLE,
+        VK_NULL_HANDLE,
+        1u,
+        &tlasGeometry,
+        nullptr,
+        makeDeviceOrHostAddressKHR(nullptr),
+    };
+
+    VkAccelerationStructureBuildSizesInfoKHR tlasBuildSizes = initVulkanStructure();
+    const uint32_t tlasPrimitiveCount                       = 1u;
+    ctx.vkd.getAccelerationStructureBuildSizesKHR(ctx.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+                                                  &tlasGeometryInfo, &tlasPrimitiveCount, &tlasBuildSizes);
+
+    // This is not in the spec, but it would point to an implementation bug, very likely.
+    if (blasBufferSize > std::numeric_limits<size_t>::max())
+        TCU_FAIL("Empty acceleration structure size too large");
+
+    if (blasBuildSize > std::numeric_limits<size_t>::max())
+        TCU_FAIL("Empty acceleration structure size too large");
+
+    if (blasUpdateSize > std::numeric_limits<size_t>::max())
+        TCU_FAIL("Empty acceleration structure size too large");
+
+    // Acceleration structure storage buffers.
+    const auto blasBufferInfo = makeBufferCreateInfo(blasBufferSize, asBufferUsage);
+    BufferWithMemory blasBuffer(ctx.vkd, ctx.device, ctx.allocator, blasBufferInfo, asBufferMemReqs);
+    fillBufferRandomly(ctx.vkd, ctx.device, blasBuffer, rnd);
+
+    const auto tlasBufferInfo = makeBufferCreateInfo(tlasBuildSizes.accelerationStructureSize, asBufferUsage);
+    BufferWithMemory tlasBuffer(ctx.vkd, ctx.device, ctx.allocator, tlasBufferInfo, asBufferMemReqs);
+
+    // Scratch buffers for the build operation.
+    const auto blasScratchBuildBufferInfo = makeBufferCreateInfo(blasBuildSize, scratchBufferUsage);
+    BufferWithMemory blasScratchBuildBuffer(ctx.vkd, ctx.device, ctx.allocator, blasScratchBuildBufferInfo,
+                                            scratchBufferMemReqs);
+    fillBufferRandomly(ctx.vkd, ctx.device, blasScratchBuildBuffer, rnd);
+
+    const auto tlasScratchBuildBufferInfo = makeBufferCreateInfo(tlasBuildSizes.buildScratchSize, scratchBufferUsage);
+    BufferWithMemory tlasScratchBuildBuffer(ctx.vkd, ctx.device, ctx.allocator, tlasScratchBuildBufferInfo,
+                                            scratchBufferMemReqs);
+
+    // Scratch buffer for the update operation.
+    const auto scratchUpdateBufferInfo = makeBufferCreateInfo(blasUpdateSize, scratchBufferUsage);
+    BufferWithMemory scratchUpdateBuffer(ctx.vkd, ctx.device, ctx.allocator, scratchUpdateBufferInfo,
+                                         scratchBufferMemReqs);
+    fillBufferRandomly(ctx.vkd, ctx.device, scratchUpdateBuffer, rnd);
+
+    // Create empty bottom-level acceleration structure with the previous buffer.
+    const VkAccelerationStructureCreateInfoKHR blasCreateInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR, nullptr, 0u, blasBuffer.get(), 0ull, blasBufferSize,
+        VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,          0ull,
+    };
+    const auto blas = createAccelerationStructureKHR(ctx.vkd, ctx.device, &blasCreateInfo);
+
+    // Create top-level acceleration structure to contain it.
+    const VkAccelerationStructureCreateInfoKHR tlasCreateInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+        nullptr,
+        0u,
+        tlasBuffer.get(),
+        0ull,
+        tlasBuildSizes.accelerationStructureSize,
+        VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        0ull,
+    };
+    const auto tlas = createAccelerationStructureKHR(ctx.vkd, ctx.device, &tlasCreateInfo);
+
+    // Build the empty acceleration structure.
+    const VkAccelerationStructureBuildGeometryInfoKHR blasGeometryBuildInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        nullptr,
+        VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        VK_NULL_HANDLE,
+        *blas,
+        0u,
+        nullptr,
+        nullptr,
+        makeDeviceOrHostAddressKHR(ctx.vkd, ctx.device, *blasScratchBuildBuffer, 0ull),
+    };
+
+    const VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo = {
+        0u,
+        0u,
+        0u,
+        0u,
+    };
+    const auto buildRangeInfoPtr = &buildRangeInfo;
+
+    ctx.vkd.cmdBuildAccelerationStructuresKHR(cmdBuffer, 1u, &blasGeometryBuildInfo, &buildRangeInfoPtr);
+
+    // Sync build and update steps.
+    {
+        const auto barrier = makeMemoryBarrier(asModifyAccess, asModifyAccess);
+        cmdPipelineMemoryBarrier(ctx.vkd, cmdBuffer, asBuildStage, asBuildStage, &barrier);
+    }
+
+    // Update acceleration structure in place.
+    const VkAccelerationStructureBuildGeometryInfoKHR geometryUpdateInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        nullptr,
+        VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR,
+        *blas,
+        *blas,
+        0u,
+        nullptr,
+        nullptr,
+        makeDeviceOrHostAddressKHR(ctx.vkd, ctx.device, *scratchUpdateBuffer, 0ull),
+    };
+
+    ctx.vkd.cmdBuildAccelerationStructuresKHR(cmdBuffer, 1u, &geometryUpdateInfo, &buildRangeInfoPtr);
+
+    // Sync build bottom and build top steps.
+    {
+        const auto barrier = makeMemoryBarrier(asModifyAccess, asModifyAccess);
+        cmdPipelineMemoryBarrier(ctx.vkd, cmdBuffer, asBuildStage, asBuildStage, &barrier);
+    }
+
+    // Build the top acceleration structure.
+    const VkAccelerationStructureDeviceAddressInfoKHR blasAddressInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR,
+        nullptr,
+        *blas,
+    };
+    const auto blasDeviceAddress = ctx.vkd.getAccelerationStructureDeviceAddressKHR(ctx.device, &blasAddressInfo);
+
+    // Instances buffer for the top acceleration structure.
+    const VkAccelerationStructureInstanceKHR instanceInfo = {
+        identityMatrix3x4, 0u, 0xFFu, 0u, 0u, static_cast<uint64_t>(blasDeviceAddress),
+    };
+
+    const auto instancesBufferSize  = static_cast<VkDeviceSize>(sizeof(instanceInfo));
+    const auto instancesBufferUsage = (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR |
+                                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+    const auto instancesBufferInfo  = makeBufferCreateInfo(instancesBufferSize, instancesBufferUsage);
+    BufferWithMemory instancesBuffer(ctx.vkd, ctx.device, ctx.allocator, instancesBufferInfo,
+                                     (MemoryRequirement::HostVisible | MemoryRequirement::DeviceAddress));
+    {
+        auto &alloc = instancesBuffer.getAllocation();
+        memcpy(alloc.getHostPtr(), &instanceInfo, sizeof(instanceInfo));
+        flushAlloc(ctx.vkd, ctx.device, alloc);
+    }
+    const auto instancesBufferAddress = getBufferDeviceAddress(ctx.vkd, ctx.device, *instancesBuffer, 0ull);
+
+    geometryData.instances.data.deviceAddress = instancesBufferAddress;
+
+    const VkAccelerationStructureGeometryKHR tlasBuildGeometry = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+        nullptr,
+        VK_GEOMETRY_TYPE_INSTANCES_KHR,
+        geometryData,
+        0u,
+    };
+
+    const VkAccelerationStructureBuildGeometryInfoKHR tlasGeometryBuildInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        nullptr,
+        VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        0u,
+        VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        VK_NULL_HANDLE,
+        *tlas,
+        1u,
+        &tlasBuildGeometry,
+        nullptr,
+        makeDeviceOrHostAddressKHR(ctx.vkd, ctx.device, *tlasScratchBuildBuffer, 0ull),
+    };
+    ctx.vkd.cmdBuildAccelerationStructuresKHR(cmdBuffer, 1u, &tlasGeometryBuildInfo, &buildRangeInfoPtr);
+
+    // Sync build top and use top steps.
+    {
+        const auto barrier = makeMemoryBarrier(asModifyAccess, asReadAccess);
+        cmdPipelineMemoryBarrier(ctx.vkd, cmdBuffer, asBuildStage, asUsageStage, &barrier);
+    }
+
+    // Prepare pipeline to use the acceleration structure.
+    const auto storageBufferSize = static_cast<VkDeviceSize>(sizeof(tcu::Vec4));
+    const auto storageBufferInfo = makeBufferCreateInfo(storageBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    BufferWithMemory storageBuffer(ctx.vkd, ctx.device, ctx.allocator, storageBufferInfo,
+                                   MemoryRequirement::HostVisible);
+    auto &storageBufferAlloc = storageBuffer.getAllocation();
+    {
+        memset(storageBufferAlloc.getHostPtr(), 0, sizeof(tcu::Vec4));
+        flushAlloc(ctx.vkd, ctx.device, storageBufferAlloc);
+    }
+
+    // Descriptor pool and set.
+    DescriptorPoolBuilder poolBuilder;
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1u);
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+    const auto descritorPool =
+        poolBuilder.build(ctx.vkd, ctx.device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1u);
+
+    DescriptorSetLayoutBuilder setLayoutBuilder;
+    setLayoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_COMPUTE_BIT);
+    setLayoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
+    const auto setLayout      = setLayoutBuilder.build(ctx.vkd, ctx.device);
+    const auto descriptorSet  = makeDescriptorSet(ctx.vkd, ctx.device, *descritorPool, *setLayout);
+    const auto pipelineLayout = makePipelineLayout(ctx.vkd, ctx.device, *setLayout);
+
+    DescriptorSetUpdateBuilder setUpdateBuilder;
+    using Location = DescriptorSetUpdateBuilder::Location;
+    {
+        const VkWriteDescriptorSetAccelerationStructureKHR accelerationStructure = {
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+            nullptr,
+            1u,
+            &tlas.get(),
+        };
+        setUpdateBuilder.writeSingle(*descriptorSet, Location::binding(0u),
+                                     VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &accelerationStructure);
+
+        const auto bufferDescInfo = makeDescriptorBufferInfo(*storageBuffer, 0ull, VK_WHOLE_SIZE);
+        setUpdateBuilder.writeSingle(*descriptorSet, Location::binding(1u), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                     &bufferDescInfo);
+    }
+    setUpdateBuilder.update(ctx.vkd, ctx.device);
+
+    const auto &binaries  = context.getBinaryCollection();
+    const auto compModule = createShaderModule(ctx.vkd, ctx.device, binaries.get("comp"));
+    const auto pipeline   = makeComputePipeline(ctx.vkd, ctx.device, *pipelineLayout, *compModule);
+
+    // Dispatch and trace rays.
+    const auto bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+    ctx.vkd.cmdBindDescriptorSets(cmdBuffer, bindPoint, *pipelineLayout, 0u, 1u, &descriptorSet.get(), 0u, nullptr);
+    ctx.vkd.cmdBindPipeline(cmdBuffer, bindPoint, pipeline.get());
+    ctx.vkd.cmdDispatch(cmdBuffer, 1u, 1u, 1u);
+    {
+        // Sync storage buffer writes with host reads.
+        const auto barrier = makeMemoryBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+        cmdPipelineMemoryBarrier(ctx.vkd, cmdBuffer, asUsageStage, VK_PIPELINE_STAGE_HOST_BIT, &barrier);
+    }
+    endCommandBuffer(ctx.vkd, cmdBuffer);
+    submitCommandsAndWait(ctx.vkd, ctx.device, ctx.queue, cmdBuffer);
+
+    // Check we got a miss.
+    invalidateAlloc(ctx.vkd, ctx.device, storageBufferAlloc);
+
+    tcu::Vec4 outputColor(0.0f);
+    memcpy((void *)(&outputColor), storageBufferAlloc.getHostPtr(), sizeof(outputColor));
+    const tcu::Vec4 expectedColor(0.0f, 0.0f, 1.0f, 1.0f); // Must match the payload in the miss shader.
+
+    if (outputColor != expectedColor)
+    {
+        std::ostringstream msg;
+        msg << "Unexpected result in output buffer: expected " << expectedColor << " but found " << outputColor;
+        TCU_FAIL(msg.str());
+    }
+
+    return tcu::TestStatus::pass("Pass");
+}
+
+tcu::TestStatus updateEmptyTopASInstance(Context &context)
+{
+    const auto ctx                    = context.getContextCommonData();
+    constexpr uint32_t kPaddingFactor = 8u;
+    de::Random rnd(1748512952u);
+    const auto scratchBufferUsage = (VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+    const auto asBufferUsage =
+        (VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+    const auto scratchBufferMemReqs =
+        (MemoryRequirement::Coherent | MemoryRequirement::HostVisible | MemoryRequirement::DeviceAddress);
+    const auto asBufferMemReqs =
+        (MemoryRequirement::Coherent | MemoryRequirement::HostVisible | MemoryRequirement::DeviceAddress);
+    const auto asReadAccess   = static_cast<VkAccessFlags>(VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
+    const auto asModifyAccess = (asReadAccess | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
+    const auto asBuildStage   = VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+    const auto asUsageStage   = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+
+    CommandPoolWithBuffer cmd(ctx.vkd, ctx.device, ctx.qfIndex);
+    const auto cmdBuffer = *cmd.cmdBuffer;
+    beginCommandBuffer(ctx.vkd, cmdBuffer);
+
+    // Top structure sizes.
+    VkAccelerationStructureGeometryDataKHR geometry;
+    geometry.instances                    = initVulkanStructure();
+    geometry.instances.data.deviceAddress = 0ull;
+
+    const VkAccelerationStructureGeometryKHR tlasGeometry = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR,
+        nullptr,
+        vk::VK_GEOMETRY_TYPE_INSTANCES_KHR,
+        geometry,
+        0u,
+    };
+
+    const VkAccelerationStructureBuildGeometryInfoKHR tlasGeometryInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        nullptr,
+        VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        VK_NULL_HANDLE,
+        VK_NULL_HANDLE,
+        1u,
+        &tlasGeometry,
+        nullptr,
+        makeDeviceOrHostAddressKHR(nullptr),
+    };
+
+    VkDeviceSize tlasBufferSize = 0ull;
+    VkDeviceSize tlasBuildSize  = 0ull;
+    VkDeviceSize tlasUpdateSize = 0ull;
+
+    {
+        const uint32_t maxGeometries                            = 1u;
+        VkAccelerationStructureBuildSizesInfoKHR tlasBuildSizes = initVulkanStructure();
+        ctx.vkd.getAccelerationStructureBuildSizesKHR(ctx.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+                                                      &tlasGeometryInfo, &maxGeometries, &tlasBuildSizes);
+
+        tlasBufferSize = tlasBuildSizes.accelerationStructureSize * kPaddingFactor;
+        tlasBuildSize  = tlasBuildSizes.buildScratchSize * kPaddingFactor;
+        tlasUpdateSize = tlasBuildSizes.updateScratchSize * kPaddingFactor;
+    }
+
+    // This is not in the spec, but it would point to an implementation bug, very likely.
+    if (tlasBufferSize > std::numeric_limits<size_t>::max())
+        TCU_FAIL("Empty acceleration structure size too large");
+
+    if (tlasBuildSize > std::numeric_limits<size_t>::max())
+        TCU_FAIL("Empty acceleration structure size too large");
+
+    if (tlasUpdateSize > std::numeric_limits<size_t>::max())
+        TCU_FAIL("Empty acceleration structure size too large");
+
+    // Acceleration structure storage buffer.
+    const auto tlasBufferInfo = makeBufferCreateInfo(tlasBufferSize, asBufferUsage);
+    BufferWithMemory tlasBuffer(ctx.vkd, ctx.device, ctx.allocator, tlasBufferInfo, asBufferMemReqs);
+    fillBufferRandomly(ctx.vkd, ctx.device, tlasBuffer, rnd);
+
+    // Scratch buffer for the build operation.
+    const auto tlasScratchBuildBufferInfo = makeBufferCreateInfo(tlasBuildSize, scratchBufferUsage);
+    BufferWithMemory tlasScratchBuildBuffer(ctx.vkd, ctx.device, ctx.allocator, tlasScratchBuildBufferInfo,
+                                            scratchBufferMemReqs);
+    fillBufferRandomly(ctx.vkd, ctx.device, tlasScratchBuildBuffer, rnd);
+
+    // Scratch buffer for the update operation.
+    const auto scratchUpdateBufferInfo = makeBufferCreateInfo(tlasUpdateSize, scratchBufferUsage);
+    BufferWithMemory scratchUpdateBuffer(ctx.vkd, ctx.device, ctx.allocator, scratchUpdateBufferInfo,
+                                         scratchBufferMemReqs);
+    fillBufferRandomly(ctx.vkd, ctx.device, scratchUpdateBuffer, rnd);
+
+    // Create empty top-level acceleration structure.
+    const VkAccelerationStructureCreateInfoKHR tlasCreateInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR,
+        nullptr,
+        0u,
+        tlasBuffer.get(),
+        0ull,
+        tlasBufferSize,
+        VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        0ull,
+    };
+    const auto tlas = createAccelerationStructureKHR(ctx.vkd, ctx.device, &tlasCreateInfo);
+
+    // Build the empty acceleration structure: by empty we mean a single NULL-address instance.
+    const VkAccelerationStructureBuildGeometryInfoKHR tlasGeometryBuildInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        nullptr,
+        VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR,
+        VK_NULL_HANDLE,
+        *tlas,
+        1u,
+        &tlasGeometry,
+        nullptr,
+        makeDeviceOrHostAddressKHR(ctx.vkd, ctx.device, *tlasScratchBuildBuffer, 0ull),
+    };
+
+    const VkAccelerationStructureBuildRangeInfoKHR buildRangeInfo = {
+        0u,
+        0u,
+        0u,
+        0u,
+    };
+    const auto buildRangeInfoPtr = &buildRangeInfo;
+
+    ctx.vkd.cmdBuildAccelerationStructuresKHR(cmdBuffer, 1u, &tlasGeometryBuildInfo, &buildRangeInfoPtr);
+
+    // Sync build and update steps.
+    {
+        const auto barrier = makeMemoryBarrier(asModifyAccess, asModifyAccess);
+        cmdPipelineMemoryBarrier(ctx.vkd, cmdBuffer, asBuildStage, asBuildStage, &barrier);
+    }
+
+    // Update empty acceleration structure.
+    const VkAccelerationStructureBuildGeometryInfoKHR geometryUpdateInfo = {
+        VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR,
+        nullptr,
+        VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR,
+        VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR,
+        *tlas,
+        *tlas,
+        1u,
+        &tlasGeometry,
+        nullptr,
+        makeDeviceOrHostAddressKHR(ctx.vkd, ctx.device, *scratchUpdateBuffer, 0ull),
+    };
+
+    ctx.vkd.cmdBuildAccelerationStructuresKHR(cmdBuffer, 1u, &geometryUpdateInfo, &buildRangeInfoPtr);
+
+    // Sync build and use steps.
+    {
+        const auto barrier = makeMemoryBarrier(asModifyAccess, asReadAccess);
+        cmdPipelineMemoryBarrier(ctx.vkd, cmdBuffer, asBuildStage, asUsageStage, &barrier);
+    }
+
+    // Prepare pipeline to use the acceleration structure.
+    const auto storageBufferSize = static_cast<VkDeviceSize>(sizeof(tcu::Vec4));
+    const auto storageBufferInfo = makeBufferCreateInfo(storageBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    BufferWithMemory storageBuffer(ctx.vkd, ctx.device, ctx.allocator, storageBufferInfo,
+                                   MemoryRequirement::HostVisible);
+    auto &storageBufferAlloc = storageBuffer.getAllocation();
+    {
+        memset(storageBufferAlloc.getHostPtr(), 0, sizeof(tcu::Vec4));
+        flushAlloc(ctx.vkd, ctx.device, storageBufferAlloc);
+    }
+
+    // Descriptor pool and set.
+    DescriptorPoolBuilder poolBuilder;
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1u);
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+    const auto descritorPool =
+        poolBuilder.build(ctx.vkd, ctx.device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1u);
+
+    DescriptorSetLayoutBuilder setLayoutBuilder;
+    setLayoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_COMPUTE_BIT);
+    setLayoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
+    const auto setLayout      = setLayoutBuilder.build(ctx.vkd, ctx.device);
+    const auto descriptorSet  = makeDescriptorSet(ctx.vkd, ctx.device, *descritorPool, *setLayout);
+    const auto pipelineLayout = makePipelineLayout(ctx.vkd, ctx.device, *setLayout);
+
+    DescriptorSetUpdateBuilder setUpdateBuilder;
+    using Location = DescriptorSetUpdateBuilder::Location;
+    {
+        const VkWriteDescriptorSetAccelerationStructureKHR accelerationStructure = {
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+            nullptr,
+            1u,
+            &tlas.get(),
+        };
+        setUpdateBuilder.writeSingle(*descriptorSet, Location::binding(0u),
+                                     VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &accelerationStructure);
+
+        const auto bufferDescInfo = makeDescriptorBufferInfo(*storageBuffer, 0ull, VK_WHOLE_SIZE);
+        setUpdateBuilder.writeSingle(*descriptorSet, Location::binding(1u), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                     &bufferDescInfo);
+    }
+    setUpdateBuilder.update(ctx.vkd, ctx.device);
+
+    const auto &binaries  = context.getBinaryCollection();
+    const auto compShader = createShaderModule(ctx.vkd, ctx.device, binaries.get("comp"));
+    const auto pipeline   = makeComputePipeline(ctx.vkd, ctx.device, *pipelineLayout, *compShader);
+
+    // Dispatch and trace rays.
+    const auto bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+    ctx.vkd.cmdBindDescriptorSets(cmdBuffer, bindPoint, *pipelineLayout, 0u, 1u, &descriptorSet.get(), 0u, nullptr);
+    ctx.vkd.cmdBindPipeline(cmdBuffer, bindPoint, pipeline.get());
+    ctx.vkd.cmdDispatch(cmdBuffer, 1u, 1u, 1u);
+    {
+        // Sync storage buffer writes with host reads.
+        const auto barrier = makeMemoryBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+        cmdPipelineMemoryBarrier(ctx.vkd, cmdBuffer, asUsageStage, VK_PIPELINE_STAGE_HOST_BIT, &barrier);
+    }
+    endCommandBuffer(ctx.vkd, cmdBuffer);
+    submitCommandsAndWait(ctx.vkd, ctx.device, ctx.queue, cmdBuffer);
+
+    // Check we got a miss.
+    invalidateAlloc(ctx.vkd, ctx.device, storageBufferAlloc);
+
+    tcu::Vec4 outputColor(0.0f);
+    memcpy((void *)(&outputColor), storageBufferAlloc.getHostPtr(), sizeof(outputColor));
+    const tcu::Vec4 expectedColor(0.0f, 0.0f, 1.0f, 1.0f); // Must match the payload in the miss shader.
+
+    if (outputColor != expectedColor)
+    {
+        std::ostringstream msg;
+        msg << "Unexpected result in output buffer: expected " << expectedColor << " but found " << outputColor;
+        TCU_FAIL(msg.str());
+    }
+
+    return tcu::TestStatus::pass("Pass");
+}
+
+// One ray query per invocation, with varying work group sizes.
+struct RayPerInvParams
+{
+    // If not present, run query from all invocations. If present, only from that one. UINT32_MAX means the last one.
+    tcu::Maybe<uint32_t> single;
+
+    // If 0, use the maximum allowed size. In that case, single can be missing, zero or UINT32_MAX.
+    uint32_t wgSize;
+
+    uint32_t getRngSeed() const
+    {
+        return ((wgSize << 16) | ((!!single ? *single : 0u) & 0xFFFFu));
+    }
+};
+
+using RayPerInvParamsPtr = std::shared_ptr<RayPerInvParams>;
+
+void RayPerInvSupport(Context &context, RayPerInvParamsPtr params)
+{
+    checkRayQuerySupport(context);
+
+    const auto &maxInvs   = context.getDeviceProperties().limits.maxComputeWorkGroupSize[0];
+    const auto usedWgSize = ((params->wgSize == 0u) ? maxInvs : params->wgSize);
+
+    if (maxInvs < usedWgSize)
+        TCU_THROW(NotSupportedError, "Target work group size not supported");
+
+    if (!!params->single && *params->single != std::numeric_limits<uint32_t>::max())
+        DE_ASSERT(*params->single < usedWgSize);
+}
+
+void RayPerInvPrograms(vk::SourceCollections &dst, RayPerInvParamsPtr params)
+{
+    // Global idea: one output value per invocation, one ray per invocation at most. If there is no ray for a given
+    // invocation, the buffer preserves its value (0). If there is a ray and there's an intersection of the expected
+    // type, the output value is 2. If there is a ray and there is no intersection, store a 1.
+
+    std::string condition = "true"; // By default, run the query for all invocations.
+    if (!!params->single)
+    {
+        condition = "gl_LocalInvocationIndex == ";
+        condition += ((*params->single == std::numeric_limits<uint32_t>::max()) ? "(totalInvs - 1u)" :
+                                                                                  std::to_string(*params->single));
+    }
+
+    // Note each invocation will trace a ray from (X.5, 0, 0) towards (0, 0, 1), where X in the invocation index.
+    std::ostringstream comp;
+    comp << "#version 460\n"
+         << "#extension GL_EXT_ray_query : require\n"
+         << "#extension GL_EXT_ray_tracing : require\n"
+         << "layout (local_size_x_id=0, local_size_y_id=1, local_size_z_id=2) in;\n"
+         << "layout (set=0, binding=0) uniform accelerationStructureEXT topLevelAS;\n"
+         << "layout (set=0, binding=1) writeonly buffer SSBO_Block { uint value[]; } ssbo;\n"
+         << "void main(void) {\n"
+         << "    const uint totalInvs = (gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z);\n"
+         << "    const uint rayFlags = 0u;\n"
+         << "    const uint cullMask = 0xFFu;\n"
+         << "    const float tmin = 0.5;\n"
+         << "    const float tmax = 10.0;\n"
+         << "    const vec3 direction = vec3(0, 0, 1);\n"
+         << "    if (" << condition << ") {\n"
+         << "        rayQueryEXT rayQuery;\n"
+         << "        vec3 origin = vec3(float(gl_LocalInvocationIndex) + 0.5, 0.0, 0.0);\n"
+         << "        rayQueryInitializeEXT(rayQuery, topLevelAS, rayFlags, cullMask, origin, tmin, direction, tmax);\n"
+         << "        uint outputValue = 1u;\n"
+         << "        while (rayQueryProceedEXT(rayQuery)) {\n"
+         << "            if (rayQueryGetIntersectionTypeEXT(rayQuery, false) == "
+            "gl_RayQueryCandidateIntersectionTriangleEXT)\n"
+         << "                outputValue = 2u;\n"
+         << "        }\n"
+         << "        ssbo.value[gl_LocalInvocationIndex] = outputValue;\n"
+         << "    }\n"
+         << "}\n";
+    const vk::ShaderBuildOptions buildOptions(dst.usedVulkanVersion, vk::SPIRV_VERSION_1_4, 0u, true);
+    dst.glslSources.add("comp") << glu::ComputeSource(comp.str()) << buildOptions;
+}
+
+tcu::TestStatus RayPerInvRun(Context &context, RayPerInvParamsPtr params)
+{
+    // Decide a WG size.
+    const auto &limits    = context.getDeviceProperties().limits;
+    const auto &maxInvs   = limits.maxComputeWorkGroupSize[0];
+    const auto targetInvs = ((params->wgSize > 0u) ? params->wgSize : maxInvs);
+    const tcu::UVec3 wgSize(targetInvs, 1u, 1u);
+
+    const auto ctx        = context.getContextCommonData();
+    const auto &binaries  = context.getBinaryCollection();
+    const auto compShader = createShaderModule(ctx.vkd, ctx.device, binaries.get("comp"));
+
+    DescriptorPoolBuilder poolBuilder;
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+    const auto descriptorPool =
+        poolBuilder.build(ctx.vkd, ctx.device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1u);
+
+    DescriptorSetLayoutBuilder setLayoutBuilder;
+    setLayoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, VK_SHADER_STAGE_COMPUTE_BIT);
+    setLayoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
+    const auto setLayout      = setLayoutBuilder.build(ctx.vkd, ctx.device);
+    const auto pipelineLayout = makePipelineLayout(ctx.vkd, ctx.device, *setLayout);
+    const auto descriptorSet  = makeDescriptorSet(ctx.vkd, ctx.device, *descriptorPool, *setLayout);
+
+    // Pipeline.
+    const std::vector<VkSpecializationMapEntry> mapEntries{
+        makeSpecializationMapEntry(0u, sizeof(uint32_t) * 0u, sizeof(uint32_t)),
+        makeSpecializationMapEntry(1u, sizeof(uint32_t) * 1u, sizeof(uint32_t)),
+        makeSpecializationMapEntry(2u, sizeof(uint32_t) * 2u, sizeof(uint32_t)),
+    };
+    const VkSpecializationInfo specializationInfo = {
+        de::sizeU32(mapEntries),
+        de::dataOrNull(mapEntries),
+        sizeof(wgSize),
+        &wgSize,
+    };
+    const auto pipeline =
+        makeComputePipeline(ctx.vkd, ctx.device, *pipelineLayout, 0u, nullptr, *compShader, 0u, &specializationInfo);
+
+    // Resources.
+    const auto rngSeed = params->getRngSeed();
+    de::Random rng(rngSeed);
+
+    // Note each invocation will trace a ray from (X.5, 0, 0) towards (0, 0, 1), where X in the invocation index.
+    // We will create a quad in each [X, X+1] range along the X axis, at Z = 1, with Y from -1 to 1.
+    const auto zCoord = 1.0f;
+    const auto yMin   = -1.0f;
+    const auto yMax   = 1.0f;
+
+    std::vector<tcu::Vec3> triangles;
+    triangles.reserve(6u * targetInvs); // 6 vertices per quad.
+
+    std::vector<bool> hasQuad;
+    hasQuad.reserve(targetInvs);
+
+    for (uint32_t i = 0; i < targetInvs; ++i)
+    {
+        // Pseudorandomly decide if we will get a quad for this invocation.
+        hasQuad.push_back(rng.getBool());
+        if (hasQuad.back())
+        {
+            const auto xMin = static_cast<float>(i);
+            const auto xMax = xMin + 1.0f;
+
+            const tcu::Vec3 topLeft(xMin, yMin, zCoord);
+            const tcu::Vec3 topRight(xMax, yMin, zCoord);
+            const tcu::Vec3 bottomLeft(xMin, yMax, zCoord);
+            const tcu::Vec3 bottomRight(xMax, yMax, zCoord);
+
+            triangles.push_back(topLeft);
+            triangles.push_back(bottomLeft);
+            triangles.push_back(topRight);
+
+            triangles.push_back(bottomLeft);
+            triangles.push_back(bottomRight);
+            triangles.push_back(topRight);
+        }
+    }
+
+    CommandPoolWithBuffer cmd(ctx.vkd, ctx.device, ctx.qfIndex);
+    const auto cmdBuffer = *cmd.cmdBuffer;
+    beginCommandBuffer(ctx.vkd, cmdBuffer);
+
+    AccelerationStructBufferProperties bufferProps;
+    bufferProps.props.residency = ResourceResidency::TRADITIONAL;
+
+    auto blas = makeBottomLevelAccelerationStructure();
+    blas->addGeometry(triangles, true);
+    blas->createAndBuild(ctx.vkd, ctx.device, cmdBuffer, ctx.allocator, bufferProps);
+
+    auto tlas = makeTopLevelAccelerationStructure();
+    tlas->addInstance(de::SharedPtr<BottomLevelAccelerationStructure>(blas.release()));
+    tlas->createAndBuild(ctx.vkd, ctx.device, cmdBuffer, ctx.allocator, bufferProps);
+
+    std::vector<uint32_t> ssboValues(targetInvs, 0u);
+    const auto ssboSize  = static_cast<VkDeviceSize>(de::dataSize(ssboValues));
+    const auto ssboUsage = static_cast<VkBufferUsageFlags>(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    const auto ssboInfo  = makeBufferCreateInfo(ssboSize, ssboUsage);
+    BufferWithMemory ssbo(ctx.vkd, ctx.device, ctx.allocator, ssboInfo, HostIntent::RW);
+    auto &ssboAlloc = ssbo.getAllocation();
+    memcpy(ssboAlloc.getHostPtr(), de::dataOrNull(ssboValues), de::dataSize(ssboValues));
+    flushAlloc(ctx.vkd, ctx.device, ssboAlloc);
+
+    DescriptorSetUpdateBuilder updateBuilder;
+    const auto binding                                          = DescriptorSetUpdateBuilder::Location::binding;
+    const VkWriteDescriptorSetAccelerationStructureKHR tlasDesc = {
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+        nullptr,
+        1u,
+        tlas->getPtr(),
+    };
+    updateBuilder.writeSingle(*descriptorSet, binding(0u), VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &tlasDesc);
+    const auto ssboDesc = makeDescriptorBufferInfo(ssbo.get(), 0ull, VK_WHOLE_SIZE);
+    updateBuilder.writeSingle(*descriptorSet, binding(1u), VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &ssboDesc);
+    updateBuilder.update(ctx.vkd, ctx.device);
+
+    const auto bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+    ctx.vkd.cmdBindDescriptorSets(cmdBuffer, bindPoint, *pipelineLayout, 0u, 1u, &descriptorSet.get(), 0u, nullptr);
+    ctx.vkd.cmdBindPipeline(cmdBuffer, bindPoint, *pipeline);
+    ctx.vkd.cmdDispatch(cmdBuffer, 1u, 1u, 1u);
+    const auto barrier = makeMemoryBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+    cmdPipelineMemoryBarrier(ctx.vkd, cmdBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                             &barrier);
+    endCommandBuffer(ctx.vkd, cmdBuffer);
+    submitCommandsAndWait(ctx.vkd, ctx.device, ctx.queue, cmdBuffer);
+
+    invalidateAlloc(ctx.vkd, ctx.device, ssboAlloc);
+    memcpy(de::dataOrNull(ssboValues), ssboAlloc.getHostPtr(), de::dataSize(ssboValues));
+
+    auto &log = context.getTestContext().getLog();
+    bool fail = false;
+
+    for (uint32_t i = 0u; i < targetInvs; ++i)
+    {
+        uint32_t reference = 0u;
+        if (!params->single ||
+            (!!params->single && (*params->single == i ||
+                                  (*params->single == std::numeric_limits<uint32_t>::max() && i == targetInvs - 1u))))
+        {
+            // A query has been run for this invocation.
+            reference = (hasQuad.at(i) ? 2u : 1u);
+        }
+        const auto &result = ssboValues.at(i);
+        if (result != reference)
+        {
+            fail = true;
+            std::ostringstream msg;
+            msg << "Unexpected result at SSBO value " << i << ": expected " << reference << " but found " << result;
+            log << tcu::TestLog::Message << msg.str() << tcu::TestLog::EndMessage;
+        }
+    }
+
+    if (fail)
+        TCU_FAIL("Unexpected results found in output buffer; check log for details");
+
+    return tcu::TestStatus::pass("Pass");
+}
+
+void initFlipFacingPrograms(vk::SourceCollections &dst)
+{
+    const vk::ShaderBuildOptions buildOptions(dst.usedVulkanVersion, vk::SPIRV_VERSION_1_4, 0u, true);
+
+    std::ostringstream comp;
+    comp << "#version 460 core\n"
+         << "#extension GL_EXT_ray_query : require\n"
+         << "layout (local_size_x=1, local_size_y=1, local_size_z=1) in;\n"
+         << "layout(set=0, binding=0) uniform accelerationStructureEXT topLevelAS;\n"
+         << "layout(set=0, binding=1) buffer OutputBuffer { uint val; } outBuffer;\n"
+         << "void main()\n"
+         << "{\n"
+         << "    const uint  cullMask  = 0xFF;\n"
+         << "    const vec3  origin    = vec3(0.0, 0.0, 0.0);\n"
+         << "    const vec3  direction = vec3(0.0, 0.0, 1.0);\n"
+         << "    const float tMin      = 1.0;\n"
+         << "    const float tMax      = 10.0;\n"
+         << "    const uint  rayFlags  = gl_RayFlagsCullBackFacingTrianglesEXT;\n"
+         << "    rayQueryEXT rq;\n"
+         << "    rayQueryInitializeEXT(rq, topLevelAS, rayFlags, cullMask, origin, tMin, direction, tMax);\n"
+         << "    outBuffer.val = 0u;\n"
+         << "    while (rayQueryProceedEXT(rq)) {\n"
+         << "        if (rayQueryGetIntersectionTypeEXT(rq, false) == gl_RayQueryCandidateIntersectionTriangleEXT) {\n"
+         << "            atomicAdd(outBuffer.val, 1u);\n"
+         << "        }\n"
+         << "    }\n"
+         << "}\n";
+    dst.glslSources.add("comp") << glu::ComputeSource(comp.str()) << buildOptions;
+}
+
+tcu::TestStatus flipFacingRun(Context &context)
+{
+    const auto ctx    = context.getContextCommonData();
+    const auto stages = static_cast<VkShaderStageFlags>(VK_SHADER_STAGE_COMPUTE_BIT);
+
+    // Command pool and buffer.
+    CommandPoolWithBuffer cmd(ctx.vkd, ctx.device, ctx.qfIndex);
+    const auto cmdBuffer = *cmd.cmdBuffer;
+
+    // Build acceleration structures.
+    auto topLevelAS    = makeTopLevelAccelerationStructure();
+    auto bottomLevelAS = makeBottomLevelAccelerationStructure();
+
+    const std::vector<float> zPos{5.0f, 6.0f};
+    std::vector<tcu::Vec3> triangles;
+    triangles.reserve(3 * zPos.size());
+    for (const float z : zPos)
+    {
+        // clang-format off
+        triangles.emplace_back(-1.0f, -1.0f, z);
+        triangles.emplace_back( 1.0f, -1.0f, z);
+        triangles.emplace_back( 0.0f,  1.0f, z);
+        // clang-format on
+    }
+
+    bottomLevelAS->addGeometry(triangles, true /*triangles*/);
+
+    AccelerationStructBufferProperties bufferProps;
+    bufferProps.useExternalBuffer = false;
+    bufferProps.props.residency   = ResourceResidency::TRADITIONAL;
+
+    beginCommandBuffer(ctx.vkd, cmdBuffer);
+    bottomLevelAS->createAndBuild(ctx.vkd, ctx.device, cmdBuffer, ctx.allocator, bufferProps);
+
+    using SharedBottomPtr = de::SharedPtr<BottomLevelAccelerationStructure>;
+    SharedBottomPtr blasSharedPtr(bottomLevelAS.release());
+
+    topLevelAS->setInstanceCount(1);
+    const auto instanceFlags =
+        static_cast<VkGeometryInstanceFlagsKHR>(VK_GEOMETRY_INSTANCE_TRIANGLE_FLIP_FACING_BIT_KHR);
+    topLevelAS->addInstance(blasSharedPtr, identityMatrix3x4, 0u, 0xFFu, 0u, instanceFlags);
+    topLevelAS->createAndBuild(ctx.vkd, ctx.device, cmdBuffer, ctx.allocator, bufferProps);
+
+    // Create output buffer.
+    const auto bufferSize       = static_cast<VkDeviceSize>(sizeof(uint32_t));
+    const auto bufferCreateInfo = makeBufferCreateInfo(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    BufferWithMemory buffer(ctx.vkd, ctx.device, ctx.allocator, bufferCreateInfo, HostIntent::RW);
+    {
+        auto &alloc = buffer.getAllocation();
+        memset(alloc.getHostPtr(), 0xFF, sizeof(uint32_t));
+        flushAlloc(ctx.vkd, ctx.device, alloc);
+    }
+
+    // Descriptor set layout and pipeline layout.
+    DescriptorSetLayoutBuilder setLayoutBuilder;
+    setLayoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, stages);
+    setLayoutBuilder.addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, stages);
+
+    const auto setLayout      = setLayoutBuilder.build(ctx.vkd, ctx.device);
+    const auto pipelineLayout = makePipelineLayout(ctx.vkd, ctx.device, setLayout.get());
+
+    // Descriptor pool and set.
+    DescriptorPoolBuilder poolBuilder;
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+    poolBuilder.addType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+    const auto descriptorPool =
+        poolBuilder.build(ctx.vkd, ctx.device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1u);
+    const auto descriptorSet = makeDescriptorSet(ctx.vkd, ctx.device, descriptorPool.get(), setLayout.get());
+
+    // Update descriptor set.
+    {
+        const VkWriteDescriptorSetAccelerationStructureKHR accelDescInfo = {
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+            nullptr,
+            1u,
+            topLevelAS.get()->getPtr(),
+        };
+
+        const auto bufferDescInfo = makeDescriptorBufferInfo(buffer.get(), 0ull, VK_WHOLE_SIZE);
+
+        DescriptorSetUpdateBuilder updateBuilder;
+        updateBuilder.writeSingle(descriptorSet.get(), DescriptorSetUpdateBuilder::Location::binding(0u),
+                                  VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &accelDescInfo);
+        updateBuilder.writeSingle(descriptorSet.get(), DescriptorSetUpdateBuilder::Location::binding(1u),
+                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &bufferDescInfo);
+        updateBuilder.update(ctx.vkd, ctx.device);
+    }
+
+    // Shader modules.
+    const auto &binaries  = context.getBinaryCollection();
+    const auto compModule = createShaderModule(ctx.vkd, ctx.device, binaries.get("comp"));
+    const auto pipeline   = makeComputePipeline(ctx.vkd, ctx.device, *pipelineLayout, *compModule);
+
+    // Trace rays.
+    ctx.vkd.cmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, *pipeline);
+    ctx.vkd.cmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, *pipelineLayout, 0u, 1u,
+                                  &descriptorSet.get(), 0u, nullptr);
+    ctx.vkd.cmdDispatch(cmdBuffer, 1u, 1u, 1u);
+
+    // Barrier for the output buffer.
+    const auto bufferBarrier = makeMemoryBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+    ctx.vkd.cmdPipelineBarrier(cmdBuffer, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_HOST_BIT, 0u,
+                               1u, &bufferBarrier, 0u, nullptr, 0u, nullptr);
+
+    endCommandBuffer(ctx.vkd, cmdBuffer);
+    submitCommandsAndWait(ctx.vkd, ctx.device, ctx.queue, cmdBuffer);
+
+    // Read value back from the buffer.
+    uint32_t bufferValue = 0xFFu;
+    invalidateAlloc(ctx.vkd, ctx.device, buffer.getAllocation());
+    memcpy(&bufferValue, buffer.getAllocation().getHostPtr(), sizeof(bufferValue));
+
+    const auto expected = de::sizeU32(zPos);
+    if (bufferValue != expected)
+    {
+        std::ostringstream msg;
+        msg << "Unexpected value found in buffer: expected " << expected << " but found " << bufferValue;
+        TCU_FAIL(msg.str());
+    }
+
+    return tcu::TestStatus::pass("Pass");
+}
+
+} // namespace
+
+TestCaseGroup *addHelperInvocationsTests(TestContext &testCtx)
+{
+    std::pair<bool, const char *> const builds[]{{true, "gpu"}, {false, "cpu"}};
+
+    std::pair<HelperInvocationsParams::DfStyle, const char *> const styles[]{
+        {HelperInvocationsParams::Regular, "regular"},
+        {HelperInvocationsParams::Coarse, "coarse"},
+        {HelperInvocationsParams::Fine, "fine"}};
+
+    std::pair<HelperInvocationsParams::test_mode_t, const char *> const modes[] = {
+        {HelperInvocationsParams::MODE_LINEAR_QUADRATIC, "linear_quadratic"},
+        {HelperInvocationsParams::MODE_LINEAR_CUBIC, "linear_cubic"},
+        {HelperInvocationsParams::MODE_CUBIC_QUADRATIC, "cubic_quadratic"},
+#ifdef ENABLE_ALL_HELPER_COMBINATIONS
+        {HelperInvocationsParams::MODE_LINEAR_LINEAR, "linear_linear"},
+        {HelperInvocationsParams::MODE_QUADRATIC_LINEAR, "quadratic_linear"},
+        {HelperInvocationsParams::MODE_QUADRATIC_QUADRATIC, "quadratic_quadratic"},
+        {HelperInvocationsParams::MODE_QUADRATIC_CUBIC, "quadratic_cubic"},
+        {HelperInvocationsParams::MODE_CUBIC_LINEAR, "cubic_linear"},
+        {HelperInvocationsParams::MODE_CUBIC_CUBIC, "cubic_cubic"},
+#endif
+    };
+
+    std::pair<uint32_t, uint32_t> const screens[]{{64, 64}, {32, 64}};
+
+    std::pair<uint32_t, uint32_t> const models[]{{64, 64}, {64, 32}};
+
+    auto makeTestName = [](const std::pair<uint32_t, uint32_t> &d) -> std::string
+    { return std::to_string(d.first) + "x" + std::to_string(d.second); };
+
+    auto rootGroup = new TestCaseGroup(testCtx, "helper_invocations");
+    for (auto &build : builds)
+    {
+        auto buildGroup = new tcu::TestCaseGroup(testCtx, build.second);
+        for (auto &style : styles)
+        {
+            auto styleGroup = new tcu::TestCaseGroup(testCtx, style.second);
+            for (auto &mode : modes)
+            {
+                auto modeGroup = new tcu::TestCaseGroup(testCtx, mode.second);
+                for (auto &screen : screens)
+                {
+                    auto screenGroup = new TestCaseGroup(testCtx, makeTestName(screen).c_str());
+                    for (auto &model : models)
+                    {
+                        HelperInvocationsParams p;
+                        p.mode     = mode.first;
+                        p.screen   = screen;
+                        p.model    = model;
+                        p.style    = style.first;
+                        p.buildGPU = build.first;
+
+                        screenGroup->addChild(new HelperInvocationsCase(testCtx, p, makeTestName(model)));
+                    }
+                    modeGroup->addChild(screenGroup);
+                }
+                styleGroup->addChild(modeGroup);
+            }
+            buildGroup->addChild(styleGroup);
+        }
+        rootGroup->addChild(buildGroup);
+    }
+    return rootGroup;
+}
+
+tcu::TestCaseGroup *createMiscTests(tcu::TestContext &testCtx)
+{
+    // Miscellaneous ray query tests
+    de::MovePtr<tcu::TestCaseGroup> group(new tcu::TestCaseGroup(testCtx, "misc"));
+
+    // Dynamic indexing of ray queries, with and without using the queries first in code.
+    {
+        DynamicIndexingParams params;
+        group->addChild(new DynamicIndexingCase(testCtx, "dynamic_indexing", params));
+
+        params.useFirst = true;
+        group->addChild(new DynamicIndexingCase(testCtx, "dynamic_indexing_use_first", params));
+
+        params.useFirst = false;
+        params.useSpirv = true;
+        group->addChild(new DynamicIndexingCase(testCtx, "dynamic_indexing_inbounds", params));
+    }
+
+    addFunctionCaseWithPrograms(group.get(), "reuse_scratch_buffer", checkRayQuerySupport,
+                                initReuseScratchBufferPrograms, reuseScratchBufferInstance);
+
+    {
+        addFunctionCaseWithPrograms(group.get(), "update_empty_bottom", checkRayQuerySupport, initEmptyASPrograms,
+                                    updateEmptyBottomASInstance);
+
+        addFunctionCaseWithPrograms(group.get(), "update_empty_top", checkRayQuerySupport, initEmptyASPrograms,
+                                    updateEmptyTopASInstance);
+    }
+
+    {
+        const std::array<const char *, 3> singleCaseSuffixes{
+            "_first",
+            "_last",
+            "_middle",
+        };
+        for (const auto wgSize : {61u, 64u, 127u, 128u, 251u, 256u, 509u, 512u, 1021u, 1024u, 0u})
+            for (const bool single : {false, true})
+                for (const int singleCase :
+                     {0, 1, 2}) // First invocation, last invocation, middle invocation, see above.
+                {
+                    if (!single && singleCase != 0) // We only need one "all invocations" case.
+                        break;
+
+                    tcu::Maybe<uint32_t> singleParam = tcu::Nothing;
+                    if (single)
+                    {
+                        if (singleCase == 0)
+                            singleParam = tcu::just(0u);
+                        else if (singleCase == 1)
+                            singleParam = tcu::just(std::numeric_limits<uint32_t>::max());
+                        else if (singleCase == 2)
+                            singleParam = tcu::just(wgSize / 2u);
+                        else
+                            DE_ASSERT(false);
+                    }
+                    RayPerInvParamsPtr params(new RayPerInvParams{
+                        singleParam,
+                        wgSize,
+                    });
+                    const auto &singleCaseSuffix = singleCaseSuffixes.at(singleCase);
+                    const auto testName = "ray_per_inv_" + std::to_string(wgSize) + (single ? "_single" : "_all") +
+                                          (single ? singleCaseSuffix : "");
+                    addFunctionCaseWithPrograms(group.get(), testName, RayPerInvSupport, RayPerInvPrograms,
+                                                RayPerInvRun, params);
+                }
+    }
+
+    addFunctionCaseWithPrograms(group.get(), "preserve_flip_facing", checkRayQuerySupport, initFlipFacingPrograms,
+                                flipFacingRun);
+
+    return group.release();
+}
+
+} // namespace RayQuery
+} // namespace vkt

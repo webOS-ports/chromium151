@@ -1,0 +1,10 @@
+dEQP-VK.sparse_resources.transfer_queue.2d.r32i.512_256_1
+dEQP-VK.sparse_resources.transfer_queue.2d.r32ui.512_256_1
+dEQP-VK.sparse_resources.transfer_queue.2d.rgba16i.512_256_1
+dEQP-VK.sparse_resources.transfer_queue.2d.rgba16ui.512_256_1
+dEQP-VK.sparse_resources.transfer_queue.2d.rgba32i.512_256_1
+dEQP-VK.sparse_resources.transfer_queue.2d.rgba32ui.512_256_1
+dEQP-VK.sparse_resources.transfer_queue.2d.rgba8.512_256_1
+dEQP-VK.sparse_resources.transfer_queue.2d.rgba8_snorm.512_256_1
+dEQP-VK.sparse_resources.transfer_queue.2d.rgba8i.512_256_1
+dEQP-VK.sparse_resources.transfer_queue.2d.rgba8ui.512_256_1

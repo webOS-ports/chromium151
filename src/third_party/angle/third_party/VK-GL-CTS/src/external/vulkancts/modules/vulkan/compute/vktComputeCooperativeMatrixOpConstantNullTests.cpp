@@ -1,0 +1,1992 @@
+/*------------------------------------------------------------------------
+ * Vulkan Conformance Tests
+ * ------------------------
+ *
+ * Copyright (c) 2019 The Khronos Group Inc.
+ * Copyright (c) 2018-2024 NVIDIA Corporation
+ * Copyright (c) 2023 LunarG, Inc.
+ * Copyright (c) 2023 Nintendo
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ *//*!
+ * \file
+ * \brief Vulkan Cooperative Matrix OpConstantNull tests
+ *//*--------------------------------------------------------------------*/
+
+#include "vkComputePipelineConstructionUtil.hpp"
+#include "vkBufferWithMemory.hpp"
+#include "vktTestGroupUtil.hpp"
+#include "vktTestCase.hpp"
+#include "tcuFloat.hpp"
+#include "tcuStringTemplate.hpp"
+#include "vkStrUtil.hpp"
+#include "vkObjUtil.hpp"
+#include "vkCmdUtil.hpp"
+#include "vkBuilderUtil.hpp"
+#include "vkStrUtil.hpp"
+
+#include <algorithm>
+#include <cmath>
+#include <functional>
+#include <initializer_list>
+#include <iostream>
+#include <map>
+#include <mutex>
+#include <numeric>
+#include <set>
+#include <unordered_map>
+#include <variant>
+#include <vector>
+
+namespace vkt
+{
+namespace compute
+{
+using namespace vk;
+
+namespace
+{
+
+enum class Matrices : uint32_t
+{
+    All = 10u,
+    A,
+    B,
+    C,
+    R
+};
+
+static const std::map<VkComponentTypeKHR, uint32_t> PossibleTypes = []
+{
+    std::map<VkComponentTypeKHR, uint32_t> m;
+    for (VkComponentTypeKHR c : {
+             VK_COMPONENT_TYPE_FLOAT16_KHR,
+             VK_COMPONENT_TYPE_FLOAT32_KHR,
+             VK_COMPONENT_TYPE_FLOAT64_KHR,
+             VK_COMPONENT_TYPE_SINT8_KHR,
+             VK_COMPONENT_TYPE_SINT16_KHR,
+             VK_COMPONENT_TYPE_SINT32_KHR,
+             VK_COMPONENT_TYPE_SINT64_KHR,
+             VK_COMPONENT_TYPE_UINT8_KHR,
+             VK_COMPONENT_TYPE_UINT16_KHR,
+             VK_COMPONENT_TYPE_UINT32_KHR,
+             VK_COMPONENT_TYPE_UINT64_KHR,
+             VK_COMPONENT_TYPE_BFLOAT16_KHR,
+             VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT,
+             VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT,
+         })
+        m[c] = uint32_t(m.size());
+    return m;
+}();
+
+static const std::map<uint32_t, VkComponentTypeKHR> InvPossibleTypes = []
+{
+    std::map<uint32_t, VkComponentTypeKHR> m;
+    for (const std::pair<const VkComponentTypeKHR, uint32_t> &p : PossibleTypes)
+        m[p.second] = p.first;
+    return m;
+}();
+
+static bool isFloatType(VkComponentTypeKHR t)
+{
+    return t == VK_COMPONENT_TYPE_FLOAT16_KHR || t == VK_COMPONENT_TYPE_FLOAT32_KHR ||
+           t == VK_COMPONENT_TYPE_FLOAT64_KHR || t == VK_COMPONENT_TYPE_BFLOAT16_KHR ||
+           t == VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT || t == VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT;
+}
+
+static bool isIntType(VkComponentTypeKHR t)
+{
+    return !isFloatType(t);
+}
+
+static bool inPossibleTypes(VkComponentTypeKHR type)
+{
+    return PossibleTypes.find(type) != PossibleTypes.end();
+}
+
+static bool isPossibleConfiguration(const VkCooperativeMatrixPropertiesKHR &p)
+{
+    return inPossibleTypes(p.AType) && inPossibleTypes(p.BType) && inPossibleTypes(p.CType) &&
+           inPossibleTypes(p.ResultType) && p.scope == VK_SCOPE_SUBGROUP_KHR;
+}
+
+static uint32_t encodeConfiguration(const VkCooperativeMatrixPropertiesKHR &c, bool allowZeroSizes)
+{
+    uint32_t key = uint32_t(c.saturatingAccumulation);
+    key |= PossibleTypes.at(c.AType) << 1;
+    key |= PossibleTypes.at(c.BType) << 6;
+    key |= PossibleTypes.at(c.CType) << 11;
+    key |= PossibleTypes.at(c.ResultType) << 16;
+    if (false == allowZeroSizes)
+    {
+        key |= (de::findMSB(c.MSize) - 2) << 21;
+        key |= (de::findMSB(c.NSize) - 2) << 24;
+        key |= (de::findMSB(c.KSize) - 2) << 27;
+    }
+    // Ignore c.scope, it is always VK_SCOPE_SUBGROUP_KHR,
+    // please have a look on isPossibleConfiguration
+    DE_ASSERT(c.scope == VK_SCOPE_SUBGROUP_KHR);
+    return key;
+}
+
+static VkCooperativeMatrixPropertiesKHR decodeConfiguration(uint32_t key)
+{
+    VkCooperativeMatrixPropertiesKHR c{};
+    c.sType = VK_STRUCTURE_TYPE_COOPERATIVE_MATRIX_PROPERTIES_KHR;
+
+    c.saturatingAccumulation = VkBool32(key & 0x1);
+
+    uint32_t ATypeBits = (key >> 1) & 0x1F;
+    uint32_t BTypeBits = (key >> 6) & 0x1F;
+    uint32_t CTypeBits = (key >> 11) & 0x1F;
+    uint32_t RTypeBits = (key >> 16) & 0x1F;
+
+    uint32_t MSizeBits = (key >> 21) & 0x7;
+    uint32_t NSizeBits = (key >> 24) & 0x7;
+    uint32_t KSizeBits = (key >> 27) & 0x7;
+
+    c.AType      = InvPossibleTypes.at(ATypeBits);
+    c.BType      = InvPossibleTypes.at(BTypeBits);
+    c.CType      = InvPossibleTypes.at(CTypeBits);
+    c.ResultType = InvPossibleTypes.at(RTypeBits);
+
+    c.MSize = 1u << (MSizeBits + 2u);
+    c.NSize = 1u << (NSizeBits + 2u);
+    c.KSize = 1u << (KSizeBits + 2u);
+
+    c.scope = VK_SCOPE_SUBGROUP_KHR;
+
+    return c;
+}
+
+inline static uint32_t zeroSizesInConf(const uint32_t encoded)
+{
+    return (encoded & ~0x3FE00000u);
+}
+
+bool anyComponentOf(const VkCooperativeMatrixPropertiesKHR &p, std::initializer_list<VkComponentTypeKHR> components)
+{
+    for (const VkComponentTypeKHR &c : components)
+    {
+        if (p.AType == c || p.BType == c || p.CType == c || p.ResultType == c)
+            return true;
+    }
+    return false;
+}
+
+bool anyComponentOf(const std::vector<VkCooperativeMatrixPropertiesKHR> &p,
+                    std::initializer_list<VkComponentTypeKHR> components)
+{
+    for (const VkCooperativeMatrixPropertiesKHR &conf : p)
+    {
+        if (anyComponentOf(conf, components))
+            return true;
+    }
+    return false;
+}
+
+bool has16BitTypes(const std::vector<VkCooperativeMatrixPropertiesKHR> &p)
+{
+    return anyComponentOf(p, {VK_COMPONENT_TYPE_SINT16_KHR, VK_COMPONENT_TYPE_UINT16_KHR,
+                              VK_COMPONENT_TYPE_BFLOAT16_KHR, VK_COMPONENT_TYPE_FLOAT16_KHR});
+}
+
+bool hasInt8BitTypes(const std::vector<VkCooperativeMatrixPropertiesKHR> &p)
+{
+    return anyComponentOf(p, {VK_COMPONENT_TYPE_SINT8_KHR, VK_COMPONENT_TYPE_UINT8_KHR});
+}
+
+bool hasFloat8BitTypes(const std::vector<VkCooperativeMatrixPropertiesKHR> &p)
+{
+    return anyComponentOf(p, {VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT, VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT});
+}
+
+bool hasBFloat16Types(const std::vector<VkCooperativeMatrixPropertiesKHR> &p)
+{
+    return anyComponentOf(p, {VK_COMPONENT_TYPE_BFLOAT16_KHR});
+}
+
+struct Params
+{
+    ComputePipelineConstructionType pipelineConstructionType;
+    Matrices matrix;
+    bool allowDynamicConfigurations;
+};
+
+class CoopMtxOpConstantNullInstance : public TestInstance
+{
+    const Params m_params;
+    const bool m_allowDynamicConfigurations;
+    const std::vector<VkCooperativeMatrixPropertiesKHR> m_iterations;
+    const std::vector<VkCooperativeMatrixPropertiesKHR> m_skippedIterations;
+    uint32_t m_iteration;
+    uint32_t m_failCount;
+
+public:
+    struct Executor
+    {
+        struct PushConstant
+        {
+            Matrices testMatrix;
+            Matrices matrixA, matrixB, matrixC, matrixR;
+            PushConstant(Matrices matrixToTest)
+                : testMatrix(matrixToTest)
+                , matrixA(Matrices::A)
+                , matrixB(Matrices::B)
+                , matrixC(Matrices::C)
+                , matrixR(Matrices::R)
+            {
+            }
+        };
+
+        Executor(Context &context, const VkCooperativeMatrixPropertiesKHR &conf, const Params &params);
+        void execute(Matrices targetMatrix);
+        std::vector<float> getMatrix(Matrices m) const;
+        const VkCooperativeMatrixPropertiesKHR &getConfiguration() const
+        {
+            return m_configuration;
+        }
+        template <class Stream>
+        void dumpMatrices(Stream &str, bool includeReference) const;
+
+    private:
+        template <class Stream>
+        void dumpMatrix(Stream &str, const std::vector<float> matrix, uint32_t rows, uint32_t cols,
+                        const std::string &name, VkComponentTypeKHR type) const;
+
+        Context &m_context;
+        const VkCooperativeMatrixPropertiesKHR m_configuration;
+        de::MovePtr<BufferWithMemory> m_bufferA;
+        de::MovePtr<BufferWithMemory> m_bufferB;
+        de::MovePtr<BufferWithMemory> m_bufferC;
+        de::MovePtr<BufferWithMemory> m_bufferR;
+        Move<VkDescriptorSetLayout> m_descriptorSetLayout;
+        Move<VkDescriptorPool> m_descriptorPool;
+        Move<VkDescriptorSet> m_descriptorSet;
+        de::MovePtr<ComputePipelineWrapper> m_pipeline;
+        VkQueue m_queue;
+        Move<VkCommandPool> m_commandPool;
+        Move<VkCommandBuffer> m_commandBuffer;
+    };
+
+public:
+    CoopMtxOpConstantNullInstance(Context &context, const Params &params, bool allowDynamicConfigurations)
+        : TestInstance(context)
+        , m_params(params)
+        , m_allowDynamicConfigurations(allowDynamicConfigurations)
+        , m_iterations(genIterations())
+        , m_skippedIterations(genSkippedIterations())
+        , m_iteration(0u)
+        , m_failCount(0u)
+    {
+    }
+    virtual tcu::TestStatus iterate() override;
+    std::vector<VkCooperativeMatrixPropertiesKHR> genIterations() const;
+    std::vector<VkCooperativeMatrixPropertiesKHR> genSkippedIterations() const;
+    void logConfiguration(const VkCooperativeMatrixPropertiesKHR &conf, uint32_t number, bool skipped,
+                          tcu::TestLog &log) const;
+    bool verifyResult(const Executor &executor, Matrices targetMatrix, std::string &errorMessage) const;
+};
+
+class CoopMtxOpConstantNullCase : public TestCase
+{
+    const Params m_params;
+
+    // This flag indicates whether the currently executing test
+    // uses a dynamic or static configuration list. The dynamic
+    // list depends on the implementation the test is running on,
+    // while the static list is generated in the code and it is
+    // generally much larger because there's no way to know what
+    // configurations the implementation can handle. By default,
+    // this flag is set to false but has been left for experimental
+    // purposes.
+    const bool m_allowDynamicConfigurations;
+
+public:
+    CoopMtxOpConstantNullCase(tcu::TestContext &testCtx, const std::string &name, const Params &params)
+        : TestCase(testCtx, name)
+        , m_params(params)
+        , m_allowDynamicConfigurations(params.allowDynamicConfigurations)
+    {
+    }
+    virtual TestInstance *createInstance(Context &context) const override
+    {
+        Params params(m_params);
+        return new CoopMtxOpConstantNullInstance(context, params, m_allowDynamicConfigurations);
+    }
+    virtual void delayedInit() override;
+    virtual void checkSupport(Context &context) const override;
+    virtual void initPrograms(SourceCollections &programCollection) const override;
+    virtual bool needsRebuildPrograms(TestCase const *testCase, Context &context) const override;
+
+    using Confs     = std::vector<uint32_t>;
+    using ConfsCRef = std::add_lvalue_reference_t<std::add_const_t<Confs>>;
+    static auto getPossibleConfigurationsStatic() -> ConfsCRef;
+    static auto getPossibleConfigurationsDynamic(const InstanceInterface *pIntf, VkPhysicalDevice device) -> ConfsCRef;
+    static auto getConfigurations(bool allowDynamicConfigurations, const InstanceInterface *pIntf,
+                                  VkPhysicalDevice device) -> ConfsCRef;
+    static uint32_t getViableConfigurationCount(bool allowDynamicConfigurations, const InstanceInterface &vki,
+                                                VkPhysicalDevice device);
+};
+
+template <VkComponentTypeKHR>
+struct vK_component_type_to_ctype_impl;
+#define VKCOMPONENTTOTYPEIMPL(comp_, cpptype_)    \
+    template <>                                   \
+    struct vK_component_type_to_ctype_impl<comp_> \
+    {                                             \
+        typedef cpptype_ type;                    \
+    }
+
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_FLOAT16_KHR, tcu::Float16);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_BFLOAT16_KHR, tcu::BrainFloat16);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT, tcu::FloatE4M3);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT, tcu::FloatE5M2);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_FLOAT32_KHR, float);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_FLOAT64_KHR, double);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_SINT8_KHR, int8_t);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_SINT16_KHR, int16_t);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_SINT32_KHR, int32_t);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_SINT64_KHR, int64_t);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_UINT8_KHR, uint8_t);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_UINT16_KHR, uint16_t);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_UINT32_KHR, uint32_t);
+VKCOMPONENTTOTYPEIMPL(VK_COMPONENT_TYPE_UINT64_KHR, uint64_t);
+
+template <VkComponentTypeKHR comp_>
+using vK_component_type_to_ctype = typename vK_component_type_to_ctype_impl<comp_>::type;
+
+template <typename T, typename = void>
+struct has_asFloat : std::false_type
+{
+};
+template <typename T>
+struct has_asFloat<T, std::void_t<decltype(std::declval<const T>().asFloat())>> : std::true_type
+{
+};
+template <class ValueType, bool>
+struct AsFloatAdapter
+{
+    float convert(const ValueType &v) const
+    {
+        return static_cast<float>(v);
+    }
+    ValueType construct(float f) const
+    {
+        return static_cast<ValueType>(f);
+    }
+};
+
+template <class ValueType>
+struct AsFloatAdapter<ValueType, true>
+{
+    float convert(const ValueType &v) const
+    {
+        return v.asFloat();
+    }
+    ValueType construct(float f) const
+    {
+        return ValueType(f);
+    }
+};
+
+template <VkComponentTypeKHR comp_type>
+struct ValueImpl
+{
+    typedef vK_component_type_to_ctype<comp_type> type;
+    const VkComponentTypeKHR component = comp_type;
+    type value{};
+    uint32_t size() const
+    {
+        return uint32_t(sizeof(type));
+    }
+    std::vector<float> readBuffer(const BufferWithMemory &buffer, uint32_t elemCount) const
+    {
+        std::vector<float> result(elemCount);
+        const type *data = reinterpret_cast<type *>(buffer.getAllocation().getHostPtr());
+        const AsFloatAdapter<type, has_asFloat<type>::value> adapter;
+        for (uint32_t i = 0; i < elemCount; ++i)
+            result[i] = adapter.convert(data[i]);
+        return result;
+    }
+    void writeBuffer(BufferWithMemory &buffer, const std::vector<float> &data) const
+    {
+        const uint32_t elemCount = uint32_t(data.size());
+        type *access             = reinterpret_cast<type *>(buffer.getAllocation().getHostPtr());
+        const AsFloatAdapter<type, has_asFloat<type>::value> adapter;
+        for (uint32_t i = 0; i < elemCount; ++i)
+            access[i] = adapter.construct(data[i]);
+    }
+};
+
+static_assert(std::is_same_v<uint32_t, vK_component_type_to_ctype<VK_COMPONENT_TYPE_UINT32_KHR>>, "???");
+static_assert(std::is_same_v<tcu::BrainFloat16, vK_component_type_to_ctype<VK_COMPONENT_TYPE_BFLOAT16_KHR>>, "???");
+
+class ValueGenerator
+{
+    std::vector<float> m_values;
+    uint32_t m_current;
+    inline static uint32_t m_seed;
+
+public:
+    ValueGenerator(VkComponentTypeKHR type) : m_values(), m_current(0)
+    {
+        switch (type)
+        {
+        case VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT:
+        case VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT:
+        case VK_COMPONENT_TYPE_FLOAT16_KHR:
+        case VK_COMPONENT_TYPE_BFLOAT16_KHR:
+        case VK_COMPONENT_TYPE_FLOAT32_KHR:
+        case VK_COMPONENT_TYPE_FLOAT64_KHR:
+            m_values = {-1.0f, -0.25f, 0.0f, +0.25f, +1.0f, +0.5f};
+            break;
+        case VK_COMPONENT_TYPE_SINT8_KHR:
+        case VK_COMPONENT_TYPE_SINT16_KHR:
+        case VK_COMPONENT_TYPE_SINT32_KHR:
+        case VK_COMPONENT_TYPE_SINT64_KHR:
+            m_values = {0.0f, -1.0f, +1.0f, +1.0f};
+            break;
+        case VK_COMPONENT_TYPE_UINT8_KHR:
+        case VK_COMPONENT_TYPE_UINT16_KHR:
+        case VK_COMPONENT_TYPE_UINT32_KHR:
+        case VK_COMPONENT_TYPE_UINT64_KHR:
+            m_values = {1.0f, 0.0f, 1.0f, 1.0f};
+            break;
+        default:
+            DE_ASSERT(false);
+        }
+
+        m_seed    = m_seed + 1u;
+        m_current = uint32_t(m_seed % m_values.size());
+    }
+    float next()
+    {
+        const float val = m_values[m_current];
+        m_current       = uint32_t((m_current + 1u) % m_values.size());
+        return val;
+    }
+};
+
+struct Value
+{
+    std::variant<ValueImpl<VK_COMPONENT_TYPE_UINT8_KHR>, ValueImpl<VK_COMPONENT_TYPE_SINT8_KHR>,
+                 ValueImpl<VK_COMPONENT_TYPE_UINT16_KHR>, ValueImpl<VK_COMPONENT_TYPE_SINT16_KHR>,
+                 ValueImpl<VK_COMPONENT_TYPE_UINT32_KHR>, ValueImpl<VK_COMPONENT_TYPE_SINT32_KHR>,
+                 ValueImpl<VK_COMPONENT_TYPE_UINT64_KHR>, ValueImpl<VK_COMPONENT_TYPE_SINT64_KHR>,
+                 ValueImpl<VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT>, ValueImpl<VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT>,
+                 ValueImpl<VK_COMPONENT_TYPE_BFLOAT16_KHR>, ValueImpl<VK_COMPONENT_TYPE_FLOAT16_KHR>,
+                 ValueImpl<VK_COMPONENT_TYPE_FLOAT32_KHR>, ValueImpl<VK_COMPONENT_TYPE_FLOAT64_KHR>>
+        value;
+    uint32_t size() const
+    {
+        return std::visit([](const auto &x) { return x.size(); }, value);
+    }
+    template <VkComponentTypeKHR type>
+    void create()
+    {
+        value.emplace<ValueImpl<type>>();
+    }
+    Value(VkComponentTypeKHR type)
+    {
+        static std::unordered_map<VkComponentTypeKHR, void (Value::*)()> factory{
+            {VK_COMPONENT_TYPE_UINT8_KHR, &Value::create<VK_COMPONENT_TYPE_UINT8_KHR>},
+            {VK_COMPONENT_TYPE_SINT8_KHR, &Value::create<VK_COMPONENT_TYPE_SINT8_KHR>},
+            {VK_COMPONENT_TYPE_UINT16_KHR, &Value::create<VK_COMPONENT_TYPE_UINT16_KHR>},
+            {VK_COMPONENT_TYPE_SINT16_KHR, &Value::create<VK_COMPONENT_TYPE_SINT16_KHR>},
+            {VK_COMPONENT_TYPE_UINT32_KHR, &Value::create<VK_COMPONENT_TYPE_UINT32_KHR>},
+            {VK_COMPONENT_TYPE_SINT32_KHR, &Value::create<VK_COMPONENT_TYPE_SINT32_KHR>},
+            {VK_COMPONENT_TYPE_UINT64_KHR, &Value::create<VK_COMPONENT_TYPE_UINT64_KHR>},
+            {VK_COMPONENT_TYPE_SINT64_KHR, &Value::create<VK_COMPONENT_TYPE_SINT64_KHR>},
+            {VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT, &Value::create<VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT>},
+            {VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT, &Value::create<VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT>},
+            {VK_COMPONENT_TYPE_BFLOAT16_KHR, &Value::create<VK_COMPONENT_TYPE_BFLOAT16_KHR>},
+            {VK_COMPONENT_TYPE_FLOAT16_KHR, &Value::create<VK_COMPONENT_TYPE_FLOAT16_KHR>},
+            {VK_COMPONENT_TYPE_FLOAT32_KHR, &Value::create<VK_COMPONENT_TYPE_FLOAT32_KHR>},
+            {VK_COMPONENT_TYPE_FLOAT64_KHR, &Value::create<VK_COMPONENT_TYPE_FLOAT64_KHR>},
+        };
+        (this->*factory[type])();
+    }
+    std::vector<float> readBuffer(const BufferWithMemory &buffer, uint32_t elemCount) const
+    {
+        return std::visit([&](const auto &x) { return x.readBuffer(buffer, elemCount); }, value);
+    }
+    void writeBuffer(BufferWithMemory &buffer, const std::vector<float> &data) const
+    {
+        return std::visit([&](const auto &x) { x.writeBuffer(buffer, data); }, value);
+    }
+    std::vector<std::string> getSpirvExtensions() const
+    {
+        return makeSpirvExtensions(std::visit([&](const auto &x) { return x.component; }, value));
+    }
+    std::vector<std::string> getSpirvCapabilities() const
+    {
+        return makeSpirvCapabilities(std::visit([&](const auto &x) { return x.component; }, value));
+    }
+    std::pair<std::string, std::string> getSpirvNames() const
+    {
+        return makeSpirvNames(std::visit([&](const auto &x) { return x.component; }, value));
+    }
+    static std::vector<std::string> makeSpirvExtensions(VkComponentTypeKHR type)
+    {
+        std::vector<std::string> exts;
+        switch (type)
+        {
+        case VK_COMPONENT_TYPE_BFLOAT16_KHR:
+            exts.push_back("SPV_KHR_bfloat16");
+            exts.push_back("SPV_KHR_16bit_storage");
+            break;
+        case VK_COMPONENT_TYPE_FLOAT16_KHR:
+            exts.push_back("SPV_KHR_16bit_storage");
+            break;
+        case VK_COMPONENT_TYPE_SINT16_KHR:
+        case VK_COMPONENT_TYPE_UINT16_KHR:
+            exts.push_back("SPV_KHR_16bit_storage");
+            break;
+        case VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT:
+        case VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT:
+            exts.push_back("SPV_EXT_float8");
+            exts.push_back("SPV_KHR_8bit_storage");
+            break;
+        case VK_COMPONENT_TYPE_SINT8_KHR:
+        case VK_COMPONENT_TYPE_UINT8_KHR:
+            exts.push_back("SPV_KHR_8bit_storage");
+            break;
+        default:
+            break;
+        }
+        return exts;
+    }
+    static std::vector<std::string> makeSpirvCapabilities(VkComponentTypeKHR type)
+    {
+        std::vector<std::string> caps;
+
+        switch (type)
+        {
+        case VK_COMPONENT_TYPE_UINT8_KHR:
+        case VK_COMPONENT_TYPE_SINT8_KHR:
+            caps.push_back("Int8");
+            caps.push_back("StorageBuffer8BitAccess");
+            break;
+        case VK_COMPONENT_TYPE_UINT16_KHR:
+        case VK_COMPONENT_TYPE_SINT16_KHR:
+            caps.push_back("Int16");
+            caps.push_back("StorageBuffer16BitAccess");
+            break;
+        case VK_COMPONENT_TYPE_UINT64_KHR:
+        case VK_COMPONENT_TYPE_SINT64_KHR:
+            caps.push_back("Int64");
+            break;
+        case VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT:
+        case VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT:
+            caps.push_back("Float8EXT");
+            caps.push_back("StorageBuffer8BitAccess");
+            caps.push_back("Float8CooperativeMatrixEXT");
+            break;
+        case VK_COMPONENT_TYPE_BFLOAT16_KHR:
+            caps.push_back("BFloat16TypeKHR");
+            caps.push_back("StorageBuffer16BitAccess");
+            caps.push_back("BFloat16CooperativeMatrixKHR");
+            break;
+        case VK_COMPONENT_TYPE_FLOAT16_KHR:
+            caps.push_back("Float16");
+            caps.push_back("StorageBuffer16BitAccess");
+            break;
+        case VK_COMPONENT_TYPE_FLOAT64_KHR:
+            caps.push_back("Float64");
+            break;
+        default:
+            break;
+        }
+        return caps;
+    }
+    static std::pair<std::string, std::string> makeSpirvNames(VkComponentTypeKHR type)
+    {
+        std::pair<std::string, std::string> names;
+        switch (type)
+        {
+        case VK_COMPONENT_TYPE_FLOAT8_E4M3_EXT:
+            names.first  = "%e4m3";
+            names.second = "OpTypeFloat 8 Float8E4M3EXT";
+            break;
+        case VK_COMPONENT_TYPE_FLOAT8_E5M2_EXT:
+            names.first  = "%e5m2";
+            names.second = "OpTypeFloat 8 Float8E5M2EXT";
+            break;
+        case VK_COMPONENT_TYPE_BFLOAT16_KHR:
+            names.first  = "%brainfloat";
+            names.second = "OpTypeFloat 16 BFloat16KHR";
+            break;
+        case VK_COMPONENT_TYPE_FLOAT16_KHR:
+            names.first  = "%half";
+            names.second = "OpTypeFloat 16";
+            break;
+        case VK_COMPONENT_TYPE_FLOAT32_KHR:
+            names.first  = "%float";
+            names.second = "OpTypeFloat 32";
+            break;
+        case VK_COMPONENT_TYPE_FLOAT64_KHR:
+            names.first  = "%double";
+            names.second = "OpTypeFloat 64";
+            break;
+        case VK_COMPONENT_TYPE_SINT8_KHR:
+            names.first  = "%char";
+            names.second = "OpTypeInt 8 1";
+            break;
+        case VK_COMPONENT_TYPE_SINT16_KHR:
+            names.first  = "%short";
+            names.second = "OpTypeInt 16 1";
+            break;
+        case VK_COMPONENT_TYPE_SINT32_KHR:
+            names.first  = "%int";
+            names.second = "OpTypeInt 32 1";
+            break;
+        case VK_COMPONENT_TYPE_SINT64_KHR:
+            names.first  = "%long";
+            names.second = "OpTypeInt 64 1";
+            break;
+        case VK_COMPONENT_TYPE_UINT8_KHR:
+            names.first  = "%uchar";
+            names.second = "OpTypeInt 8 0";
+            break;
+        case VK_COMPONENT_TYPE_UINT16_KHR:
+            names.first  = "%ushort";
+            names.second = "OpTypeInt 16 0";
+            break;
+        case VK_COMPONENT_TYPE_UINT32_KHR:
+            names.first  = "%uint";
+            names.second = "OpTypeInt 32 0";
+            break;
+        case VK_COMPONENT_TYPE_UINT64_KHR:
+            names.first  = "%ulong";
+            names.second = "OpTypeInt 64 0";
+            break;
+        default:
+            break;
+        }
+        return names;
+    }
+    std::string getMatrixOperand(Matrices m)
+    {
+        return makeMatrixOperand(std::visit([&](const auto &x) { return x.component; }, value), m);
+    }
+    static std::string makeMatrixOperand(VkComponentTypeKHR type, Matrices m)
+    {
+        bool hasSign = false;
+
+        switch (type)
+        {
+        case VK_COMPONENT_TYPE_FLOAT16_KHR:
+        case VK_COMPONENT_TYPE_FLOAT32_KHR:
+        case VK_COMPONENT_TYPE_FLOAT64_KHR:
+        case VK_COMPONENT_TYPE_SINT8_KHR:
+        case VK_COMPONENT_TYPE_SINT16_KHR:
+        case VK_COMPONENT_TYPE_SINT32_KHR:
+        case VK_COMPONENT_TYPE_SINT64_KHR:
+        case VK_COMPONENT_TYPE_BFLOAT16_KHR:
+        case VK_COMPONENT_TYPE_SINT8_PACKED_NV:
+        case VK_COMPONENT_TYPE_FLOAT_E4M3_NV:
+        case VK_COMPONENT_TYPE_FLOAT_E5M2_NV:
+            hasSign = true;
+            break;
+        default:
+            break;
+        }
+
+        if (false == hasSign)
+        {
+            return std::string();
+        }
+
+        static const std::map<Matrices, std::string> names{
+            {Matrices::A, "A"}, {Matrices::B, "B"}, {Matrices::C, "C"}, {Matrices::R, "Result"}};
+        DE_ASSERT(names.find(m) != names.end());
+
+        return "Matrix" + names.at(m) + "SignedComponentsKHR";
+    }
+};
+
+std::vector<float> mulMatrices(const std::vector<float> &A, const std::vector<float> &B, const uint32_t rowCountOfA,
+                               const uint32_t colCountOfB)
+{
+    std::vector<float> R(rowCountOfA * colCountOfB);
+    const uint32_t K           = uint32_t(A.size()) / rowCountOfA;
+    const uint32_t rowCountOfB = uint32_t(B.size()) / colCountOfB;
+    DE_ASSERT(K == rowCountOfB);
+    DE_UNREF(rowCountOfB);
+
+    for (uint32_t row = 0; row < rowCountOfA; ++row)
+    {
+        for (uint32_t col = 0; col < colCountOfB; ++col)
+        {
+            float sum = 0.0f;
+            for (uint32_t k = 0; k < K; ++k)
+            {
+                float a = A[row * K + k];
+                float b = B[k * colCountOfB + col];
+                sum += a * b;
+            }
+            R[row * colCountOfB + col] = sum;
+        }
+    }
+    return R;
+}
+
+std::vector<float> addMatrices(const std::vector<float> &A, const std::vector<float> &B)
+{
+    const uint32_t N = uint32_t(A.size());
+    DE_ASSERT(N == B.size());
+    std::vector<float> R(N);
+    for (uint32_t i = 0u; i < N; ++i)
+        R[i] = A[i] + B[i];
+    return R;
+}
+
+bool isNullMatrix(const std::vector<float> &mat)
+{
+    DE_ASSERT(mat.size());
+    return std::all_of(mat.begin(), mat.end(), [](const float x) { return x == 0.0f; });
+}
+
+std::string genShaderName(const VkCooperativeMatrixPropertiesKHR &p)
+{
+    std::ostringstream os;
+    os << PossibleTypes.at(p.AType);
+    os << '-' << PossibleTypes.at(p.BType);
+    os << '-' << PossibleTypes.at(p.CType);
+    os << '-' << PossibleTypes.at(p.ResultType);
+    os << '-' << p.saturatingAccumulation;
+    return os.str();
+}
+
+std::string genShaderCode(const VkCooperativeMatrixPropertiesKHR &conf)
+{
+    /*
+    #version 450
+
+    #pragma use_vulkan_memory_model
+    #extension GL_KHR_memory_scope_semantics : require
+    #extension GL_KHR_cooperative_matrix : require
+    #extension GL_KHR_shader_subgroup_basic : require
+    #extension GL_EXT_shader_explicit_arithmetic_types : require
+    #extension GL_EXT_buffer_reference : require
+
+    layout(local_size_x_id = 0, local_size_y = 1, local_size_z = 1) in;
+    layout(push_constant) uniform PC {
+        uint REQUESTED_MATRIX,MAT_A, MAT_B, MAT_C, MAT_R; };
+    layout(constant_id = 1) const int M = 1;
+    layout(constant_id = 2) const int K = 1;
+    layout(constant_id = 3) const int N = 1;
+    layout(constant_id = 4) const int V = 1;
+
+    layout(set = 0, binding = 0) coherent buffer AData { float16_t a[]; };
+    layout(set = 0, binding = 1) coherent buffer BData { float16_t b[]; };
+    layout(set = 0, binding = 2) coherent buffer CData { float16_t c[]; };
+    layout(set = 0, binding = 3) coherent buffer RData { float16_t r[]; };
+
+    coopmat<float16_t, gl_ScopeSubgroup, M, K, gl_MatrixUseA> A;
+    coopmat<float16_t, gl_ScopeSubgroup, K, N, gl_MatrixUseB> B;
+    coopmat<float16_t, gl_ScopeSubgroup, M, N, gl_MatrixUseAccumulator> C;
+    coopmat<float16_t, gl_ScopeSubgroup, M, N, gl_MatrixUseAccumulator> R;
+
+    void loadMatrix(out coopmat<float16_t, gl_ScopeSubgroup, M, K, gl_MatrixUseA> mtx) {
+        if (REQUESTED_MATRIX == MAT_A)
+            mtx = null;
+        else
+            coopMatLoad(mtx, a, 0, 2, gl_CooperativeMatrixLayoutRowMajor);
+    }
+    void loadMatrix(out coopmat<float16_t, gl_ScopeSubgroup, K, N, gl_MatrixUseB> mtx) {
+        if (REQUESTED_MATRIX == MAT_B)
+            mtx = null;
+        else
+            coopMatLoad(mtx, b, 0, 2, gl_CooperativeMatrixLayoutRowMajor);
+    }
+    void loadMatrix(out coopmat<float16_t, gl_ScopeSubgroup, M, N, gl_MatrixUseAccumulator> mtx) {
+        if (REQUESTED_MATRIX == MAT_C)
+            mtx = null
+        else
+            coopMatLoad(mtx, c, 0, 2, gl_CooperativeMatrixLayoutRowMajor);
+    }
+    coopmat<float16_t, gl_ScopeSubgroup, M, N, gl_MatrixUseAccumulator> genOutputMatrix() {
+        coopmat<float16_t, gl_ScopeSubgroup, M, N, gl_MatrixUseAccumulator> res;
+        if (REQUESTED_MATRIX == MAT_R)
+            res = null;
+        else
+            res = coopMatMulAdd(A, B, C);
+        return res;
+    }
+    void main() {
+        loadMatrix(A);
+        loadMatrix(B);
+        loadMatrix(C);
+        R = genOutputMatrix();
+        coopMatStore(R, r, 0, N, gl_CooperativeMatrixLayoutRowMajor);
+    }
+    */
+    const tcu::StringTemplate code(R"spirv(
+; SPIR-V
+; Version: 1.3
+; Generator: Khronos Glslang Reference Front End; 11
+; Bound: 150
+; Schema: 0
+               OpCapability Shader
+${Capabilities}
+               OpCapability VulkanMemoryModel
+               OpCapability CooperativeMatrixKHR
+${Extensions}
+               OpExtension "SPV_KHR_cooperative_matrix"
+               OpExtension "SPV_KHR_vulkan_memory_model"
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical Vulkan
+               OpEntryPoint GLCompute %main "main"
+               OpExecutionMode %main LocalSize 1 1 1
+
+               ; Annotations
+               OpDecorate %M SpecId 1
+               OpDecorate %K SpecId 2
+               OpDecorate %N SpecId 3
+               OpDecorate %PC Block
+               OpMemberDecorate %PC 0 Offset 0
+               OpMemberDecorate %PC 1 Offset 4
+               OpMemberDecorate %PC 2 Offset 8
+               OpMemberDecorate %PC 3 Offset 12
+               OpMemberDecorate %PC 4 Offset 16
+               OpDecorate %_runtimearr_adata ArrayStride ${AStride}
+               OpDecorate %DataA Block
+               OpMemberDecorate %DataA 0 Offset 0
+               OpDecorate %__0 Binding 0
+               OpDecorate %__0 DescriptorSet 0
+               OpDecorate %_runtimearr_bdata ArrayStride ${BStride}
+               OpDecorate %DataB Block
+               OpMemberDecorate %DataB 0 Offset 0
+               OpDecorate %__1 Binding 1
+               OpDecorate %__1 DescriptorSet 0
+               OpDecorate %_runtimearr_cdata ArrayStride ${CStride}
+               OpDecorate %DataC Block
+               OpMemberDecorate %DataC 0 Offset 0
+               OpDecorate %__2 Binding 2
+               OpDecorate %__2 DescriptorSet 0
+               OpDecorate %_runtimearr_rdata ArrayStride ${RStride}
+               OpDecorate %DataR Block
+               OpMemberDecorate %DataR 0 Offset 0
+               OpDecorate %__3 Binding 3
+               OpDecorate %__3 DescriptorSet 0
+               OpDecorate %147 SpecId 0
+               OpDecorate %gl_WorkGroupSize BuiltIn WorkgroupSize
+
+               ; Types, variables and constants
+       %void = OpTypeVoid
+          %3 = OpTypeFunction %void
+       %bool = OpTypeBool
+       %uint = OpTypeInt 32 0
+        %int = OpTypeInt 32 1
+${TypeList}
+     %uint_0 = OpConstant %uint 0
+     %uint_1 = OpConstant %uint 1
+     %uint_2 = OpConstant %uint 2
+     %uint_3 = OpConstant %uint 3
+     %uint_5 = OpConstant %uint 5
+      %int_0 = OpConstant %int 0
+      %int_1 = OpConstant %int 1
+      %int_2 = OpConstant %int 2
+      %int_3 = OpConstant %int 3
+      %int_4 = OpConstant %int 4
+          %M = OpSpecConstant %int 1                ; SpecId 1
+          %K = OpSpecConstant %int 1                ; SpecId 2
+          %N = OpSpecConstant %int 1                ; SpecId 3
+
+  %matA_type = OpTypeCooperativeMatrixKHR ${AType} %uint_3 %M %K %uint_0
+  %matA_null = OpConstantNull %matA_type
+   %matA_ptr = OpTypePointer Function %matA_type
+%loadMatA_type = OpTypeFunction %void %matA_ptr
+
+  %matB_type = OpTypeCooperativeMatrixKHR ${BType} %uint_3 %K %N %uint_1
+  %matB_null = OpConstantNull %matB_type
+   %matB_ptr = OpTypePointer Function %matB_type
+%loadMatB_type = OpTypeFunction %void %matB_ptr
+
+ %matC_type = OpTypeCooperativeMatrixKHR ${CType} %uint_3 %M %N %uint_2
+ %matC_null = OpConstantNull %matC_type
+  %matC_ptr = OpTypePointer Function %matC_type
+%loadMatC_type = OpTypeFunction %void %matC_ptr
+
+; if (RType != CType) {
+;     %matR_type = OpTypeCooperativeMatrixKHR ${RType} %uint_3 %M %N %uint_2
+;     %matR_null = OpConstantNull %matR_type
+;     %matR_ptr = OpTypePointer Function %matR_type
+; }
+${matR_*}
+%genMatR_type = OpTypeFunction ${mat(C|R)_type}
+
+         %PC = OpTypeStruct %uint %uint %uint %uint %uint   ; Block
+%_ptr_PushConstant_PC = OpTypePointer PushConstant %PC
+          %_ = OpVariable %_ptr_PushConstant_PC PushConstant
+%_ptr_PushConstant_uint = OpTypePointer PushConstant %uint
+
+%_runtimearr_adata = OpTypeRuntimeArray ${AType}     ; ArrayStride ${AStride}
+      %DataA = OpTypeStruct %_runtimearr_adata       ; Block
+%_ptr_StorageBuffer_DataA = OpTypePointer StorageBuffer %DataA
+        %__0 = OpVariable %_ptr_StorageBuffer_DataA StorageBuffer   ; Binding 0, DescriptorSet 0
+         %58 = OpSpecConstantOp %uint IAdd %K %uint_0
+         %62 = OpSpecConstantOp %uint IAdd %K %uint_0
+
+%_runtimearr_bdata = OpTypeRuntimeArray ${BType}   ; ArrayStride ${BStride}
+      %DataB = OpTypeStruct %_runtimearr_bdata     ; Block
+%_ptr_StorageBuffer_DataB = OpTypePointer StorageBuffer %DataB
+        %__1 = OpVariable %_ptr_StorageBuffer_DataB StorageBuffer   ; Binding 1, DescriptorSet 0
+         %77 = OpSpecConstantOp %uint IAdd %N %uint_0
+         %81 = OpSpecConstantOp %uint IAdd %N %uint_0
+
+%_runtimearr_cdata = OpTypeRuntimeArray ${CType}  ; ArrayStride ${CStride}
+      %DataC = OpTypeStruct %_runtimearr_cdata     ; Block
+%_ptr_StorageBuffer_DataC = OpTypePointer StorageBuffer %DataC
+        %__2 = OpVariable %_ptr_StorageBuffer_DataC StorageBuffer   ; Binding 2, DescriptorSet 0
+         %96 = OpSpecConstantOp %uint IAdd %N %uint_0
+        %100 = OpSpecConstantOp %uint IAdd %N %uint_0
+
+%_ptr_StorageBuffer_AType = OpTypePointer StorageBuffer ${AType}
+%_ptr_StorageBuffer_BType = OpTypePointer StorageBuffer ${BType}
+%_ptr_StorageBuffer_CType = OpTypePointer StorageBuffer ${CType}
+%_ptr_StorageBuffer_RType = OpTypePointer StorageBuffer ${RType}
+
+%_ptr_Private_A = OpTypePointer Private %matA_type
+          %A = OpVariable %_ptr_Private_A Private
+%_ptr_Private_B = OpTypePointer Private %matB_type
+          %B = OpVariable %_ptr_Private_B Private
+%_ptr_Private_C = OpTypePointer Private %matC_type
+          %C = OpVariable %_ptr_Private_C Private
+%_ptr_Private_R = OpTypePointer Private ${mat(C|R)_type} ; (RType == CType) ? %matC_type : %matR_type
+          %R = OpVariable %_ptr_Private_R Private
+
+%_runtimearr_rdata = OpTypeRuntimeArray ${RType}  ; ArrayStride ${RStride}
+      %DataR = OpTypeStruct %_runtimearr_rdata     ; Block
+%_ptr_StorageBuffer_DataR = OpTypePointer StorageBuffer %DataR
+        %__3 = OpVariable %_ptr_StorageBuffer_DataR StorageBuffer   ; Binding 3, DescriptorSet 0
+        %146 = OpSpecConstantOp %uint IAdd %N %uint_0
+        %147 = OpSpecConstant %uint 1               ; SpecId 0
+     %v3uint = OpTypeVector %uint 3
+%gl_WorkGroupSize = OpSpecConstantComposite %v3uint %147 %uint_1 %uint_1    ; BuiltIn WorkgroupSize
+
+               ; Function main
+       %main = OpFunction %void None %3
+          %5 = OpLabel
+    %param_0 = OpVariable %matA_ptr Function
+    %param_1 = OpVariable %matB_ptr Function
+    %param_2 = OpVariable %matC_ptr Function
+        %130 = OpFunctionCall %void %loadMatA_def %param_0
+        %131 = OpLoad %matA_type %param_0
+               OpStore %A %131
+        %133 = OpFunctionCall %void %loadMatB_def %param_1
+        %134 = OpLoad %matB_type %param_1
+               OpStore %B %134
+        %136 = OpFunctionCall %void %loadMatC_def %param_2
+        %137 = OpLoad %matC_type %param_2
+               OpStore %C %137
+        %139 = OpFunctionCall ${mat(C|R)_type} %genMatR_def
+               OpStore %R %139
+
+       %matR = OpLoad ${mat(C|R)_type} %R
+     %p_sb_R = OpAccessChain %_ptr_StorageBuffer_RType %__3 %int_0 %uint_0
+               OpCooperativeMatrixStoreKHR %p_sb_R %matR %int_0 %146 MakePointerAvailable|NonPrivatePointer %uint_5
+
+       %matC = OpLoad %matC_type %C
+     %p_sb_C = OpAccessChain %_ptr_StorageBuffer_CType %__2 %int_0 %uint_0
+               OpCooperativeMatrixStoreKHR %p_sb_C %matC %int_0 %100 MakePointerAvailable|NonPrivatePointer %uint_5
+
+       %matB = OpLoad %matB_type %B
+     %p_sb_B = OpAccessChain %_ptr_StorageBuffer_BType %__1 %int_0 %uint_0
+               OpCooperativeMatrixStoreKHR %p_sb_B %matB %int_0 %81 MakePointerAvailable|NonPrivatePointer %uint_5
+
+       %matA = OpLoad %matA_type %A
+     %p_sb_A = OpAccessChain %_ptr_StorageBuffer_AType %__0 %int_0 %uint_0
+               OpCooperativeMatrixStoreKHR %p_sb_A %matA %int_0 %62 MakePointerAvailable|NonPrivatePointer %uint_5
+
+               OpReturn
+               OpFunctionEnd
+
+               ; Function loadMatA
+%loadMatA_def = OpFunction %void None %loadMatA_type
+       %mtxA = OpFunctionParameter %matA_ptr
+         %18 = OpLabel
+         %42 = OpAccessChain %_ptr_PushConstant_uint %_ %int_0
+         %43 = OpLoad %uint %42
+         %45 = OpAccessChain %_ptr_PushConstant_uint %_ %int_1
+         %46 = OpLoad %uint %45
+         %48 = OpIEqual %bool %43 %46
+               OpSelectionMerge %50 None
+               OpBranchConditional %48 %49 %60
+         %49 = OpLabel
+               OpStore %mtxA %matA_null ; %59
+               OpBranch %50
+         %60 = OpLabel
+         %61 = OpAccessChain %_ptr_StorageBuffer_AType %__0 %int_0 %uint_0
+         %63 = OpCooperativeMatrixLoadKHR %matA_type %61 %int_0 %62 MakePointerVisible|NonPrivatePointer %uint_5
+               OpStore %mtxA %63
+               OpBranch %50
+         %50 = OpLabel
+               OpReturn
+               OpFunctionEnd
+
+               ; Function loadMatB
+%loadMatB_def = OpFunction %void None %loadMatB_type
+       %mtxB = OpFunctionParameter %matB_ptr
+         %26 = OpLabel
+         %64 = OpAccessChain %_ptr_PushConstant_uint %_ %int_0
+         %65 = OpLoad %uint %64
+         %67 = OpAccessChain %_ptr_PushConstant_uint %_ %int_2
+         %68 = OpLoad %uint %67
+         %69 = OpIEqual %bool %65 %68
+               OpSelectionMerge %71 None
+               OpBranchConditional %69 %70 %79
+         %70 = OpLabel
+               OpStore %mtxB %matB_null ; %78
+               OpBranch %71
+         %79 = OpLabel
+         %80 = OpAccessChain %_ptr_StorageBuffer_BType %__1 %int_0 %uint_0
+         %82 = OpCooperativeMatrixLoadKHR %matB_type %80 %int_0 %81 MakePointerVisible|NonPrivatePointer %uint_5
+               OpStore %mtxB %82
+               OpBranch %71
+         %71 = OpLabel
+               OpReturn
+               OpFunctionEnd
+
+               ; Function loadMatC
+%loadMatC_def = OpFunction %void None %loadMatC_type
+       %mtxC = OpFunctionParameter %matC_ptr
+         %33 = OpLabel
+         %83 = OpAccessChain %_ptr_PushConstant_uint %_ %int_0
+         %84 = OpLoad %uint %83
+         %86 = OpAccessChain %_ptr_PushConstant_uint %_ %int_3
+         %87 = OpLoad %uint %86
+         %88 = OpIEqual %bool %84 %87
+               OpSelectionMerge %90 None
+               OpBranchConditional %88 %89 %98
+         %89 = OpLabel
+               OpStore %mtxC %matC_null ; %97
+               OpBranch %90
+         %98 = OpLabel
+         %99 = OpAccessChain %_ptr_StorageBuffer_CType %__2 %int_0 %uint_0
+        %101 = OpCooperativeMatrixLoadKHR %matC_type %99 %int_0 %100 MakePointerVisible|NonPrivatePointer %uint_5
+               OpStore %mtxC %101
+               OpBranch %90
+         %90 = OpLabel
+               OpReturn
+               OpFunctionEnd
+
+               ; Function genMatR
+%genMatR_def = OpFunction ${mat(C|R)_type} None %genMatR_type
+         %36 = OpLabel
+       %mtxR = OpVariable ${mat(C|R)_ptr} Function
+        %102 = OpAccessChain %_ptr_PushConstant_uint %_ %int_0
+        %103 = OpLoad %uint %102
+        %105 = OpAccessChain %_ptr_PushConstant_uint %_ %int_4
+        %106 = OpLoad %uint %105
+        %107 = OpIEqual %bool %103 %106
+               OpSelectionMerge %109 None
+               OpBranchConditional %107 %108 %121
+        %108 = OpLabel
+               OpStore %mtxR ${mat(C|R)_null} ; %120
+               OpBranch %109
+        %121 = OpLabel
+        %122 = OpLoad %matA_type %A
+        %123 = OpLoad %matB_type %B
+        %124 = OpLoad %matC_type %C
+        %125 = OpCooperativeMatrixMulAddKHR ${mat(C|R)_type} %122 %123 %124 ${Operands}
+               OpStore %mtxR %125
+               OpBranch %109
+        %109 = OpLabel
+        %126 = OpLoad ${mat(C|R)_type} %mtxR
+               OpReturnValue %126
+               OpFunctionEnd
+    )spirv");
+
+    std::string AType, BType, CType, RType;
+    std::set<std::string> capabilityList;
+    std::set<std::string> extensionList;
+
+    const VkComponentTypeKHR matList[]{conf.AType, conf.BType, conf.CType, conf.ResultType};
+    constexpr auto matListLen = DE_LENGTH_OF_ARRAY(matList);
+
+    std::ostringstream typeList;
+    std::vector<VkComponentTypeKHR> types{VK_COMPONENT_TYPE_UINT32_KHR, VK_COMPONENT_TYPE_SINT32_KHR};
+    for (const VkComponentTypeKHR matType : matList)
+    {
+        if (auto typePtr = std::find(types.begin(), types.end(), matType); typePtr == types.end())
+        {
+            types.push_back(matType);
+            const Value v(matType);
+            const auto [typeName, typeDef] = v.getSpirvNames();
+            typeList << typeName << " = " << typeDef << " ; generated" << std::endl;
+
+            const std::vector<std::string> caps = v.getSpirvCapabilities();
+            for (const std::string &cap : caps)
+                capabilityList.insert(cap);
+
+            const std::vector<std::string> exts = v.getSpirvExtensions();
+            for (const std::string &ext : exts)
+                extensionList.insert(ext);
+        }
+    }
+
+    std::string *matTypes[matListLen]{&AType, &BType, &CType, &RType};
+    for (uint32_t i = 0u; i < matListLen; ++i)
+    {
+        const Value v(matList[i]);
+        const auto [typeName, typeDef] = v.getSpirvNames();
+        matTypes[i]->assign(typeName);
+    }
+
+    std::ostringstream capabilities;
+    for (const std::string &cap : capabilityList)
+        capabilities << "OpCapability " << cap << " ; generated" << std::endl;
+    capabilities.flush();
+
+    std::ostringstream extensions;
+    for (const std::string &ext : extensionList)
+        extensions << "OpExtension \"" << ext << "\" ; generated" << std::endl;
+    extensions.flush();
+
+    std::ostringstream operands;
+    for (const std::pair<VkComponentTypeKHR, Matrices> &matType :
+         {std::make_pair(conf.AType, Matrices::A), std::make_pair(conf.BType, Matrices::B),
+          std::make_pair(conf.CType, Matrices::C), std::make_pair(conf.ResultType, Matrices::R)})
+    {
+        const std::string op = Value(matType.first).getMatrixOperand(matType.second);
+        if (!op.empty())
+        {
+            if (operands.tellp())
+                operands << '|';
+            operands << op;
+        }
+    }
+    if (conf.saturatingAccumulation)
+    {
+        if (operands.tellp())
+            operands << '|';
+        operands << "SaturatingAccumulationKHR";
+    }
+
+    const std::string matR_defs = "%matR_type = OpTypeCooperativeMatrixKHR " + RType +
+                                  " %uint_3 %M %N %uint_2\n"
+                                  "%matR_null = OpConstantNull %matR_type\n"
+                                  "%matR_ptr = OpTypePointer Function %matR_type\n";
+
+    const std::map<std::string, std::string> variables{
+        {"TypeList", typeList.str()},
+        {"AStride", std::to_string(Value(conf.AType).size())},
+        {"BStride", std::to_string(Value(conf.BType).size())},
+        {"CStride", std::to_string(Value(conf.CType).size())},
+        {"RStride", std::to_string(Value(conf.ResultType).size())},
+        {"AType", AType},
+        {"BType", BType},
+        {"CType", CType},
+        {"RType", RType},
+        {"matR_*", (conf.ResultType == conf.CType) ? std::string() : matR_defs},
+        {"mat(C|R)_type", (conf.ResultType == conf.CType) ? "%matC_type" : "%matR_type"},
+        {"mat(C|R)_null", (conf.ResultType == conf.CType) ? "%matC_null" : "%matR_null"},
+        {"mat(C|R)_ptr", (conf.ResultType == conf.CType) ? "%matC_ptr" : "%matR_ptr"},
+        {"Capabilities", capabilities.str()},
+        {"Extensions", extensions.str()},
+        {"Operands", operands.str()}};
+
+    return code.specialize(variables);
+}
+
+void CoopMtxOpConstantNullCase::delayedInit()
+{
+    if (m_allowDynamicConfigurations)
+    {
+        auto cm = getContextManager();
+        if (cm && cm->getDeviceFeaturesAndProperties().getCooperativeMatrixFeatures().cooperativeMatrix)
+        {
+            getPossibleConfigurationsDynamic(&cm->getInstanceInterface(), cm->getPhysicalDevice());
+        }
+    }
+}
+
+void CoopMtxOpConstantNullCase::checkSupport(Context &context) const
+{
+    if (context.getCooperativeMatrixFeatures().cooperativeMatrix)
+    {
+        const uint32_t configurationCount = getViableConfigurationCount(
+            m_allowDynamicConfigurations, context.getInstanceInterface(), context.getPhysicalDevice());
+        if (0u == configurationCount)
+        {
+            TCU_THROW(NotSupportedError, "No configurations to perform test");
+        }
+    }
+    else
+    {
+        TCU_THROW(NotSupportedError, "cooperativeMatrix is not supported");
+    }
+
+    if (m_params.pipelineConstructionType == COMPUTE_PIPELINE_CONSTRUCTION_TYPE_SHADER_OBJECT_SPIRV ||
+        m_params.pipelineConstructionType == COMPUTE_PIPELINE_CONSTRUCTION_TYPE_SHADER_OBJECT_BINARY)
+    {
+        context.requireDeviceFunctionality(VK_EXT_SHADER_OBJECT_EXTENSION_NAME);
+    }
+
+    ConfsCRef encodedViableConfs =
+        getConfigurations(true, &context.getInstanceInterface(), context.getPhysicalDevice());
+    std::vector<VkCooperativeMatrixPropertiesKHR> viableConfs(encodedViableConfs.size());
+    std::transform(encodedViableConfs.begin(), encodedViableConfs.end(), viableConfs.begin(),
+                   [](const uint32_t encoded) { return decodeConfiguration(encoded); });
+
+    if (has16BitTypes(viableConfs))
+    {
+        if (!context.get16BitStorageFeatures().storageBuffer16BitAccess)
+            TCU_THROW(NotSupportedError, "storageBuffer16BitAccess not supported");
+
+        if (!context.getDeviceVulkan12Features().shaderFloat16)
+            TCU_THROW(NotSupportedError, "shaderFloat16 not supported");
+    }
+
+    if (hasInt8BitTypes(viableConfs))
+    {
+        if (!context.getDeviceVulkan12Features().shaderInt8)
+            TCU_THROW(NotSupportedError, "shaderInt8 not supported");
+
+        if (!context.getDeviceVulkan12Features().storageBuffer8BitAccess)
+            TCU_THROW(NotSupportedError, "storageBuffer8BitAccess not supported");
+    }
+
+    if (hasFloat8BitTypes(viableConfs))
+    {
+        if (!context.getShaderFloat8FeaturesEXT().shaderFloat8CooperativeMatrix)
+            TCU_THROW(NotSupportedError, "shaderFloat8CooperativeMatrix not supported");
+
+        if (!context.getShaderFloat8FeaturesEXT().shaderFloat8)
+            TCU_THROW(NotSupportedError, "shaderFloat8 not supported");
+
+        if (!context.getDeviceVulkan12Features().storageBuffer8BitAccess)
+            TCU_THROW(NotSupportedError, "storageBuffer8BitAccess not supported");
+    }
+
+    if (hasBFloat16Types(viableConfs))
+    {
+        if (!context.getShaderBfloat16Features().shaderBFloat16CooperativeMatrix)
+            TCU_THROW(NotSupportedError, "shaderBFloat16CooperativeMatrix not supported");
+
+        if (!context.getShaderBfloat16Features().shaderBFloat16Type)
+            TCU_THROW(NotSupportedError, "shaderBFloat16Type not supported");
+    }
+}
+
+auto computePossibleConfigurationsDynamic(const InstanceInterface *pIntf, VkPhysicalDevice device)
+    -> CoopMtxOpConstantNullCase::Confs
+{
+    DE_ASSERT(pIntf);
+    uint32_t propertyCount                      = 0u;
+    const VkCooperativeMatrixPropertiesKHR temp = initVulkanStructure();
+    std::vector<VkCooperativeMatrixPropertiesKHR> available;
+    VK_CHECK(pIntf->getPhysicalDeviceCooperativeMatrixPropertiesKHR(device, &propertyCount, nullptr));
+    available.resize(propertyCount, temp);
+    VK_CHECK(pIntf->getPhysicalDeviceCooperativeMatrixPropertiesKHR(device, &propertyCount, available.data()));
+    CoopMtxOpConstantNullCase::Confs possible;
+    for (const VkCooperativeMatrixPropertiesKHR &p : available)
+    {
+        if (isPossibleConfiguration(p))
+            possible.push_back(encodeConfiguration(p, false));
+    }
+    std::sort(possible.begin(), possible.end());
+    return possible;
+}
+
+auto CoopMtxOpConstantNullCase::getPossibleConfigurationsDynamic(const InstanceInterface *pIntf,
+                                                                 VkPhysicalDevice device) -> ConfsCRef
+{
+    static auto confs = computePossibleConfigurationsDynamic(pIntf, device);
+    return confs;
+}
+
+auto computePossibleConfigurationsStatic(const size_t confCount = 0) -> CoopMtxOpConstantNullCase::Confs
+{
+    CoopMtxOpConstantNullCase::Confs confs(confCount);
+
+    size_t iconf = 0;
+
+    for (auto AType : PossibleTypes)
+    {
+        for (auto BType : PossibleTypes)
+        {
+            // RULE 1: A/B must be both float or both int
+            if (isFloatType(AType.first) != isFloatType(BType.first))
+                continue;
+
+            for (auto CType : PossibleTypes)
+            {
+                for (auto RType : PossibleTypes)
+                {
+                    // RULE 2: C/R must be both float or both int
+                    if (isFloatType(CType.first) != isFloatType(RType.first))
+                        continue;
+
+                    // RULE 3: C & R almost always are identical
+                    if (CType.first != RType.first)
+                        continue;
+
+                    if (isFloatType(AType.first) != isFloatType(CType.first))
+                    {
+                        // RULE 4: If mix then int->float allowed
+                        if (!(isIntType(AType.first) && isFloatType(CType.first)))
+                            continue;
+                    }
+
+                    for (auto SatAcc : {VK_TRUE, VK_FALSE})
+                    {
+                        // RULE 5: No saturation for floats (usually)
+                        if (SatAcc && isFloatType(RType.first))
+                            continue;
+
+                        if (confCount)
+                        {
+                            // Only matrix types and saturation are valid because
+                            // these are passed to the shader. Scope is always equal
+                            // to VK_SCOPE_SUBGROUP_KHR and sizes are passed via constants.
+                            VkCooperativeMatrixPropertiesKHR p{/*zero initialization*/};
+                            p.AType                  = AType.first;
+                            p.BType                  = BType.first;
+                            p.CType                  = CType.first;
+                            p.ResultType             = RType.first;
+                            p.scope                  = VK_SCOPE_SUBGROUP_KHR; // for all shaders
+                            p.saturatingAccumulation = SatAcc;
+
+                            confs[iconf] = encodeConfiguration(p, true);
+                        }
+
+                        ++iconf;
+                    }
+                }
+            }
+        }
+    }
+
+    std::sort(confs.begin(), confs.end());
+    return (confCount == 0) ? computePossibleConfigurationsStatic(iconf) : confs;
+}
+
+auto CoopMtxOpConstantNullCase::getPossibleConfigurationsStatic() -> ConfsCRef
+{
+    const static auto confs = computePossibleConfigurationsStatic();
+    return confs;
+}
+
+auto CoopMtxOpConstantNullCase::getConfigurations(bool allowDynamicConfigurations, const InstanceInterface *pIntf,
+                                                  VkPhysicalDevice device) -> ConfsCRef
+{
+    return allowDynamicConfigurations ? getPossibleConfigurationsDynamic(pIntf, device) :
+                                        getPossibleConfigurationsStatic();
+}
+
+uint32_t CoopMtxOpConstantNullCase::getViableConfigurationCount(bool allowDynamicConfigurations,
+                                                                const InstanceInterface &vki, VkPhysicalDevice device)
+{
+    auto test = [](ConfsCRef confs) -> void
+    {
+        if (confs.size() >= 2u)
+            DE_ASSERT(confs[0] < confs[1]);
+    };
+
+    ConfsCRef dynamics  = getPossibleConfigurationsDynamic(&vki, device);
+    ConfsCRef available = getConfigurations(allowDynamicConfigurations, &vki, device);
+
+    test(available); // this must be sorted
+    test(dynamics);  // this would be sorted as well
+
+    const auto count =
+        allowDynamicConfigurations ?
+            dynamics.size() :
+            std::count_if(dynamics.begin(), dynamics.end(),
+                          [&](const uint32_t &dynamic)
+                          { return std::binary_search(available.begin(), available.end(), zeroSizesInConf(dynamic)); });
+    return static_cast<uint32_t>(count);
+}
+
+bool CoopMtxOpConstantNullCase::needsRebuildPrograms(TestCase const *testCase, Context &context) const
+{
+    if (this == testCase)
+    {
+        tcu::TestLog &log            = getTestContext().getLog();
+        const InstanceInterface &vki = context.getInstanceInterface();
+        const VkPhysicalDevice phys  = context.getPhysicalDevice();
+        ConfsCRef confs              = getConfigurations(m_allowDynamicConfigurations, &vki, phys);
+        for (const uint32_t &conf : confs)
+        {
+            const std::string shaderName = genShaderName(decodeConfiguration(conf));
+            if (false == context.getBinaryCollection().contains(shaderName))
+                return true;
+        }
+        log << tcu::TestLog::Message << "Skipped creating " << confs.size() << " shaders" << tcu::TestLog::EndMessage;
+        return false;
+    }
+    return true;
+}
+
+void CoopMtxOpConstantNullCase::initPrograms(SourceCollections &programCollection) const
+{
+    std::set<uint32_t> confSet;
+    SpirVAsmBuildOptions tmpOptions(programCollection.usedVulkanVersion, SPIRV_VERSION_1_3);
+    SpirvValidatorOptions validatorOptions = tmpOptions.getSpirvValidatorOptions();
+    validatorOptions.blockLayout           = SpirvValidatorOptions::BlockLayoutRules::kScalarBlockLayout;
+    const auto buildOptions                = tmpOptions << validatorOptions;
+
+    ConfsCRef confs = getConfigurations(m_allowDynamicConfigurations, nullptr, VK_NULL_HANDLE);
+
+    for (const uint32_t &conf : confs)
+    {
+        const uint32_t valid = zeroSizesInConf(conf);
+        if (std::binary_search(confSet.begin(), confSet.end(), valid))
+        {
+            continue;
+        }
+        confSet.insert(valid);
+        const VkCooperativeMatrixPropertiesKHR c = decodeConfiguration(valid);
+        programCollection.spirvAsmSources.add(genShaderName(c)) << genShaderCode(c) << buildOptions;
+    }
+
+    tcu::TestLog &log = getTestContext().getLog();
+    log << tcu::TestLog::Message << "Generated " << confSet.size() << " szaders" << tcu::TestLog::EndMessage;
+}
+
+void CoopMtxOpConstantNullInstance::logConfiguration(const VkCooperativeMatrixPropertiesKHR &conf, uint32_t number,
+                                                     bool skipped, tcu::TestLog &log) const
+{
+    const char *comma = ", ";
+    log << tcu::TestLog::Message << (skipped ? "Skipped c" : "C") << "onfiguration " << number
+        << ": A=" << getComponentTypeKHRName(conf.AType) << comma << "B=" << getComponentTypeKHRName(conf.BType)
+        << comma << "C=" << getComponentTypeKHRName(conf.CType) << comma
+        << "R=" << getComponentTypeKHRName(conf.ResultType) << comma << "Scope=" << getScopeKHRName(conf.scope) << comma
+        << "SaturatingAccumulation=" << conf.saturatingAccumulation << comma << "M=" << conf.MSize << comma
+        << "K=" << conf.KSize << comma << "N=" << conf.NSize << tcu::TestLog::EndMessage;
+}
+
+std::vector<float> CoopMtxOpConstantNullInstance::Executor::getMatrix(Matrices m) const
+{
+    const DeviceInterface &di = m_context.getDeviceInterface();
+    const VkDevice device     = m_context.getDevice();
+
+    if (Matrices::A == m)
+    {
+        invalidateAlloc(di, device, m_bufferA->getAllocation());
+        const uint32_t count = m_configuration.MSize * m_configuration.KSize;
+        return Value(m_configuration.AType).readBuffer(*m_bufferA, count);
+    }
+    else if (Matrices::B == m)
+    {
+        invalidateAlloc(di, device, m_bufferB->getAllocation());
+        const uint32_t count = m_configuration.KSize * m_configuration.NSize;
+        return Value(m_configuration.BType).readBuffer(*m_bufferB, count);
+    }
+    else if (Matrices::C == m)
+    {
+        invalidateAlloc(di, device, m_bufferC->getAllocation());
+        const uint32_t count = m_configuration.MSize * m_configuration.NSize;
+        return Value(m_configuration.CType).readBuffer(*m_bufferC, count);
+    }
+    else if (Matrices::R == m)
+    {
+        invalidateAlloc(di, device, m_bufferR->getAllocation());
+        const uint32_t count = m_configuration.MSize * m_configuration.NSize;
+        return Value(m_configuration.ResultType).readBuffer(*m_bufferR, count);
+    }
+
+    DE_ASSERT(false);
+    return {};
+}
+
+CoopMtxOpConstantNullInstance::Executor::Executor(Context &context, const VkCooperativeMatrixPropertiesKHR &conf,
+                                                  const Params &params)
+    : m_context(context)
+    , m_configuration(conf)
+{
+    const DeviceInterface &di = context.getDeviceInterface();
+    const VkDevice device     = context.getDevice();
+    Allocator &allocator      = context.getDefaultAllocator();
+
+    m_descriptorSetLayout = DescriptorSetLayoutBuilder()
+                                .addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+                                .addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+                                .addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+                                .addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
+                                .build(di, device);
+
+    m_descriptorPool = DescriptorPoolBuilder()
+                           .addType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4u)
+                           .build(di, device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1u);
+    m_descriptorSet = makeDescriptorSet(di, device, *m_descriptorPool, *m_descriptorSetLayout);
+
+    DescriptorSetUpdateBuilder setUpdateBuilder;
+    const MemoryRequirement memreq =
+        MemoryRequirement::HostVisible | MemoryRequirement::Cached | MemoryRequirement::Coherent;
+    const VkBufferUsageFlags usage = (VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+    // matrix A
+    {
+        const uint32_t count                = conf.MSize * conf.KSize;
+        const VkBufferCreateInfo bufferInfo = makeBufferCreateInfo((Value(conf.AType).size() * count), usage);
+        m_bufferA = de::MovePtr<BufferWithMemory>(new BufferWithMemory(di, device, allocator, bufferInfo, memreq));
+        const VkDescriptorBufferInfo descriptorInfo =
+            makeDescriptorBufferInfo(**m_bufferA, 0u, m_bufferA->getBufferSize());
+        setUpdateBuilder.writeSingle(*m_descriptorSet, DescriptorSetUpdateBuilder::Location::binding(0),
+                                     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &descriptorInfo);
+    }
+
+    // matrix B
+    {
+        const uint32_t count                = conf.KSize * conf.NSize;
+        const VkBufferCreateInfo bufferInfo = makeBufferCreateInfo((Value(conf.BType).size() * count), usage);
+        m_bufferB = de::MovePtr<BufferWithMemory>(new BufferWithMemory(di, device, allocator, bufferInfo, memreq));
+        const VkDescriptorBufferInfo descriptorInfo =
+            makeDescriptorBufferInfo(**m_bufferB, 0u, m_bufferB->getBufferSize());
+        setUpdateBuilder.writeSingle(*m_descriptorSet, DescriptorSetUpdateBuilder::Location::binding(1),
+                                     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &descriptorInfo);
+    }
+
+    // matrix C
+    {
+        const uint32_t count                = conf.MSize * conf.NSize;
+        const VkBufferCreateInfo bufferInfo = makeBufferCreateInfo((Value(conf.CType).size() * count), usage);
+        m_bufferC = de::MovePtr<BufferWithMemory>(new BufferWithMemory(di, device, allocator, bufferInfo, memreq));
+        const VkDescriptorBufferInfo descriptorInfo =
+            makeDescriptorBufferInfo(**m_bufferC, 0u, m_bufferC->getBufferSize());
+        setUpdateBuilder.writeSingle(*m_descriptorSet, DescriptorSetUpdateBuilder::Location::binding(2),
+                                     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &descriptorInfo);
+    }
+
+    // matrix R
+    {
+        const uint32_t count                = conf.MSize * conf.NSize;
+        const VkBufferCreateInfo bufferInfo = makeBufferCreateInfo((Value(conf.ResultType).size() * count), usage);
+        m_bufferR = de::MovePtr<BufferWithMemory>(new BufferWithMemory(di, device, allocator, bufferInfo, memreq));
+        const VkDescriptorBufferInfo descriptorInfo =
+            makeDescriptorBufferInfo(**m_bufferR, 0u, m_bufferR->getBufferSize());
+        setUpdateBuilder.writeSingle(*m_descriptorSet, DescriptorSetUpdateBuilder::Location::binding(3),
+                                     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, &descriptorInfo);
+    }
+
+    setUpdateBuilder.update(di, device);
+
+    // pipeline
+    {
+        const uint32_t subgroupSize = context.getSubgroupProperties().subgroupSize;
+
+        const uint32_t specData[4]{subgroupSize, conf.MSize, conf.KSize, conf.NSize};
+
+        const VkSpecializationMapEntry entries[DE_LENGTH_OF_ARRAY(specData)]{
+            {0u, uint32_t(sizeof(uint32_t)) * 0u, size_t(sizeof(uint32_t))},
+            {1u, uint32_t(sizeof(uint32_t)) * 1u, size_t(sizeof(uint32_t))},
+            {2u, uint32_t(sizeof(uint32_t)) * 2u, size_t(sizeof(uint32_t))},
+            {3u, uint32_t(sizeof(uint32_t)) * 3u, size_t(sizeof(uint32_t))},
+        };
+
+        const VkSpecializationInfo specInfo{
+            DE_LENGTH_OF_ARRAY(entries), // mapEntryCount
+            entries,                     // pMapEntries
+            sizeof(specData),            // dataSize
+            specData                     // pData
+        };
+
+        const VkPushConstantRange pushRange{
+            VK_SHADER_STAGE_COMPUTE_BIT,   // stageFlags
+            0u,                            // offset
+            uint32_t(sizeof(PushConstant)) // size
+        };
+
+        m_pipeline = de::MovePtr<ComputePipelineWrapper>(new ComputePipelineWrapper(
+            di, device, params.pipelineConstructionType, context.getBinaryCollection().get(genShaderName(conf))));
+        m_pipeline->setDescriptorSetLayout(m_descriptorSetLayout.get());
+        m_pipeline->addPushConstantRange(pushRange);
+        m_pipeline->setSpecializationInfo(specInfo);
+        m_pipeline->buildPipeline();
+    }
+
+    m_queue         = context.getDeviceQueueInfo(0).queue;
+    m_commandPool   = createCommandPool(di, device, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+                                        context.getDeviceQueueInfo(0).familyIndex);
+    m_commandBuffer = allocateCommandBuffer(di, device, *m_commandPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+}
+
+void CoopMtxOpConstantNullInstance::Executor::execute(Matrices targetMatrix)
+{
+    const DeviceInterface &di           = m_context.getDeviceInterface();
+    const VkDevice device               = m_context.getDevice();
+    const VkPipelineBindPoint bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+    const VkShaderStageFlagBits stage   = VK_SHADER_STAGE_COMPUTE_BIT;
+
+    auto populate =
+        [&](VkComponentTypeKHR ct, uint32_t count, BufferWithMemory &buffer, const std::vector<float> *source)
+    {
+        if (source)
+            Value(ct).writeBuffer(buffer, *source);
+        else
+        {
+            ValueGenerator gen(ct);
+            std::vector<float> data(count);
+            for (uint32_t i = 0u; i < count; ++i)
+                data[i] = gen.next();
+            Value(ct).writeBuffer(buffer, data);
+        }
+        flushAlloc(di, device, buffer.getAllocation());
+    };
+
+    // matrix A
+    {
+        const uint32_t count = m_configuration.MSize * m_configuration.KSize;
+        populate(m_configuration.AType, count, *m_bufferA, nullptr);
+    }
+
+    // matrix B
+    {
+        const uint32_t count = m_configuration.KSize * m_configuration.NSize;
+        const std::vector<float> data(count, 1.0f);
+        populate(m_configuration.BType, count, *m_bufferB, &data);
+    }
+
+    // matrix C
+    {
+        const uint32_t count = m_configuration.MSize * m_configuration.NSize;
+        populate(m_configuration.CType, count, *m_bufferC, nullptr);
+    }
+
+    // matrix R
+    {
+        const uint32_t count = m_configuration.MSize * m_configuration.NSize;
+        populate(m_configuration.ResultType, count, *m_bufferR, nullptr);
+    }
+
+    PushConstant pushConstant(targetMatrix);
+
+    beginCommandBuffer(di, *m_commandBuffer, 0u);
+    di.cmdBindDescriptorSets(*m_commandBuffer, bindPoint, m_pipeline->getPipelineLayout(), //
+                             0u, 1u, &*m_descriptorSet, 0u, nullptr);
+    di.cmdPushConstants(*m_commandBuffer, m_pipeline->getPipelineLayout(), //
+                        stage, 0, uint32_t(sizeof(pushConstant)), &pushConstant);
+    m_pipeline->bind(*m_commandBuffer);
+    di.cmdDispatch(*m_commandBuffer, 3u, 1u, 1u);
+    endCommandBuffer(di, *m_commandBuffer);
+    submitCommandsAndWait(di, device, m_queue, *m_commandBuffer);
+}
+
+template <class Stream>
+void CoopMtxOpConstantNullInstance::Executor::dumpMatrix(Stream &str, const std::vector<float> matrix, uint32_t rows,
+                                                         uint32_t cols, const std::string &name,
+                                                         VkComponentTypeKHR type) const
+{
+    const char endl = '\n';
+
+    std::ostringstream header;
+    header << name << ' ' << rows << 'x' << cols << ' ' << getComponentTypeKHRName(type);
+    header.flush();
+
+    str << header.str() << endl;
+    str << std::string(header.str().length(), '-') << endl;
+
+    for (uint32_t r = 0u; r < rows; ++r)
+    {
+        for (uint32_t c = 0u; c < cols; ++c)
+        {
+            if (c)
+                str << ' ';
+            str << matrix[r * cols + c];
+        }
+        str << endl;
+    }
+}
+
+template <class Stream>
+void CoopMtxOpConstantNullInstance::Executor::dumpMatrices(Stream &str, bool includeReference) const
+{
+    const std::vector<float> A = getMatrix(Matrices::A);
+    const std::vector<float> B = getMatrix(Matrices::B);
+    const std::vector<float> C = getMatrix(Matrices::C);
+    const std::vector<float> R = getMatrix(Matrices::R);
+
+    const char endl                              = '\n';
+    const VkCooperativeMatrixPropertiesKHR &conf = getConfiguration();
+
+    str << endl;
+    dumpMatrix(str, A, conf.MSize, conf.KSize, "Matrix A", conf.AType);
+    str << endl;
+    dumpMatrix(str, B, conf.KSize, conf.NSize, "Matrix B", conf.BType);
+    str << endl;
+    dumpMatrix(str, C, conf.MSize, conf.NSize, "Matrix C", conf.CType);
+    str << endl;
+    dumpMatrix(str, R, conf.MSize, conf.NSize, "Matrix Result (A * B + C)", conf.ResultType);
+    str << endl;
+
+    if (includeReference)
+    {
+        const std::vector<float> ref = addMatrices(mulMatrices(A, B, conf.MSize, conf.NSize), C);
+        dumpMatrix(str, ref, conf.MSize, conf.NSize, "Reference matrix (A * B + C)", conf.ResultType);
+        str << endl;
+    }
+}
+
+bool CoopMtxOpConstantNullInstance::verifyResult(const Executor &executor, Matrices targetMatrix,
+                                                 std::string &errorMessage) const
+{
+    const std::vector<float> A = executor.getMatrix(Matrices::A);
+    const std::vector<float> B = executor.getMatrix(Matrices::B);
+    const std::vector<float> C = executor.getMatrix(Matrices::C);
+    const std::vector<float> R = executor.getMatrix(Matrices::R);
+
+    const VkCooperativeMatrixPropertiesKHR &conf = executor.getConfiguration();
+
+    uint32_t mismatch  = 0u;
+    uint32_t processed = 0u;
+
+    auto cmp = [&](const std::vector<float> &reference, const std::vector<float> &result) -> void
+    {
+        const uint32_t N = uint32_t(reference.size());
+        DE_ASSERT(N == result.size());
+        processed = N;
+        for (uint32_t i = 0u; i < N; ++i)
+        {
+            const float x       = reference[i];
+            const float y       = result[i];
+            const float epsilon = 1e-6f;
+            const bool ok       = std::fabs(x - y) < epsilon;
+            if (!ok)
+                ++mismatch;
+        }
+    };
+
+    if (Matrices::A == targetMatrix || Matrices::B == targetMatrix)
+    {
+        if (Matrices::A == targetMatrix)
+        {
+            if (!(isNullMatrix(A)))
+            {
+                mismatch     = std::numeric_limits<uint32_t>::max();
+                errorMessage = "Matrix A must be null";
+            }
+            if (isNullMatrix(B))
+            {
+                mismatch     = std::numeric_limits<uint32_t>::max();
+                errorMessage = "Matrix B must not be null";
+            }
+        }
+        else
+        {
+            if (isNullMatrix(A))
+            {
+                mismatch     = std::numeric_limits<uint32_t>::max();
+                errorMessage = "Matrix A must not be null";
+            }
+            else if (!(isNullMatrix(B)))
+            {
+                mismatch     = std::numeric_limits<uint32_t>::max();
+                errorMessage = "Matrix B must be null";
+            }
+            else
+            {
+                cmp(C, R);
+            }
+        }
+    }
+    else if (Matrices::C == targetMatrix)
+    {
+        if (!(isNullMatrix(C)))
+        {
+            mismatch     = std::numeric_limits<uint32_t>::max();
+            errorMessage = "Matrix C must be null";
+        }
+        else
+        {
+            const std::vector<float> ref = mulMatrices(A, B, conf.MSize, conf.NSize);
+            cmp(ref, R);
+        }
+    }
+    else if (Matrices::R == targetMatrix)
+    {
+        if (!(isNullMatrix(R)))
+        {
+            mismatch     = std::numeric_limits<uint32_t>::max();
+            errorMessage = "Matrix R must be null";
+        }
+    }
+    else // (Matrices::All == targetMatrix)
+    {
+        DE_ASSERT(false);
+        if (isNullMatrix(A) || isNullMatrix(B) || isNullMatrix(C))
+        {
+            mismatch     = std::numeric_limits<uint32_t>::max();
+            errorMessage = "Neither matrices A,B nor C might be null";
+        }
+        else
+        {
+            const std::vector<float> ref = addMatrices(mulMatrices(A, B, conf.MSize, conf.NSize), C);
+            cmp(ref, R);
+        }
+    }
+
+    if (0u != mismatch && std::numeric_limits<uint32_t>::max() != mismatch)
+    {
+        std::ostringstream os;
+        os << "Mismatch in " << mismatch << " from " << processed << " cells";
+        os.flush();
+        errorMessage = os.str();
+    }
+
+    return 0u == mismatch;
+}
+
+std::vector<VkCooperativeMatrixPropertiesKHR> CoopMtxOpConstantNullInstance::genSkippedIterations() const
+{
+    if (m_allowDynamicConfigurations)
+    {
+        return {};
+    }
+
+    const InstanceInterface &vki = m_context.getInstanceInterface();
+
+    CoopMtxOpConstantNullCase::ConfsCRef viable =
+        CoopMtxOpConstantNullCase::getPossibleConfigurationsDynamic(&vki, m_context.getPhysicalDevice());
+    CoopMtxOpConstantNullCase::ConfsCRef possible = CoopMtxOpConstantNullCase::getPossibleConfigurationsStatic();
+
+    std::vector<VkCooperativeMatrixPropertiesKHR> iterations;
+
+    for (const uint32_t &viableConf : viable)
+    {
+        if (false == std::binary_search(possible.begin(), possible.end(), zeroSizesInConf(viableConf)))
+            iterations.push_back(decodeConfiguration(viableConf));
+    }
+
+    return iterations;
+}
+
+std::vector<VkCooperativeMatrixPropertiesKHR> CoopMtxOpConstantNullInstance::genIterations() const
+{
+    const InstanceInterface &vki = m_context.getInstanceInterface();
+
+    CoopMtxOpConstantNullCase::ConfsCRef viable =
+        CoopMtxOpConstantNullCase::getPossibleConfigurationsDynamic(&vki, m_context.getPhysicalDevice());
+    CoopMtxOpConstantNullCase::ConfsCRef possible = CoopMtxOpConstantNullCase::getPossibleConfigurationsStatic();
+
+    std::vector<VkCooperativeMatrixPropertiesKHR> iterations;
+
+    for (const uint32_t &viableConf : viable)
+    {
+        if (std::binary_search(possible.begin(), possible.end(), zeroSizesInConf(viableConf)))
+            iterations.push_back(decodeConfiguration(viableConf));
+    }
+
+    return iterations;
+}
+
+tcu::TestStatus CoopMtxOpConstantNullInstance::iterate()
+{
+    tcu::TestLog &log = m_context.getTestContext().getLog();
+
+    const VkCooperativeMatrixPropertiesKHR configuration = m_iterations[m_iteration];
+    logConfiguration(configuration, m_iteration, false, log);
+
+    std::string errorMessage;
+    Executor executor(m_context, configuration, m_params);
+
+    executor.execute(m_params.matrix);
+
+    bool all_ok = verifyResult(executor, m_params.matrix, errorMessage);
+    if (all_ok)
+    {
+        log << tcu::TestLog::Message << "Configuration " << m_iteration << " - normal multiplication: PASS"
+            << tcu::TestLog::EndMessage;
+    }
+    else
+    {
+        log << tcu::TestLog::Message << "Configuration " << m_iteration
+            << " - normal multiplication failed: " << errorMessage << tcu::TestLog::EndMessage;
+
+        auto stream = log << tcu::TestLog::Message;
+        executor.dumpMatrices(stream, true);
+        stream << tcu::TestLog::EndMessage;
+
+        m_failCount = m_failCount + 1u;
+    }
+
+    executor.execute(m_params.matrix);
+    bool sel_ok = verifyResult(executor, m_params.matrix, errorMessage);
+    if (sel_ok)
+    {
+        log << tcu::TestLog::Message << "Configuration " << m_iteration << " - OpConstantNull: PASS"
+            << tcu::TestLog::EndMessage;
+    }
+    else
+    {
+        log << tcu::TestLog::Message << "Configuration " << m_iteration << " - OpConstantNull failed: " << errorMessage
+            << tcu::TestLog::EndMessage;
+        if (all_ok)
+        {
+            m_failCount = m_failCount + 1u;
+        }
+    }
+
+    if (const auto viableCount = m_iterations.size(); ++m_iteration >= viableCount)
+    {
+        const auto skippedCount = m_skippedIterations.size();
+        if (skippedCount)
+        {
+            for (uint32_t skipped = 0u; skipped << skippedCount; ++skipped)
+                logConfiguration(m_skippedIterations[skipped], skipped, true, log);
+        }
+
+        std::ostringstream finalMessage;
+        if (m_failCount)
+        {
+            finalMessage << m_failCount << " from " << viableCount;
+            if (skippedCount)
+                finalMessage << ", skipped " << skippedCount;
+            finalMessage.flush();
+            return tcu::TestStatus::fail(finalMessage.str());
+        }
+
+        finalMessage << m_iteration << " from " << viableCount;
+        if (skippedCount)
+            finalMessage << ", skipped " << skippedCount;
+        finalMessage.flush();
+        return tcu::TestStatus::pass(finalMessage.str());
+    }
+
+    return tcu::TestStatus::incomplete();
+}
+
+} // unnamed namespace
+
+void createCooperativeMatrixOpConstantNullTests(tcu::TestContext &testCtx, tcu::TestCaseGroup *groupCooperativeMatrix,
+                                                ComputePipelineConstructionType computePipelineConstructionType)
+{
+    const bool allowDynamicConfigurations = testCtx.getCommandLine().isVendorSpecific();
+
+    static const std::pair<Matrices, const char *> matrices[]{
+        {Matrices::A, "null_a"},
+        {Matrices::B, "null_b"},
+        {Matrices::C, "null_c"},
+        {Matrices::R, "null_r"},
+    };
+    de::MovePtr<tcu::TestCaseGroup> groupNullConstant(new tcu::TestCaseGroup(testCtx, "op_constant_null"));
+
+    for (const std::pair<Matrices, const char *> &m : matrices)
+    {
+        Params p{};
+        p.allowDynamicConfigurations = allowDynamicConfigurations;
+        p.pipelineConstructionType   = computePipelineConstructionType;
+        p.matrix                     = m.first;
+        groupNullConstant->addChild(new CoopMtxOpConstantNullCase(testCtx, m.second, p));
+    }
+
+    groupCooperativeMatrix->addChild(groupNullConstant.release());
+}
+
+} // namespace compute
+} //namespace vkt

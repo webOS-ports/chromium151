@@ -1,0 +1,768 @@
+/*------------------------------------------------------------------------
+ * Vulkan Conformance Tests
+ * ------------------------
+ *
+ * Copyright (c) 2020 The Khronos Group Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ *//*!
+ * \file
+ * \brief Acceleration Structure Null Handle Tests
+ *//*--------------------------------------------------------------------*/
+
+#include "vktRayTracingNullASTests.hpp"
+
+#include "vkDefs.hpp"
+
+#include "vktTestCase.hpp"
+#include "vktCustomInstancesDevices.hpp"
+#include "vkCmdUtil.hpp"
+#include "vkObjUtil.hpp"
+#include "vkBuilderUtil.hpp"
+#include "vkBarrierUtil.hpp"
+#include "vkBufferWithMemory.hpp"
+#include "vkImageWithMemory.hpp"
+#include "vkTypeUtil.hpp"
+
+#include "vkRayTracingUtil.hpp"
+
+#include "tcuStringTemplate.hpp"
+#include "tcuCommandLine.hpp"
+
+#include "deClock.h"
+
+namespace vkt::RayTracing
+{
+namespace
+{
+using namespace vk;
+using namespace std;
+
+static const VkFlags ALL_RAY_TRACING_STAGES = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR |
+                                              VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR |
+                                              VK_SHADER_STAGE_INTERSECTION_BIT_KHR | VK_SHADER_STAGE_CALLABLE_BIT_KHR;
+
+struct CaseDef
+{
+    uint32_t width;
+    uint32_t height;
+};
+
+enum ShaderGroups
+{
+    FIRST_GROUP  = 0,
+    RAYGEN_GROUP = FIRST_GROUP,
+    MISS_GROUP,
+    HIT_GROUP,
+    GROUP_COUNT
+};
+
+uint32_t getShaderGroupSize(const InstanceInterface &vki, const VkPhysicalDevice physicalDevice)
+{
+    de::MovePtr<RayTracingProperties> rayTracingPropertiesKHR;
+
+    rayTracingPropertiesKHR = makeRayTracingProperties(vki, physicalDevice);
+    return rayTracingPropertiesKHR->getShaderGroupHandleSize();
+}
+
+uint32_t getShaderGroupBaseAlignment(const InstanceInterface &vki, const VkPhysicalDevice physicalDevice)
+{
+    de::MovePtr<RayTracingProperties> rayTracingPropertiesKHR;
+
+    rayTracingPropertiesKHR = makeRayTracingProperties(vki, physicalDevice);
+    return rayTracingPropertiesKHR->getShaderGroupBaseAlignment();
+}
+
+Move<VkPipeline> makePipeline(const DeviceInterface &vkd, const VkDevice device, vk::BinaryCollection &collection,
+                              de::MovePtr<RayTracingPipeline> &rayTracingPipeline, VkPipelineLayout pipelineLayout,
+                              const uint32_t raygenGroup, const uint32_t missGroup, const uint32_t hitGroup)
+{
+    Move<VkShaderModule> raygenShader       = createShaderModule(vkd, device, collection.get("rgen"), 0);
+    Move<VkShaderModule> hitShader          = createShaderModule(vkd, device, collection.get("ahit"), 0);
+    Move<VkShaderModule> missShader         = createShaderModule(vkd, device, collection.get("miss"), 0);
+    Move<VkShaderModule> intersectionShader = createShaderModule(vkd, device, collection.get("sect"), 0);
+
+    rayTracingPipeline->addShader(VK_SHADER_STAGE_RAYGEN_BIT_KHR, raygenShader, raygenGroup);
+    rayTracingPipeline->addShader(VK_SHADER_STAGE_ANY_HIT_BIT_KHR, hitShader, hitGroup);
+    rayTracingPipeline->addShader(VK_SHADER_STAGE_MISS_BIT_KHR, missShader, missGroup);
+    rayTracingPipeline->addShader(VK_SHADER_STAGE_INTERSECTION_BIT_KHR, intersectionShader, hitGroup);
+
+    Move<VkPipeline> pipeline = rayTracingPipeline->createPipeline(vkd, device, pipelineLayout);
+
+    return pipeline;
+}
+
+VkImageCreateInfo makeImageCreateInfo(uint32_t width, uint32_t height, VkFormat format)
+{
+    const VkImageUsageFlags usage =
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    const VkImageCreateInfo imageCreateInfo = {
+        VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, // VkStructureType sType;
+        nullptr,                             // const void* pNext;
+        (VkImageCreateFlags)0u,              // VkImageCreateFlags flags;
+        VK_IMAGE_TYPE_2D,                    // VkImageType imageType;
+        format,                              // VkFormat format;
+        makeExtent3D(width, height, 1u),     // VkExtent3D extent;
+        1u,                                  // uint32_t mipLevels;
+        1u,                                  // uint32_t arrayLayers;
+        VK_SAMPLE_COUNT_1_BIT,               // VkSampleCountFlagBits samples;
+        VK_IMAGE_TILING_OPTIMAL,             // VkImageTiling tiling;
+        usage,                               // VkImageUsageFlags usage;
+        VK_SHARING_MODE_EXCLUSIVE,           // VkSharingMode sharingMode;
+        0u,                                  // uint32_t queueFamilyIndexCount;
+        nullptr,                             // const uint32_t* pQueueFamilyIndices;
+        VK_IMAGE_LAYOUT_UNDEFINED            // VkImageLayout initialLayout;
+    };
+
+    return imageCreateInfo;
+}
+
+struct TestDeviceFeatures
+{
+    VkPhysicalDeviceRobustness2FeaturesKHR robustness2Features;
+    VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures;
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures;
+    VkPhysicalDeviceBufferDeviceAddressFeaturesKHR deviceAddressFeatures;
+    VkPhysicalDeviceFeatures2 deviceFeatures;
+
+    void linkStructures()
+    {
+        robustness2Features.pNext           = nullptr;
+        rayTracingPipelineFeatures.pNext    = &robustness2Features;
+        accelerationStructureFeatures.pNext = &rayTracingPipelineFeatures;
+        deviceAddressFeatures.pNext         = &accelerationStructureFeatures;
+        deviceFeatures.pNext                = &deviceAddressFeatures;
+    }
+
+    TestDeviceFeatures(const InstanceInterface &vki, VkPhysicalDevice physicalDevice)
+    {
+        robustness2Features.sType           = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_KHR;
+        rayTracingPipelineFeatures.sType    = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+        accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+        deviceAddressFeatures.sType         = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_KHR;
+        deviceFeatures.sType                = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+
+        linkStructures();
+        vki.getPhysicalDeviceFeatures2(physicalDevice, &deviceFeatures);
+    }
+};
+
+struct DeviceHelper
+{
+    const InstanceWrapper instance;
+    DeviceWrapper device;
+    const DeviceInterface *vkd;
+    uint32_t queueFamilyIndex;
+    VkQueue queue;
+    vk::Allocator *allocator;
+
+    DeviceHelper(Context &context) : instance(context)
+    {
+        const auto &vki           = instance.getDriver();
+        const auto physicalDevice = instance.getPhysicalDevice();
+        const auto queuePriority  = 1.0f;
+
+        // Queue index first.
+        queueFamilyIndex = context.getUniversalQueueFamilyIndex();
+
+        // Get device features (these have already been checked in the test case).
+        TestDeviceFeatures features(vki, physicalDevice);
+        features.linkStructures();
+
+        // Make sure uneeded robustness features are disabled.
+        features.deviceFeatures.features.robustBufferAccess = VK_FALSE;
+        features.robustness2Features.robustBufferAccess2    = VK_FALSE;
+        features.robustness2Features.robustImageAccess2     = VK_FALSE;
+
+        const VkDeviceQueueCreateInfo queueInfo = {
+            VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, // VkStructureType sType;
+            nullptr,                                    // const void* pNext;
+            0u,                                         // VkDeviceQueueCreateFlags flags;
+            queueFamilyIndex,                           // uint32_t queueFamilyIndex;
+            1u,                                         // uint32_t queueCount;
+            &queuePriority,                             // const float* pQueuePriorities;
+        };
+
+        // Required extensions.
+        std::vector<const char *> requiredExtensions;
+        requiredExtensions.push_back("VK_KHR_ray_tracing_pipeline");
+        requiredExtensions.push_back("VK_KHR_acceleration_structure");
+        requiredExtensions.push_back("VK_KHR_buffer_device_address");
+        requiredExtensions.push_back("VK_KHR_deferred_host_operations");
+        requiredExtensions.push_back("VK_EXT_descriptor_indexing");
+        requiredExtensions.push_back("VK_KHR_spirv_1_4");
+        requiredExtensions.push_back("VK_KHR_shader_float_controls");
+        requiredExtensions.push_back(
+            context.isDeviceFunctionalitySupported("VK_KHR_robustness2") ? "VK_KHR_robustness2" : "VK_EXT_robustness2");
+
+        const VkDeviceCreateInfo createInfo = {
+            VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,             // VkStructureType sType;
+            features.deviceFeatures.pNext,                    // const void* pNext;
+            0u,                                               // VkDeviceCreateFlags flags;
+            1u,                                               // uint32_t queueCreateInfoCount;
+            &queueInfo,                                       // const VkDeviceQueueCreateInfo* pQueueCreateInfos;
+            0u,                                               // uint32_t enabledLayerCount;
+            nullptr,                                          // const char* const* ppEnabledLayerNames;
+            static_cast<uint32_t>(requiredExtensions.size()), // uint32_t enabledExtensionCount;
+            requiredExtensions.data(),                        // const char* const* ppEnabledExtensionNames;
+            &features.deviceFeatures.features,                // const VkPhysicalDeviceFeatures* pEnabledFeatures;
+        };
+
+        // Create custom device and related objects.
+        device    = instance.createCustomDevice(physicalDevice, &createInfo);
+        vkd       = &device.getDriver();
+        queue     = getDeviceQueue(*vkd, *device, queueFamilyIndex, 0u);
+        allocator = &device.getAllocator();
+    }
+};
+
+class RayTracingBuildTestInstance : public TestInstance
+{
+public:
+    RayTracingBuildTestInstance(Context &context, const CaseDef &data);
+    ~RayTracingBuildTestInstance(void) = default;
+    tcu::TestStatus iterate(void);
+
+protected:
+    uint32_t validateBuffer(de::MovePtr<BufferWithMemory> buffer);
+    de::MovePtr<BufferWithMemory> runTest(DeviceHelper &deviceHelper);
+
+private:
+    CaseDef m_data;
+};
+
+RayTracingBuildTestInstance::RayTracingBuildTestInstance(Context &context, const CaseDef &data)
+    : vkt::TestInstance(context)
+    , m_data(data)
+{
+}
+
+class RayTracingTestCase : public TestCase
+{
+public:
+    RayTracingTestCase(tcu::TestContext &context, const char *name, const CaseDef data);
+    ~RayTracingTestCase(void);
+
+    virtual void initPrograms(SourceCollections &programCollection) const;
+    virtual TestInstance *createInstance(Context &context) const;
+    virtual void checkSupport(Context &context) const;
+
+private:
+    CaseDef m_data;
+};
+
+RayTracingTestCase::RayTracingTestCase(tcu::TestContext &context, const char *name, const CaseDef data)
+    : vkt::TestCase(context, name)
+    , m_data(data)
+{
+}
+
+RayTracingTestCase::~RayTracingTestCase(void)
+{
+}
+
+void RayTracingTestCase::checkSupport(Context &context) const
+{
+    const auto &vki           = context.getInstanceInterface();
+    const auto physicalDevice = context.getPhysicalDevice();
+
+    if (!context.isDeviceFunctionalitySupported("VK_KHR_ray_tracing_pipeline"))
+        TCU_THROW(NotSupportedError, "VK_KHR_ray_tracing_pipeline not supported");
+
+    // VK_KHR_acceleration_structure is required by VK_KHR_ray_tracing_pipeline.
+    if (!context.isDeviceFunctionalitySupported("VK_KHR_acceleration_structure"))
+        TCU_FAIL("VK_KHR_acceleration_structure not supported but VK_KHR_ray_tracing_pipeline supported");
+
+    // VK_KHR_deferred_host_operations is required by VK_KHR_ray_tracing_pipeline.
+    if (!context.isDeviceFunctionalitySupported("VK_KHR_deferred_host_operations"))
+        TCU_FAIL("VK_KHR_deferred_host_operations not supported but VK_KHR_ray_tracing_pipeline supported");
+
+    // VK_KHR_buffer_device_address is required by VK_KHR_acceleration_structure.
+    if (!context.isDeviceFunctionalitySupported("VK_KHR_buffer_device_address"))
+        TCU_FAIL("VK_KHR_buffer_device_address not supported but VK_KHR_acceleration_structure supported");
+
+    if (!context.isDeviceFunctionalitySupported("VK_KHR_robustness2") &&
+        !context.isDeviceFunctionalitySupported("VK_EXT_robustness2"))
+
+        TCU_THROW(NotSupportedError, "VK_KHR_robustness2 and VK_EXT_robustness2 not supported");
+
+    // Required extensions supported: check features.
+    TestDeviceFeatures testFeatures(vki, physicalDevice);
+
+    if (!testFeatures.rayTracingPipelineFeatures.rayTracingPipeline)
+        TCU_THROW(NotSupportedError, "Ray tracing pipelines not supported");
+
+    if (!testFeatures.robustness2Features.nullDescriptor)
+        TCU_THROW(NotSupportedError, "Null descriptors not supported");
+}
+
+void RayTracingTestCase::initPrograms(SourceCollections &programCollection) const
+{
+    const vk::ShaderBuildOptions buildOptions(programCollection.usedVulkanVersion, vk::SPIRV_VERSION_1_4, 0u, true);
+
+    programCollection.glslSources.add("rgen")
+        << glu::RaygenSource(updateRayTracingGLSL(getCommonRayGenerationShader())) << buildOptions;
+
+    {
+        std::stringstream css;
+        css << "#version 460 core\n"
+               "#extension GL_EXT_nonuniform_qualifier : enable\n"
+               "#extension GL_EXT_ray_tracing : require\n"
+               "layout(r32ui, set = 0, binding = 0) uniform uimage2D result;\n"
+               "hitAttributeEXT vec3 hitAttribute;\n"
+               "void main()\n"
+               "{\n"
+               "  reportIntersectionEXT(1.0f, 0);\n"
+               "  uvec4 color = uvec4(1,0,0,1);\n"
+               "  imageStore(result, ivec2(gl_LaunchIDEXT.xy), color);\n"
+               "}\n";
+
+        programCollection.glslSources.add("sect")
+            << glu::IntersectionSource(updateRayTracingGLSL(css.str())) << buildOptions;
+    }
+
+    {
+        std::stringstream css;
+        css << "#version 460 core\n"
+               "#extension GL_EXT_nonuniform_qualifier : enable\n"
+               "#extension GL_EXT_ray_tracing : require\n"
+               "layout(location = 0) rayPayloadInEXT vec3 hitValue;\n"
+               "hitAttributeEXT vec3 attribs;\n"
+               "layout(r32ui, set = 0, binding = 0) uniform uimage2D result;\n"
+               "void main()\n"
+               "{\n"
+               "  uvec4 color = uvec4(2,0,0,1);\n"
+               "  imageStore(result, ivec2(gl_LaunchIDEXT.xy), color);\n"
+               "}\n";
+
+        programCollection.glslSources.add("ahit") << glu::AnyHitSource(updateRayTracingGLSL(css.str())) << buildOptions;
+    }
+
+    {
+        std::stringstream css;
+        css << "#version 460 core\n"
+               "#extension GL_EXT_nonuniform_qualifier : enable\n"
+               "#extension GL_EXT_ray_tracing : require\n"
+               "layout(location = 0) rayPayloadInEXT vec3 hitValue;\n"
+               "hitAttributeEXT vec3 attribs;\n"
+               "layout(r32ui, set = 0, binding = 0) uniform uimage2D result;\n"
+               "void main()\n"
+               "{\n"
+               "  uvec4 color = uvec4(3,0,0,1);\n"
+               "  imageStore(result, ivec2(gl_LaunchIDEXT.xy), color);\n"
+               "}\n";
+
+        programCollection.glslSources.add("chit")
+            << glu::ClosestHitSource(updateRayTracingGLSL(css.str())) << buildOptions;
+    }
+
+    {
+        std::stringstream css;
+        css << "#version 460 core\n"
+               "#extension GL_EXT_nonuniform_qualifier : enable\n"
+               "#extension GL_EXT_ray_tracing : require\n"
+               "layout(location = 0) rayPayloadInEXT vec3 unusedPayload;\n"
+               "layout(r32ui, set = 0, binding = 0) uniform uimage2D result;\n"
+               "void main()\n"
+               "{\n"
+               "  uvec4 color = uvec4(4,0,0,1);\n"
+               "  imageStore(result, ivec2(gl_LaunchIDEXT.xy), color);\n"
+               "}\n";
+
+        programCollection.glslSources.add("miss") << glu::MissSource(updateRayTracingGLSL(css.str())) << buildOptions;
+    }
+}
+
+TestInstance *RayTracingTestCase::createInstance(Context &context) const
+{
+    return new RayTracingBuildTestInstance(context, m_data);
+}
+
+de::MovePtr<BufferWithMemory> RayTracingBuildTestInstance::runTest(DeviceHelper &deviceHelper)
+{
+    const InstanceInterface &vki            = deviceHelper.device.getInstanceDriver();
+    const VkPhysicalDevice physicalDevice   = deviceHelper.device.getPhysicalDevice();
+    const DeviceInterface &vkd              = *deviceHelper.vkd;
+    const VkDevice device                   = *deviceHelper.device;
+    const uint32_t queueFamilyIndex         = deviceHelper.queueFamilyIndex;
+    const VkQueue queue                     = deviceHelper.queue;
+    vk::Allocator &allocator                = *deviceHelper.allocator;
+    const VkFormat format                   = VK_FORMAT_R32_UINT;
+    const uint32_t pixelCount               = m_data.width * m_data.height;
+    const uint32_t shaderGroupHandleSize    = getShaderGroupSize(vki, physicalDevice);
+    const uint32_t shaderGroupBaseAlignment = getShaderGroupBaseAlignment(vki, physicalDevice);
+
+    const Move<VkDescriptorSetLayout> descriptorSetLayout =
+        DescriptorSetLayoutBuilder()
+            .addSingleBinding(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, ALL_RAY_TRACING_STAGES)
+            .addSingleBinding(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, ALL_RAY_TRACING_STAGES)
+            .build(vkd, device);
+    const Move<VkDescriptorPool> descriptorPool =
+        DescriptorPoolBuilder()
+            .addType(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE)
+            .addType(VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR)
+            .build(vkd, device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1u);
+    const Move<VkDescriptorSet> descriptorSet   = makeDescriptorSet(vkd, device, *descriptorPool, *descriptorSetLayout);
+    const Move<VkPipelineLayout> pipelineLayout = makePipelineLayout(vkd, device, descriptorSetLayout.get());
+    const Move<VkCommandPool> cmdPool           = createCommandPool(vkd, device, 0, queueFamilyIndex);
+    const Move<VkCommandBuffer> cmdBuffer =
+        allocateCommandBuffer(vkd, device, *cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+    de::MovePtr<RayTracingPipeline> rayTracingPipeline = de::newMovePtr<RayTracingPipeline>();
+    const Move<VkPipeline> pipeline = makePipeline(vkd, device, m_context.getBinaryCollection(), rayTracingPipeline,
+                                                   *pipelineLayout, RAYGEN_GROUP, MISS_GROUP, HIT_GROUP);
+    const de::MovePtr<BufferWithMemory> raygenShaderBindingTable = rayTracingPipeline->createShaderBindingTable(
+        vkd, device, *pipeline, allocator, shaderGroupHandleSize, shaderGroupBaseAlignment, RAYGEN_GROUP, 1u);
+    const de::MovePtr<BufferWithMemory> missShaderBindingTable = rayTracingPipeline->createShaderBindingTable(
+        vkd, device, *pipeline, allocator, shaderGroupHandleSize, shaderGroupBaseAlignment, MISS_GROUP, 1u);
+    const de::MovePtr<BufferWithMemory> hitShaderBindingTable = rayTracingPipeline->createShaderBindingTable(
+        vkd, device, *pipeline, allocator, shaderGroupHandleSize, shaderGroupBaseAlignment, HIT_GROUP, 1u);
+
+    const VkStridedDeviceAddressRegionKHR raygenShaderBindingTableRegion =
+        makeStridedDeviceAddressRegionKHR(getBufferDeviceAddress(vkd, device, raygenShaderBindingTable->get(), 0),
+                                          shaderGroupHandleSize, shaderGroupHandleSize);
+    const VkStridedDeviceAddressRegionKHR missShaderBindingTableRegion =
+        makeStridedDeviceAddressRegionKHR(getBufferDeviceAddress(vkd, device, missShaderBindingTable->get(), 0),
+                                          shaderGroupHandleSize, shaderGroupHandleSize);
+    const VkStridedDeviceAddressRegionKHR hitShaderBindingTableRegion =
+        makeStridedDeviceAddressRegionKHR(getBufferDeviceAddress(vkd, device, hitShaderBindingTable->get(), 0),
+                                          shaderGroupHandleSize, shaderGroupHandleSize);
+    const VkStridedDeviceAddressRegionKHR callableShaderBindingTableRegion = makeStridedDeviceAddressRegionKHR(0, 0, 0);
+
+    const VkImageCreateInfo imageCreateInfo = makeImageCreateInfo(m_data.width, m_data.height, format);
+    const VkImageSubresourceRange imageSubresourceRange =
+        makeImageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0u, 1u, 0, 1u);
+    const de::MovePtr<ImageWithMemory> image = de::MovePtr<ImageWithMemory>(
+        new ImageWithMemory(vkd, device, allocator, imageCreateInfo, MemoryRequirement::Any));
+    const Move<VkImageView> imageView =
+        makeImageView(vkd, device, **image, VK_IMAGE_VIEW_TYPE_2D, format, imageSubresourceRange);
+
+    const VkBufferCreateInfo bufferCreateInfo =
+        makeBufferCreateInfo(pixelCount * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    const VkImageSubresourceLayers bufferImageSubresourceLayers =
+        makeImageSubresourceLayers(VK_IMAGE_ASPECT_COLOR_BIT, 0u, 0u, 1u);
+    const VkBufferImageCopy bufferImageRegion =
+        makeBufferImageCopy(makeExtent3D(m_data.width, m_data.height, 1u), bufferImageSubresourceLayers);
+    de::MovePtr<BufferWithMemory> buffer = de::MovePtr<BufferWithMemory>(
+        new BufferWithMemory(vkd, device, allocator, bufferCreateInfo, MemoryRequirement::HostVisible));
+
+    const VkDescriptorImageInfo descriptorImageInfo =
+        makeDescriptorImageInfo(VK_NULL_HANDLE, *imageView, VK_IMAGE_LAYOUT_GENERAL);
+
+    const VkImageMemoryBarrier preImageBarrier =
+        makeImageMemoryBarrier(0u, VK_ACCESS_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, **image, imageSubresourceRange);
+    const VkImageMemoryBarrier postImageBarrier = makeImageMemoryBarrier(
+        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, **image, imageSubresourceRange);
+    const VkMemoryBarrier postTraceMemoryBarrier =
+        makeMemoryBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+    const VkMemoryBarrier postCopyMemoryBarrier =
+        makeMemoryBarrier(VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
+    const VkClearValue clearValue                                  = makeClearValueColorU32(5u, 5u, 5u, 255u);
+    const VkAccelerationStructureKHR topLevelAccelerationStructure = VK_NULL_HANDLE;
+
+    beginCommandBuffer(vkd, *cmdBuffer, 0u);
+    {
+        cmdPipelineImageMemoryBarrier(vkd, *cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                      VK_PIPELINE_STAGE_TRANSFER_BIT, &preImageBarrier);
+        vkd.cmdClearColorImage(*cmdBuffer, **image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue.color, 1,
+                               &imageSubresourceRange);
+        cmdPipelineImageMemoryBarrier(vkd, *cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                      VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, &postImageBarrier);
+
+        VkWriteDescriptorSetAccelerationStructureKHR accelerationStructureWriteDescriptorSet = {
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR, //  VkStructureType sType;
+            nullptr,                                                           //  const void* pNext;
+            1u,                                                                //  uint32_t accelerationStructureCount;
+            &topLevelAccelerationStructure, //  const VkAccelerationStructureKHR* pAccelerationStructures;
+        };
+
+        DescriptorSetUpdateBuilder()
+            .writeSingle(*descriptorSet, DescriptorSetUpdateBuilder::Location::binding(0u),
+                         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &descriptorImageInfo)
+            .writeSingle(*descriptorSet, DescriptorSetUpdateBuilder::Location::binding(1u),
+                         VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, &accelerationStructureWriteDescriptorSet)
+            .update(vkd, device);
+
+        vkd.cmdBindDescriptorSets(*cmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, *pipelineLayout, 0, 1,
+                                  &descriptorSet.get(), 0, nullptr);
+
+        vkd.cmdBindPipeline(*cmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, *pipeline);
+
+        cmdTraceRays(vkd, *cmdBuffer, &raygenShaderBindingTableRegion, &missShaderBindingTableRegion,
+                     &hitShaderBindingTableRegion, &callableShaderBindingTableRegion, m_data.width, m_data.height, 1);
+
+        cmdPipelineMemoryBarrier(vkd, *cmdBuffer, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT, &postTraceMemoryBarrier);
+
+        vkd.cmdCopyImageToBuffer(*cmdBuffer, **image, VK_IMAGE_LAYOUT_GENERAL, **buffer, 1u, &bufferImageRegion);
+
+        cmdPipelineMemoryBarrier(vkd, *cmdBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                                 &postCopyMemoryBarrier);
+    }
+    endCommandBuffer(vkd, *cmdBuffer);
+
+    submitCommandsAndWait(vkd, device, queue, cmdBuffer.get());
+
+    invalidateMappedMemoryRange(vkd, device, buffer->getAllocation().getMemory(), buffer->getAllocation().getOffset(),
+                                pixelCount * sizeof(uint32_t));
+
+    return buffer;
+}
+
+uint32_t RayTracingBuildTestInstance::validateBuffer(de::MovePtr<BufferWithMemory> buffer)
+{
+    const uint32_t *bufferPtr    = (uint32_t *)buffer->getAllocation().getHostPtr();
+    const uint32_t expectedValue = 4;
+    uint32_t failures            = 0;
+    uint32_t pos                 = 0;
+
+    for (uint32_t y = 0; y < m_data.height; ++y)
+        for (uint32_t x = 0; x < m_data.width; ++x)
+        {
+            if (bufferPtr[pos] != expectedValue)
+                failures++;
+
+            ++pos;
+        }
+
+    return failures;
+}
+
+tcu::TestStatus RayTracingBuildTestInstance::iterate(void)
+{
+    DeviceHelper deviceHelper(m_context);
+    de::MovePtr<BufferWithMemory> buffer = runTest(deviceHelper);
+    const uint32_t failures              = validateBuffer(buffer);
+
+    if (failures == 0)
+        return tcu::TestStatus::pass("Pass");
+    else
+        return tcu::TestStatus::fail("failures=" + de::toString(failures));
+}
+
+class RayTracingDescriptorTestInstance : public TestInstance
+{
+public:
+    RayTracingDescriptorTestInstance(Context &context);
+    ~RayTracingDescriptorTestInstance(void) = default;
+
+    tcu::TestStatus iterate(void) final;
+};
+
+RayTracingDescriptorTestInstance::RayTracingDescriptorTestInstance(Context &context) : vkt::TestInstance(context)
+{
+}
+
+tcu::TestStatus RayTracingDescriptorTestInstance::iterate(void)
+{
+    // verify that binding a different pipeline type (compute -> ray tracing and back)
+    // does not corrupt or lose descriptor state that pipelines rely on
+
+    const DeviceInterface &vk = m_context.getDeviceInterface();
+    const VkDevice device     = m_context.getDevice();
+    Allocator &memAlloc       = m_context.getDefaultAllocator();
+
+    const VkShaderStageFlags stages = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT;
+    const VkDescriptorType descType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    const Unique<VkDescriptorPool> descriptorPool(
+        DescriptorPoolBuilder()
+            .addType(descType, 2)
+            .build(vk, device, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 2u));
+    const Unique<VkDescriptorSetLayout> descriptorSetLayout(
+        DescriptorSetLayoutBuilder().addSingleBinding(descType, stages).build(vk, device));
+
+    Move<VkPipelineLayout> pipelineLayout = makePipelineLayout(vk, device, *descriptorSetLayout);
+
+    auto &bc = m_context.getBinaryCollection();
+    auto rgenModule(createShaderModule(vk, device, bc.get("rgen")));
+    auto computeModule(createShaderModule(vk, device, bc.get("comp")));
+
+    // get ray tracing properties
+    const auto &rtProperties       = m_context.getRayTracingPipelineProperties();
+    const uint32_t sgHandleSize    = rtProperties.shaderGroupHandleSize;
+    const uint32_t sgBaseAlignment = rtProperties.shaderGroupBaseAlignment;
+
+    // create ray tracing pipeline
+    RayTracingPipeline rtPipelineWrapper;
+    rtPipelineWrapper.addShader(VK_SHADER_STAGE_RAYGEN_BIT_KHR, rgenModule, 0);
+    Move<VkPipeline> rtPipeline = rtPipelineWrapper.createPipeline(vk, device, *pipelineLayout);
+
+    de::MovePtr<BufferWithMemory> rgenShaderBT = rtPipelineWrapper.createShaderBindingTable(
+        vk, device, *rtPipeline, memAlloc, sgHandleSize, sgBaseAlignment, 0, 1);
+    const auto rgenSBTR  = makeStridedDeviceAddressRegionKHR(getBufferDeviceAddress(vk, device, **rgenShaderBT, 0),
+                                                             sgHandleSize, sgHandleSize);
+    const auto emptySBTR = makeStridedDeviceAddressRegionKHR(0, 0, 0);
+
+    // create compute pipeline
+    VkComputePipelineCreateInfo pipelineCreateInfo = initVulkanStructure();
+    pipelineCreateInfo.stage                       = initVulkanStructure();
+    pipelineCreateInfo.stage.stage                 = VK_SHADER_STAGE_COMPUTE_BIT;
+    pipelineCreateInfo.stage.pName                 = "main";
+    pipelineCreateInfo.stage.module                = *computeModule;
+    pipelineCreateInfo.layout                      = *pipelineLayout;
+    Move<VkPipeline> computePipeline = createComputePipeline(vk, device, VK_NULL_HANDLE, &pipelineCreateInfo);
+
+    // create storage buffer that will hold compute and ray tracing output;
+    // note that value of singleDispatchCount is also used in shaders to calculate written values
+    const uint32_t singleDispatchCount = 16;
+    const VkDeviceSize bufferSize      = 4u * singleDispatchCount * sizeof(uint32_t);
+    auto bufferCreateInfo =
+        makeBufferCreateInfo(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                                             VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    BufferWithMemory bufferWithMemory(vk, device, memAlloc, bufferCreateInfo, MemoryRequirement::HostVisible);
+
+    auto bufferHalfSize       = bufferCreateInfo.size / 2u;
+    auto bufferDescriptorInfo = makeDescriptorBufferInfo(*bufferWithMemory, 0ull, bufferHalfSize);
+    Move<VkDescriptorSet> descriptorSets[2];
+
+    // create two descriptor sets with same layout, first one for ray tracing, second for compute
+    for (std::size_t i = 0; i < 2; ++i)
+    {
+        bufferDescriptorInfo.offset = i * bufferHalfSize;
+        descriptorSets[i]           = makeDescriptorSet(vk, device, *descriptorPool, *descriptorSetLayout);
+        DescriptorSetUpdateBuilder()
+            .writeSingle(*descriptorSets[i], DescriptorSetUpdateBuilder::Location::binding(0u), descType,
+                         &bufferDescriptorInfo)
+            .update(vk, device);
+    }
+
+    const auto pbpRayt = VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR;
+    const auto pbpComp = VK_PIPELINE_BIND_POINT_COMPUTE;
+    auto cmdPool       = makeCommandPool(vk, device, m_context.getUniversalQueueFamilyIndex());
+    auto cmdBuffer     = allocateCommandBuffer(vk, device, *cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+    beginCommandBuffer(vk, *cmdBuffer);
+
+    vk.cmdBindPipeline(*cmdBuffer, pbpComp, *computePipeline);
+    vk.cmdBindPipeline(*cmdBuffer, pbpRayt, *rtPipeline);
+
+    // bind descriptor sets for both pipelines
+    vk.cmdBindDescriptorSets(*cmdBuffer, pbpRayt, *pipelineLayout, 0u, 1u, &*descriptorSets[0], 0u, 0);
+    vk.cmdBindDescriptorSets(*cmdBuffer, pbpComp, *pipelineLayout, 0u, 1u, &*descriptorSets[1], 0u, 0);
+
+    // mixed compute/ray tracing dispatches
+    vk.cmdTraceRaysKHR(*cmdBuffer, &rgenSBTR, &emptySBTR, &emptySBTR, &emptySBTR, 1, singleDispatchCount, 1);
+    vk.cmdDispatch(*cmdBuffer, 1, singleDispatchCount, 1);
+    // width/groupCountX is set to 2, we use this to identify second dispatch in the shaders
+    // and to write to different part of the buffer
+    vk.cmdTraceRaysKHR(*cmdBuffer, &rgenSBTR, &emptySBTR, &emptySBTR, &emptySBTR, 2, singleDispatchCount, 1);
+    vk.cmdDispatch(*cmdBuffer, 2, singleDispatchCount, 1);
+
+    endCommandBuffer(vk, *cmdBuffer);
+    submitCommandsAndWait(vk, device, m_context.getUniversalQueue(), *cmdBuffer);
+
+    auto &allocation = bufferWithMemory.getAllocation();
+    invalidateAlloc(vk, device, allocation);
+    uint32_t *bufferPtr = static_cast<uint32_t *>(allocation.getHostPtr());
+
+    // verify four sections of the buffer at the same time;
+    // each section was written by different dispatches/traceRays call
+    for (std::size_t i = 0; i < singleDispatchCount; ++i)
+    {
+        if (bufferPtr[i] != i + 57)
+            return tcu::TestStatus::fail("First trace rays result has wrong value");
+        if (bufferPtr[i + singleDispatchCount] != i + 557 + singleDispatchCount)
+            return tcu::TestStatus::fail("Second trace rays result has wrong value");
+        if (bufferPtr[i + singleDispatchCount * 2] != i)
+            return tcu::TestStatus::fail("First dispatch result has wrong value");
+        if (bufferPtr[i + singleDispatchCount * 3] != i + 100 + singleDispatchCount)
+            return tcu::TestStatus::fail("Second dispatch result has wrong value");
+    }
+
+    return tcu::TestStatus::pass("Pass");
+}
+
+class RayTracingDescriptorTestCase : public TestCase
+{
+public:
+    RayTracingDescriptorTestCase(tcu::TestContext &context, const char *name);
+    ~RayTracingDescriptorTestCase(void) = default;
+
+    void checkSupport(Context &context) const final;
+    void initPrograms(SourceCollections &programCollection) const final;
+    TestInstance *createInstance(Context &context) const final;
+};
+
+RayTracingDescriptorTestCase::RayTracingDescriptorTestCase(tcu::TestContext &context, const char *name)
+    : vkt::TestCase(context, name)
+{
+}
+
+void RayTracingDescriptorTestCase::checkSupport(Context &context) const
+{
+    context.requireDeviceFunctionality("VK_KHR_acceleration_structure");
+    context.requireDeviceFunctionality("VK_KHR_ray_tracing_pipeline");
+}
+
+void RayTracingDescriptorTestCase::initPrograms(SourceCollections &programCollection) const
+{
+    // note: singleDispatchCount is also used for buffer size calculation in the test instance
+    const std::string singleDispatchCount("16");
+    std::map<std::string, std::string> specializationMap{{"fdc", singleDispatchCount}};
+    const vk::ShaderBuildOptions glslBuildOptions(programCollection.usedVulkanVersion, vk::SPIRV_VERSION_1_4, 0u, true);
+
+    std::string rgenShader =
+        R"(#version 460 core
+           #extension GL_EXT_ray_tracing : require
+           layout(std430, binding = 0) buffer Data { uint v[]; } data;
+           void main() {
+               uint secondTraceRays = uint(gl_LaunchSizeEXT.x > 1);
+               if (gl_LaunchIDEXT.x > 0)
+                   return;
+               uint i = secondTraceRays * ${fdc} + gl_LaunchIDEXT.y;
+               data.v[i] = i + 57 + secondTraceRays * 500;
+           })";
+    rgenShader = tcu::StringTemplate(rgenShader).specialize(specializationMap);
+    programCollection.glslSources.add("rgen") << glu::RaygenSource(rgenShader) << glslBuildOptions;
+
+    std::string compShader =
+        R"(#version 460 core
+           layout(local_size_x = 1u) in;
+           layout(std430, binding = 0) buffer Data { uint v[]; } data;
+           void main() {
+               uint secondDispatch = uint(gl_NumWorkGroups.x > 1);
+               if (gl_GlobalInvocationID.x > 0)
+                   return;
+               uint i = secondDispatch * ${fdc} + gl_GlobalInvocationID.y;
+               data.v[i] = i + secondDispatch * 100;
+           })";
+    compShader = tcu::StringTemplate(compShader).specialize(specializationMap);
+    programCollection.glslSources.add("comp") << glu::ComputeSource(compShader);
+}
+
+TestInstance *RayTracingDescriptorTestCase::createInstance(Context &context) const
+{
+    return new RayTracingDescriptorTestInstance(context);
+}
+
+} // namespace
+
+tcu::TestCaseGroup *createNullAccelerationStructureTests(tcu::TestContext &testCtx)
+{
+    // Null Acceleration Structure is accepted as 'always miss' case
+    de::MovePtr<tcu::TestCaseGroup> group(new tcu::TestCaseGroup(testCtx, "null_as"));
+
+    const CaseDef caseDef = {
+        8, //  uint32_t width;
+        8, //  uint32_t height;
+    };
+    group->addChild(new RayTracingTestCase(testCtx, "test", caseDef));
+    group->addChild(new RayTracingDescriptorTestCase(testCtx, "mixed_dispatches"));
+
+    return group.release();
+}
+
+} // namespace vkt::RayTracing

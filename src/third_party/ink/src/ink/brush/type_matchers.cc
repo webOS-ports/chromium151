@@ -1,0 +1,562 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "ink/brush/type_matchers.h"
+
+#include <tuple>
+#include <variant>
+
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "absl/functional/overload.h"
+#include "absl/strings/str_cat.h"
+#include "ink/brush/brush.h"
+#include "ink/brush/brush_behavior.h"
+#include "ink/brush/brush_coat.h"
+#include "ink/brush/brush_family.h"
+#include "ink/brush/brush_paint.h"
+#include "ink/brush/brush_tip.h"
+#include "ink/brush/color_function.h"
+#include "ink/brush/easing_function.h"
+#include "ink/geometry/type_matchers.h"
+#include "ink/types/type_matchers.h"
+
+namespace ink {
+namespace {
+
+using ::testing::_;
+using ::testing::ContainerEq;
+using ::testing::Eq;
+using ::testing::ExplainMatchResult;
+using ::testing::Field;
+using ::testing::FloatEq;
+using ::testing::Matcher;
+using ::testing::Pointwise;
+using ::testing::Property;
+using ::testing::VariantWith;
+
+MATCHER_P(OpacityMultiplierParametersEqMatcher, expected, "") {
+  return ExplainMatchResult(
+      AllOf(Field("multiplier", &ColorFunction::OpacityMultiplier::multiplier,
+                  FloatEq(expected.multiplier))),
+      arg, result_listener);
+}
+
+MATCHER_P(HueOffsetParametersEqMatcher, expected, "") {
+  return ExplainMatchResult(
+      AllOf(Field("offset", &ColorFunction::HueOffset::offset,
+                  AngleEq(expected.offset))),
+      arg, result_listener);
+}
+
+MATCHER_P(SaturationMultiplierParametersEqMatcher, expected, "") {
+  return ExplainMatchResult(
+      AllOf(Field("multiplier",
+                  &ColorFunction::SaturationMultiplier::multiplier,
+                  FloatEq(expected.multiplier))),
+      arg, result_listener);
+}
+
+MATCHER_P(LuminosityOffsetParametersEqMatcher, expected, "") {
+  return ExplainMatchResult(
+      AllOf(Field("offset", &ColorFunction::LuminosityOffset::offset,
+                  FloatEq(expected.offset))),
+      arg, result_listener);
+}
+
+MATCHER_P(ReplaceColorParametersEqMatcher, expected, "") {
+  return ExplainMatchResult(
+      AllOf(Field("color", &ColorFunction::ReplaceColor::color,
+                  Eq(expected.color))),
+      arg, result_listener);
+}
+
+[[maybe_unused]] Matcher<ColorFunction::Parameters> ColorFunctionParametersEq(
+    ColorFunction::OpacityMultiplier opacity) {
+  return VariantWith<ColorFunction::OpacityMultiplier>(
+      OpacityMultiplierParametersEqMatcher(opacity));
+}
+
+[[maybe_unused]] Matcher<ColorFunction::Parameters> ColorFunctionParametersEq(
+    ColorFunction::HueOffset hue) {
+  return VariantWith<ColorFunction::HueOffset>(
+      HueOffsetParametersEqMatcher(hue));
+}
+
+[[maybe_unused]] Matcher<ColorFunction::Parameters> ColorFunctionParametersEq(
+    ColorFunction::SaturationMultiplier saturation) {
+  return VariantWith<ColorFunction::SaturationMultiplier>(
+      SaturationMultiplierParametersEqMatcher(saturation));
+}
+
+[[maybe_unused]] Matcher<ColorFunction::Parameters> ColorFunctionParametersEq(
+    ColorFunction::LuminosityOffset luminosity) {
+  return VariantWith<ColorFunction::LuminosityOffset>(
+      LuminosityOffsetParametersEqMatcher(luminosity));
+}
+
+[[maybe_unused]] Matcher<ColorFunction::Parameters> ColorFunctionParametersEq(
+    ColorFunction::ReplaceColor replace) {
+  return VariantWith<ColorFunction::ReplaceColor>(
+      ReplaceColorParametersEqMatcher(replace));
+}
+
+MATCHER_P(ColorFunctionEqMatcher, expected, "") {
+  return ExplainMatchResult(
+      Field("parameters", &ColorFunction::parameters,
+            std::visit(
+                [](auto&& params) { return ColorFunctionParametersEq(params); },
+                expected.parameters)),
+      arg, result_listener);
+}
+
+MATCHER(ColorFunctionPointwiseEqMatcher, "") {
+  return ExplainMatchResult(ColorFunctionEq(std::get<1>(arg)), std::get<0>(arg),
+                            result_listener);
+}
+
+MATCHER_P(CubicBezierParametersEqMatcher, expected,
+          absl::StrCat(negation ? "doesn't equal" : "equals",
+                       " CubicBezier (expected: ",
+                       ::testing::PrintToString(expected), ")")) {
+  return ExplainMatchResult(
+      AllOf(
+          Field("x1", &EasingFunction::CubicBezier::x1, FloatEq(expected.x1)),
+          Field("y1", &EasingFunction::CubicBezier::y1, FloatEq(expected.y1)),
+          Field("x2", &EasingFunction::CubicBezier::x2, FloatEq(expected.x2)),
+          Field("y2", &EasingFunction::CubicBezier::y2, FloatEq(expected.y2))),
+      arg, result_listener);
+}
+
+MATCHER_P(LinearParametersEqMatcher, expected,
+          absl::StrCat(negation ? "doesn't equal" : "equals",
+                       " Linear (expected: ",
+                       ::testing::PrintToString(expected), ")")) {
+  return ExplainMatchResult(
+      Field("points", &EasingFunction::Linear::points, Eq(expected.points)),
+      arg, result_listener);
+}
+
+MATCHER_P(StepsParametersEqMatcher, expected,
+          absl::StrCat(negation ? "doesn't equal" : "equals",
+                       " Steps (expected: ", ::testing::PrintToString(expected),
+                       ")")) {
+  return ExplainMatchResult(
+      AllOf(Field("steps", &EasingFunction::Steps::step_count,
+                  Eq(expected.step_count)),
+            Field("step_position", &EasingFunction::Steps::step_position,
+                  Eq(expected.step_position))),
+      arg, result_listener);
+}
+
+[[maybe_unused]] Matcher<EasingFunction::Parameters> EasingFunctionParametersEq(
+    EasingFunction::Predefined predefined) {
+  return VariantWith<EasingFunction::Predefined>(Eq(predefined));
+}
+
+[[maybe_unused]] Matcher<EasingFunction::Parameters> EasingFunctionParametersEq(
+    const EasingFunction::CubicBezier& bezier) {
+  return VariantWith<EasingFunction::CubicBezier>(
+      CubicBezierParametersEqMatcher(bezier));
+}
+
+[[maybe_unused]] Matcher<EasingFunction::Parameters> EasingFunctionParametersEq(
+    const EasingFunction::Linear& linear) {
+  return VariantWith<EasingFunction::Linear>(LinearParametersEqMatcher(linear));
+}
+
+[[maybe_unused]] Matcher<EasingFunction::Parameters> EasingFunctionParametersEq(
+    const EasingFunction::Steps& steps) {
+  return VariantWith<EasingFunction::Steps>(StepsParametersEqMatcher(steps));
+}
+
+MATCHER_P(EasingFunctionEqMatcher, expected, "") {
+  return ExplainMatchResult(
+      Field(
+          "parameters", &EasingFunction::parameters,
+          std::visit(
+              [](auto&& params) { return EasingFunctionParametersEq(params); },
+              expected.parameters)),
+      arg, result_listener);
+}
+
+MATCHER_P(EnabledToolTypesEqMatcher, expected, "") {
+  return ExplainMatchResult(
+      AllOf(
+          Field(&BrushBehavior::EnabledToolTypes::unknown,
+                Eq(expected.unknown)),
+          Field(&BrushBehavior::EnabledToolTypes::mouse, Eq(expected.mouse)),
+          Field(&BrushBehavior::EnabledToolTypes::touch, Eq(expected.touch)),
+          Field(&BrushBehavior::EnabledToolTypes::stylus, Eq(expected.stylus))),
+      arg, result_listener);
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::SourceNode& expected) {
+  return VariantWith<BrushBehavior::SourceNode>(AllOf(
+      Field("source", &BrushBehavior::SourceNode::source, Eq(expected.source)),
+      Field("source_out_of_range_behavior",
+            &BrushBehavior::SourceNode::source_out_of_range_behavior,
+            Eq(expected.source_out_of_range_behavior)),
+      Field("source_value_range",
+            &BrushBehavior::SourceNode::source_value_range,
+            ContainerEq(expected.source_value_range))));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::ConstantNode& expected) {
+  return VariantWith<BrushBehavior::ConstantNode>(Field(
+      "value", &BrushBehavior::ConstantNode::value, FloatEq(expected.value)));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::NoiseNode& expected) {
+  return VariantWith<BrushBehavior::NoiseNode>(
+      AllOf(Field("seed", &BrushBehavior::NoiseNode::seed, Eq(expected.seed)),
+            Field("vary_over", &BrushBehavior::NoiseNode::vary_over,
+                  Eq(expected.vary_over)),
+            Field("base_period", &BrushBehavior::NoiseNode::base_period,
+                  FloatEq(expected.base_period))));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::ToolTypeFilterNode& expected) {
+  return VariantWith<BrushBehavior::ToolTypeFilterNode>(
+      Field("enabled_tool_types",
+            &BrushBehavior::ToolTypeFilterNode::enabled_tool_types,
+            EnabledToolTypesEqMatcher(expected.enabled_tool_types)));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::DampingNode& expected) {
+  return VariantWith<BrushBehavior::DampingNode>(
+      AllOf(Field("damping_source", &BrushBehavior::DampingNode::damping_source,
+                  Eq(expected.damping_source)),
+            Field("damping_gap", &BrushBehavior::DampingNode::damping_gap,
+                  FloatEq(expected.damping_gap))));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::ResponseNode& expected) {
+  return VariantWith<BrushBehavior::ResponseNode>(
+      Field("response_curve", &BrushBehavior::ResponseNode::response_curve,
+            EasingFunctionEqMatcher(expected.response_curve)));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::IntegralNode& expected) {
+  return VariantWith<BrushBehavior::IntegralNode>(AllOf(
+      Field("integrate_over", &BrushBehavior::IntegralNode::integrate_over,
+            Eq(expected.integrate_over)),
+      Field("integral_out_of_range_behavior",
+            &BrushBehavior::IntegralNode::integral_out_of_range_behavior,
+            Eq(expected.integral_out_of_range_behavior)),
+      Field("integral_value_range",
+            &BrushBehavior::IntegralNode::integral_value_range,
+            ContainerEq(expected.integral_value_range))));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::BinaryOpNode& expected) {
+  return VariantWith<BrushBehavior::BinaryOpNode>(
+      Field("operation", &BrushBehavior::BinaryOpNode::operation,
+            Eq(expected.operation)));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::InterpolationNode& expected) {
+  return VariantWith<BrushBehavior::InterpolationNode>(AllOf(
+      Field("interpolation", &BrushBehavior::InterpolationNode::interpolation,
+            Eq(expected.interpolation))));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::TargetNode& expected) {
+  return VariantWith<BrushBehavior::TargetNode>(AllOf(
+      Field("target", &BrushBehavior::TargetNode::target, Eq(expected.target)),
+      Field("target_modifier_range",
+            &BrushBehavior::TargetNode::target_modifier_range,
+            ContainerEq(expected.target_modifier_range))));
+}
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEqMatcher(
+    const BrushBehavior::PolarTargetNode& expected) {
+  return VariantWith<BrushBehavior::PolarTargetNode>(AllOf(
+      Field("target", &BrushBehavior::PolarTargetNode::target,
+            Eq(expected.target)),
+      Field("angle_range", &BrushBehavior::PolarTargetNode::angle_range,
+            ContainerEq(expected.angle_range)),
+      Field("magnitude_range", &BrushBehavior::PolarTargetNode::magnitude_range,
+            ContainerEq(expected.magnitude_range))));
+}
+
+MATCHER(BrushBehaviorNodePointwiseEqMatcher, "") {
+  return ExplainMatchResult(BrushBehaviorNodeEq(std::get<1>(arg)),
+                            std::get<0>(arg), result_listener);
+}
+
+MATCHER_P(BrushBehaviorEqMatcher, expected,
+          absl::StrCat(negation ? "doesn't equal" : "equals",
+                       " BrushBehavior (expected: ",
+                       ::testing::PrintToString(expected), ")")) {
+  return ExplainMatchResult(
+      AllOf(Field("nodes", &BrushBehavior::nodes,
+                  Pointwise(BrushBehaviorNodeEq(), expected.nodes)),
+            Field("developer_comment", &BrushBehavior::developer_comment,
+                  Eq(expected.developer_comment))),
+      arg, result_listener);
+}
+
+MATCHER(BrushBehaviorPointwiseEqMatcher, "") {
+  return ExplainMatchResult(BrushBehaviorEq(std::get<1>(arg)), std::get<0>(arg),
+                            result_listener);
+}
+
+MATCHER_P(BrushTipEqMatcher, expected,
+          absl::StrCat(negation ? "doesn't equal" : "equals",
+                       " BrushTip (expected: ",
+                       ::testing::PrintToString(expected), ")")) {
+  return ExplainMatchResult(
+      AllOf(Field("scale", &BrushTip::scale, VecEq(expected.scale)),
+            Field("corner_rounding", &BrushTip::corner_rounding,
+                  FloatEq(expected.corner_rounding)),
+            Field("slant", &BrushTip::slant, AngleEq(expected.slant)),
+            Field("pinch", &BrushTip::pinch, FloatEq(expected.pinch)),
+            Field("rotation", &BrushTip::rotation, AngleEq(expected.rotation)),
+            Field("particle_gap_distance_scale",
+                  &BrushTip::particle_gap_distance_scale,
+                  FloatEq(expected.particle_gap_distance_scale)),
+            Field("particle_gap_duration", &BrushTip::particle_gap_duration,
+                  Duration32Eq(expected.particle_gap_duration)),
+            Field("behaviors", &BrushTip::behaviors,
+                  Pointwise(BrushBehaviorEq(), expected.behaviors))),
+      arg, result_listener);
+}
+
+MATCHER(BrushTipPointwiseEqMatcher, "") {
+  return ExplainMatchResult(BrushTipEq(std::get<1>(arg)), std::get<0>(arg),
+                            result_listener);
+}
+
+Matcher<BrushPaint::TextureLayer> BrushPaintTextureLayerEqMatcher(
+    const BrushPaint::TilingTexture& expected) {
+  return VariantWith<BrushPaint::TilingTexture>(AllOf(
+      Field("client_texture_id", &BrushPaint::TilingTexture::client_texture_id,
+            Eq(expected.client_texture_id)),
+      Field("origin", &BrushPaint::TilingTexture::origin, Eq(expected.origin)),
+      Field("size_unit", &BrushPaint::TilingTexture::size_unit,
+            Eq(expected.size_unit)),
+      Field("wrap_x", &BrushPaint::TilingTexture::wrap_x, Eq(expected.wrap_x)),
+      Field("wrap_y", &BrushPaint::TilingTexture::wrap_y, Eq(expected.wrap_y)),
+      Field("size", &BrushPaint::TilingTexture::size, Eq(expected.size)),
+      Field("offset", &BrushPaint::TilingTexture::offset, Eq(expected.offset)),
+      Field("rotation", &BrushPaint::TilingTexture::rotation,
+            Eq(expected.rotation)),
+      Field("blend_mode", &BrushPaint::TilingTexture::blend_mode,
+            Eq(expected.blend_mode))));
+}
+
+Matcher<BrushPaint::TextureLayer> BrushPaintTextureLayerEqMatcher(
+    const BrushPaint::StampingTexture& expected) {
+  return VariantWith<BrushPaint::StampingTexture>(AllOf(
+      Field("client_texture_id",
+            &BrushPaint::StampingTexture::client_texture_id,
+            Eq(expected.client_texture_id)),
+      Field("animation_frames", &BrushPaint::StampingTexture::animation_frames,
+            Eq(expected.animation_frames)),
+      Field("animation_rows", &BrushPaint::StampingTexture::animation_rows,
+            Eq(expected.animation_rows)),
+      Field("animation_columns",
+            &BrushPaint::StampingTexture::animation_columns,
+            Eq(expected.animation_columns)),
+      Field("animation_duration",
+            &BrushPaint::StampingTexture::animation_duration,
+            Eq(expected.animation_duration)),
+      Field("blend_mode", &BrushPaint::StampingTexture::blend_mode,
+            Eq(expected.blend_mode))));
+}
+
+MATCHER(BrushPaintTextureLayerPointwiseEqMatcher, "") {
+  return ExplainMatchResult(BrushPaintTextureLayerEq(std::get<1>(arg)),
+                            std::get<0>(arg), result_listener);
+}
+
+MATCHER_P(BrushPaintEqMatcher, expected,
+          absl::StrCat(negation ? "doesn't equal" : "equals",
+                       " BrushPaint (expected: ",
+                       ::testing::PrintToString(expected), ")")) {
+  return ExplainMatchResult(
+      AllOf(
+          Field("texture_layers", &BrushPaint::texture_layers,
+                Pointwise(BrushPaintTextureLayerEq(), expected.texture_layers)),
+          Field("color_functions", &BrushPaint::color_functions,
+                Pointwise(ColorFunctionEq(), expected.color_functions)),
+          Field("self_overlap", &BrushPaint::self_overlap,
+                Eq(expected.self_overlap))),
+      arg, result_listener);
+}
+
+MATCHER(BrushPaintPointwiseEqMatcher, "") {
+  return ExplainMatchResult(BrushPaintEq(std::get<1>(arg)), std::get<0>(arg),
+                            result_listener);
+}
+
+MATCHER_P(BrushCoatEqMatcher, expected,
+          absl::StrCat(negation ? "doesn't equal" : "equals",
+                       " BrushCoat (expected: ",
+                       ::testing::PrintToString(expected), ")")) {
+  return ExplainMatchResult(
+      AllOf(Field("tip", &BrushCoat::tip, BrushTipEq(expected.tip)),
+            Field("paint_preferences", &BrushCoat::paint_preferences,
+                  Pointwise(BrushPaintEq(), expected.paint_preferences))),
+      arg, result_listener);
+}
+
+MATCHER(BrushCoatPointwiseEqMatcher, "") {
+  return ExplainMatchResult(BrushCoatEq(std::get<1>(arg)), std::get<0>(arg),
+                            result_listener);
+}
+
+Matcher<BrushFamily::InputModel> BrushFamilyInputModelEqMatcher(
+    const BrushFamily::InputModel& expected) {
+  return std::visit(
+      absl::Overload(
+          [](const BrushFamily::PassthroughModel& input_model)
+              -> Matcher<BrushFamily::InputModel> {
+            // no fields to match
+            return VariantWith<BrushFamily::PassthroughModel>(_);
+          },
+          [](const BrushFamily::SlidingWindowModel& input_model)
+              -> Matcher<BrushFamily::InputModel> {
+            return VariantWith<BrushFamily::SlidingWindowModel>(
+                AllOf(Field("window_size",
+                            &BrushFamily::SlidingWindowModel::window_size,
+                            Duration32Eq(input_model.window_size)),
+                      Field("upsampling_period",
+                            &BrushFamily::SlidingWindowModel::upsampling_period,
+                            Duration32Eq(input_model.upsampling_period))));
+          }),
+      expected);
+}
+
+MATCHER_P(BrushFamilyEqMatcher, expected,
+          absl::StrCat(negation ? "doesn't equal" : "equals",
+                       " BrushFamily (expected: ",
+                       ::testing::PrintToString(expected), ")")) {
+  return ExplainMatchResult(
+      AllOf(Property("GetCoats", &BrushFamily::GetCoats,
+                     Pointwise(BrushCoatEq(), expected.GetCoats())),
+            Property("GetInputModel", &BrushFamily::GetInputModel,
+                     BrushFamilyInputModelEq(expected.GetInputModel())),
+            Property("GetMetadata", &BrushFamily::GetMetadata,
+                     Eq(expected.GetMetadata()))),
+      arg, result_listener);
+}
+
+MATCHER_P(BrushEqMatcher, expected,
+          absl::StrCat(negation ? "doesn't equal" : "equals",
+                       " Brush (expected: ", ::testing::PrintToString(expected),
+                       ")")) {
+  return ExplainMatchResult(
+      AllOf(Property("GetFamily", &Brush::GetFamily,
+                     BrushFamilyEq(expected.GetFamily())),
+            Property("GetColor", &Brush::GetColor, Eq(expected.GetColor())),
+            Property("GetSize", &Brush::GetSize, Eq(expected.GetSize())),
+            Property("GetEpsilon", &Brush::GetEpsilon,
+                     Eq(expected.GetEpsilon()))),
+      arg, result_listener);
+}
+
+}  // namespace
+
+Matcher<BrushBehavior::Node> BrushBehaviorNodeEq(
+    const BrushBehavior::Node& expected) {
+  return std::visit(
+      [](const auto& expected) { return BrushBehaviorNodeEqMatcher(expected); },
+      expected);
+}
+
+Matcher<std::tuple<BrushBehavior::Node, BrushBehavior::Node>>
+BrushBehaviorNodeEq() {
+  return BrushBehaviorNodePointwiseEqMatcher();
+}
+
+Matcher<BrushBehavior> BrushBehaviorEq(const BrushBehavior& expected) {
+  return BrushBehaviorEqMatcher(expected);
+}
+
+Matcher<std::tuple<BrushBehavior, BrushBehavior>> BrushBehaviorEq() {
+  return BrushBehaviorPointwiseEqMatcher();
+}
+
+Matcher<BrushTip> BrushTipEq(const BrushTip& expected) {
+  return BrushTipEqMatcher(expected);
+}
+
+Matcher<std::tuple<BrushTip, BrushTip>> BrushTipEq() {
+  return BrushTipPointwiseEqMatcher();
+}
+
+Matcher<BrushPaint> BrushPaintEq(const BrushPaint& expected) {
+  return BrushPaintEqMatcher(expected);
+}
+
+Matcher<std::tuple<BrushPaint, BrushPaint>> BrushPaintEq() {
+  return BrushPaintPointwiseEqMatcher();
+}
+
+Matcher<BrushPaint::TextureLayer> BrushPaintTextureLayerEq(
+    const BrushPaint::TextureLayer& expected) {
+  return std::visit(
+      [](const auto& expected) {
+        return BrushPaintTextureLayerEqMatcher(expected);
+      },
+      expected);
+}
+
+Matcher<std::tuple<BrushPaint::TextureLayer, BrushPaint::TextureLayer>>
+BrushPaintTextureLayerEq() {
+  return BrushPaintTextureLayerPointwiseEqMatcher();
+}
+
+Matcher<BrushCoat> BrushCoatEq(const BrushCoat& expected) {
+  return BrushCoatEqMatcher(expected);
+}
+
+Matcher<std::tuple<BrushCoat, BrushCoat>> BrushCoatEq() {
+  return BrushCoatPointwiseEqMatcher();
+}
+
+Matcher<BrushFamily> BrushFamilyEq(const BrushFamily& expected) {
+  return BrushFamilyEqMatcher(expected);
+}
+
+Matcher<BrushFamily::InputModel> BrushFamilyInputModelEq(
+    const BrushFamily::InputModel& expected) {
+  return BrushFamilyInputModelEqMatcher(expected);
+}
+
+Matcher<Brush> BrushEq(const Brush& expected) {
+  return BrushEqMatcher(expected);
+}
+
+Matcher<ColorFunction> ColorFunctionEq(const ColorFunction& expected) {
+  return ColorFunctionEqMatcher(expected);
+}
+
+Matcher<std::tuple<ColorFunction, ColorFunction>> ColorFunctionEq() {
+  return ColorFunctionPointwiseEqMatcher();
+}
+
+}  // namespace ink

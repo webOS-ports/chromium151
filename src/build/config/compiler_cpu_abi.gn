@@ -73,25 +73,6 @@ if ((is_posix && !is_apple) || is_fuchsia) {
       "-mfpmath=sse",
       "-msse3",
     ]
-  } else if (current_cpu == "arm") {
-    if (is_clang && !is_android && !is_chromeos_device) {
-      cpu_abi_cflags += [ "--target=arm-linux-gnueabihf" ]
-      cpu_abi_ldflags += [ "--target=arm-linux-gnueabihf" ]
-    }
-    cpu_abi_cflags += [
-      "-march=$arm_arch",
-      "-mfloat-abi=$arm_float_abi",
-    ]
-  } else if (current_cpu == "arm64") {
-    if (is_clang && !is_android && !is_fuchsia && !is_chromeos_device) {
-      cpu_abi_cflags += [ "--target=aarch64-linux-gnu" ]
-      cpu_abi_ldflags += [ "--target=aarch64-linux-gnu" ]
-    }
-    if (target_os == "chromeos" && cros_target_cpu_arch != "" &&
-        is_a_target_toolchain) {
-      cpu_abi_cflags += [ "-march=$cros_target_cpu_arch" ]
-      cpu_abi_ldflags += [ "-march=$cros_target_cpu_arch" ]
-    }
   } else if (current_cpu == "mipsel") {
     cpu_abi_ldflags += [ "-Wl,--hash-style=sysv" ]
     if (custom_toolchain == "") {
@@ -99,9 +80,6 @@ if ((is_posix && !is_apple) || is_fuchsia) {
         if (is_android) {
           cpu_abi_cflags += [ "--target=mipsel-linux-android" ]
           cpu_abi_ldflags += [ "--target=mipsel-linux-android" ]
-        } else {
-          cpu_abi_cflags += [ "--target=mipsel-linux-gnu" ]
-          cpu_abi_ldflags += [ "--target=mipsel-linux-gnu" ]
         }
       } else {
         cpu_abi_cflags += [ "-EL" ]
@@ -181,8 +159,6 @@ if ((is_posix && !is_apple) || is_fuchsia) {
     cpu_abi_ldflags += [ "-Wl,--hash-style=sysv" ]
     if (custom_toolchain == "") {
       if (is_clang) {
-        cpu_abi_cflags += [ "--target=mips-linux-gnu" ]
-        cpu_abi_ldflags += [ "--target=mips-linux-gnu" ]
       } else {
         cpu_abi_cflags += [ "-EB" ]
         cpu_abi_ldflags += [ "-EB" ]
@@ -230,9 +206,6 @@ if ((is_posix && !is_apple) || is_fuchsia) {
         if (is_android) {
           cpu_abi_cflags += [ "--target=mips64el-linux-android" ]
           cpu_abi_ldflags += [ "--target=mips64el-linux-android" ]
-        } else {
-          cpu_abi_cflags += [ "--target=mips64el-linux-gnuabi64" ]
-          cpu_abi_ldflags += [ "--target=mips64el-linux-gnuabi64" ]
         }
       } else {
         cpu_abi_cflags += [
@@ -290,8 +263,6 @@ if ((is_posix && !is_apple) || is_fuchsia) {
     cpu_abi_ldflags += [ "-Wl,--hash-style=sysv" ]
     if (custom_toolchain == "") {
       if (is_clang) {
-        cpu_abi_cflags += [ "--target=mips64-linux-gnuabi64" ]
-        cpu_abi_ldflags += [ "--target=mips64-linux-gnuabi64" ]
       } else {
         cpu_abi_cflags += [
           "-EB",

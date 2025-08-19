@@ -1,0 +1,332 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "ink/jni/internal/jni_jvm_interface.h"
+
+#include <jni.h>
+
+#include "absl/log/absl_check.h"
+
+namespace ink::jni {
+
+namespace {
+
+static jclass class_native_exception_handling = nullptr;
+static jmethodID method_native_exception_handling_throw_for_non_ok_status =
+    nullptr;
+
+static jclass class_immutable_vec = nullptr;
+static jmethodID method_immutable_vec_init_x_y = nullptr;
+
+static jclass class_mutable_vec = nullptr;
+static jmethodID method_mutable_vec_set_x = nullptr;
+static jmethodID method_mutable_vec_set_y = nullptr;
+
+static jclass class_immutable_box = nullptr;
+static jmethodID method_immutable_box_from_two_points = nullptr;
+
+static jclass class_mutable_box = nullptr;
+static jmethodID method_mutable_box_set_x_bounds = nullptr;
+static jmethodID method_mutable_box_set_y_bounds = nullptr;
+
+static jclass class_box_accumulator = nullptr;
+static jmethodID method_box_accumulator_reset = nullptr;
+static jmethodID method_box_accumulator_populate_from = nullptr;
+
+static jclass class_immutable_parallelogram = nullptr;
+static jmethodID method_immutable_parallelogram_from_center_dim_rot_skew =
+    nullptr;
+
+static jclass class_mutable_parallelogram = nullptr;
+static jmethodID method_mutable_parallelogram_set_center_dim_rot_shear =
+    nullptr;
+
+static jclass class_color_callbacks = nullptr;
+static jmethodID method_color_callbacks_compose_color_long_from_components =
+    nullptr;
+
+static jclass class_stroke_input = nullptr;
+static jmethodID method_stroke_input_update = nullptr;
+
+jmethodID GetMethodId(JNIEnv* env, jclass cached_class, const char* method_name,
+                      const char* signature) {
+  jmethodID method_id = env->GetMethodID(cached_class, method_name, signature);
+  ABSL_CHECK_NE(method_id, nullptr) << "Method not found: " << method_name;
+  return method_id;
+}
+
+jmethodID GetStaticMethodId(JNIEnv* env, jclass cached_class,
+                            const char* method_name, const char* signature) {
+  jmethodID method_id =
+      env->GetStaticMethodID(cached_class, method_name, signature);
+  ABSL_CHECK_NE(method_id, nullptr)
+      << "Static method not found: " << method_name;
+  return method_id;
+}
+
+jclass FindAndCacheClass(JNIEnv* env, const char* class_name) {
+  jclass cached_class = env->FindClass(class_name);
+  ABSL_CHECK_NE(cached_class, nullptr) << "Class not found: " << class_name;
+  return static_cast<jclass>(env->NewGlobalRef(cached_class));
+}
+
+void DeleteCachedClass(JNIEnv* env, jclass& cached_class) {
+  if (cached_class != nullptr) {
+    env->DeleteGlobalRef(cached_class);
+    cached_class = nullptr;
+  }
+}
+
+}  // namespace
+
+void UnloadJvmInterface(JNIEnv* env) {
+  // There's not a corresponding LoadJvmInterface because loading is done
+  // lazily. This library is monolithic, but the library that consumes it is
+  // more modular. This avoids needing to attempt to load classes that are not
+  // actually defined.
+  DeleteCachedClass(env, class_native_exception_handling);
+  method_native_exception_handling_throw_for_non_ok_status = nullptr;
+
+  DeleteCachedClass(env, class_immutable_vec);
+  method_immutable_vec_init_x_y = nullptr;
+
+  DeleteCachedClass(env, class_mutable_vec);
+  method_mutable_vec_set_x = nullptr;
+  method_mutable_vec_set_y = nullptr;
+
+  DeleteCachedClass(env, class_immutable_box);
+  method_immutable_box_from_two_points = nullptr;
+
+  DeleteCachedClass(env, class_mutable_box);
+  method_mutable_box_set_x_bounds = nullptr;
+  method_mutable_box_set_y_bounds = nullptr;
+
+  DeleteCachedClass(env, class_box_accumulator);
+  method_box_accumulator_reset = nullptr;
+  method_box_accumulator_populate_from = nullptr;
+
+  DeleteCachedClass(env, class_immutable_parallelogram);
+  method_immutable_parallelogram_from_center_dim_rot_skew = nullptr;
+
+  DeleteCachedClass(env, class_mutable_parallelogram);
+  method_mutable_parallelogram_set_center_dim_rot_shear = nullptr;
+
+  DeleteCachedClass(env, class_color_callbacks);
+  method_color_callbacks_compose_color_long_from_components = nullptr;
+
+  DeleteCachedClass(env, class_stroke_input);
+  method_stroke_input_update = nullptr;
+}
+
+jclass ClassNativeExceptionHandling(JNIEnv* env) {
+  if (class_native_exception_handling == nullptr) {
+    class_native_exception_handling = FindAndCacheClass(
+        env, "androidx/ink/nativeloader/NativeExceptionHandling");
+  }
+  return class_native_exception_handling;
+}
+
+jmethodID MethodNativeExceptionHandlingThrowForNonOkStatus(JNIEnv* env) {
+  if (method_native_exception_handling_throw_for_non_ok_status == nullptr) {
+    method_native_exception_handling_throw_for_non_ok_status =
+        GetStaticMethodId(env, ClassNativeExceptionHandling(env),
+                          "throwForNonOkStatus", "(ILjava/lang/String;)V");
+  }
+  return method_native_exception_handling_throw_for_non_ok_status;
+}
+
+jclass ClassImmutableVec(JNIEnv* env) {
+  if (class_immutable_vec == nullptr) {
+    class_immutable_vec =
+        FindAndCacheClass(env, "androidx/ink/geometry/ImmutableVec");
+  }
+  return class_immutable_vec;
+}
+
+jmethodID MethodImmutableVecInitXY(JNIEnv* env) {
+  if (method_immutable_vec_init_x_y == nullptr) {
+    method_immutable_vec_init_x_y =
+        GetMethodId(env, ClassImmutableVec(env), "<init>", "(FF)V");
+  }
+  return method_immutable_vec_init_x_y;
+}
+
+jclass ClassMutableVec(JNIEnv* env) {
+  if (class_mutable_vec == nullptr) {
+    class_mutable_vec =
+        FindAndCacheClass(env, "androidx/ink/geometry/MutableVec");
+  }
+  return class_mutable_vec;
+}
+
+jmethodID MethodMutableVecSetX(JNIEnv* env) {
+  if (method_mutable_vec_set_x == nullptr) {
+    method_mutable_vec_set_x =
+        GetMethodId(env, ClassMutableVec(env), "setX", "(F)V");
+  }
+  return method_mutable_vec_set_x;
+}
+
+jmethodID MethodMutableVecSetY(JNIEnv* env) {
+  if (method_mutable_vec_set_y == nullptr) {
+    method_mutable_vec_set_y =
+        GetMethodId(env, ClassMutableVec(env), "setY", "(F)V");
+  }
+  return method_mutable_vec_set_y;
+}
+
+jclass ClassImmutableBox(JNIEnv* env) {
+  if (class_immutable_box == nullptr) {
+    class_immutable_box =
+        FindAndCacheClass(env, "androidx/ink/geometry/ImmutableBox");
+  }
+  return class_immutable_box;
+}
+
+jmethodID MethodImmutableBoxFromTwoPoints(JNIEnv* env) {
+  if (method_immutable_box_from_two_points == nullptr) {
+    method_immutable_box_from_two_points = GetStaticMethodId(
+        env, ClassImmutableBox(env), "fromTwoPoints",
+        "(Landroidx/ink/geometry/Vec;Landroidx/ink/geometry/Vec;)"
+        "Landroidx/ink/geometry/ImmutableBox;");
+  }
+  return method_immutable_box_from_two_points;
+}
+
+jclass ClassMutableBox(JNIEnv* env) {
+  if (class_mutable_box == nullptr) {
+    class_mutable_box =
+        FindAndCacheClass(env, "androidx/ink/geometry/MutableBox");
+  }
+  return class_mutable_box;
+}
+
+jmethodID MethodMutableBoxSetXBounds(JNIEnv* env) {
+  if (method_mutable_box_set_x_bounds == nullptr) {
+    method_mutable_box_set_x_bounds =
+        GetMethodId(env, ClassMutableBox(env), "setXBounds",
+                    "(FF)Landroidx/ink/geometry/MutableBox;");
+  }
+  return method_mutable_box_set_x_bounds;
+}
+
+jmethodID MethodMutableBoxSetYBounds(JNIEnv* env) {
+  if (method_mutable_box_set_y_bounds == nullptr) {
+    method_mutable_box_set_y_bounds =
+        GetMethodId(env, ClassMutableBox(env), "setYBounds",
+                    "(FF)Landroidx/ink/geometry/MutableBox;");
+  }
+  return method_mutable_box_set_y_bounds;
+}
+
+jclass ClassBoxAccumulator(JNIEnv* env) {
+  if (class_box_accumulator == nullptr) {
+    class_box_accumulator =
+        FindAndCacheClass(env, "androidx/ink/geometry/BoxAccumulator");
+  }
+  return class_box_accumulator;
+}
+
+jmethodID MethodBoxAccumulatorReset(JNIEnv* env) {
+  if (method_box_accumulator_reset == nullptr) {
+    method_box_accumulator_reset =
+        GetMethodId(env, ClassBoxAccumulator(env), "reset",
+                    "()Landroidx/ink/geometry/BoxAccumulator;");
+  }
+  return method_box_accumulator_reset;
+}
+
+jmethodID MethodBoxAccumulatorPopulateFrom(JNIEnv* env) {
+  if (method_box_accumulator_populate_from == nullptr) {
+    method_box_accumulator_populate_from =
+        GetMethodId(env, ClassBoxAccumulator(env), "populateFrom",
+                    "(FFFF)Landroidx/ink/geometry/BoxAccumulator;");
+  }
+  return method_box_accumulator_populate_from;
+}
+
+jclass ClassImmutableParallelogram(JNIEnv* env) {
+  if (class_immutable_parallelogram == nullptr) {
+    class_immutable_parallelogram =
+        FindAndCacheClass(env, "androidx/ink/geometry/ImmutableParallelogram");
+  }
+  return class_immutable_parallelogram;
+}
+
+jmethodID
+MethodImmutableParallelogramFromCenterDimensionsRotationInDegreesAndSkew(
+    JNIEnv* env) {
+  if (method_immutable_parallelogram_from_center_dim_rot_skew == nullptr) {
+    method_immutable_parallelogram_from_center_dim_rot_skew =
+        GetStaticMethodId(env, ClassImmutableParallelogram(env),
+                          "fromCenterDimensionsRotationInDegreesAndSkew",
+                          "(Landroidx/ink/geometry/ImmutableVec;FFFF)"
+                          "Landroidx/ink/geometry/ImmutableParallelogram;");
+  }
+  return method_immutable_parallelogram_from_center_dim_rot_skew;
+}
+
+jclass ClassMutableParallelogram(JNIEnv* env) {
+  if (class_mutable_parallelogram == nullptr) {
+    class_mutable_parallelogram =
+        FindAndCacheClass(env, "androidx/ink/geometry/MutableParallelogram");
+  }
+  return class_mutable_parallelogram;
+}
+
+jmethodID MethodMutableParallelogramSetCenterDimensionsRotationInDegreesAndSkew(
+    JNIEnv* env) {
+  if (method_mutable_parallelogram_set_center_dim_rot_shear == nullptr) {
+    method_mutable_parallelogram_set_center_dim_rot_shear =
+        GetMethodId(env, ClassMutableParallelogram(env),
+                    "setCenterDimensionsRotationInDegreesAndSkew",
+                    "(FFFFFF)Landroidx/ink/geometry/MutableParallelogram;");
+  }
+  return method_mutable_parallelogram_set_center_dim_rot_shear;
+}
+
+jclass ClassColorCallbacks(JNIEnv* env) {
+  if (class_color_callbacks == nullptr) {
+    class_color_callbacks =
+        FindAndCacheClass(env, "androidx/ink/brush/ColorCallbacks");
+  }
+  return class_color_callbacks;
+}
+
+jmethodID MethodColorCallbacksComposeColorLongFromComponents(JNIEnv* env) {
+  if (method_color_callbacks_compose_color_long_from_components == nullptr) {
+    method_color_callbacks_compose_color_long_from_components =
+        GetStaticMethodId(env, ClassColorCallbacks(env),
+                          "composeColorLongFromComponents", "(IFFFF)J");
+  }
+  return method_color_callbacks_compose_color_long_from_components;
+}
+
+jclass ClassStrokeInput(JNIEnv* env) {
+  if (class_stroke_input == nullptr) {
+    class_stroke_input =
+        FindAndCacheClass(env, "androidx/ink/strokes/StrokeInput");
+  }
+  return class_stroke_input;
+}
+
+jmethodID MethodStrokeInputUpdate(JNIEnv* env) {
+  if (method_stroke_input_update == nullptr) {
+    method_stroke_input_update =
+        GetMethodId(env, ClassStrokeInput(env), "update", "(FFJIFFFF)V");
+  }
+  return method_stroke_input_update;
+}
+
+}  // namespace ink::jni

@@ -1,0 +1,109 @@
+# Copyright 2025 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+package(
+    default_visibility = ["//ink:__subpackages__"],
+)
+
+cc_library(
+    name = "input_model_impl",
+    hdrs = ["input_model_impl.h"],
+    deps = [
+        "//ink/strokes/input:stroke_input_batch",
+        "//ink/strokes/internal:modeled_stroke_input",
+    ],
+)
+
+cc_library(
+    name = "passthrough_input_modeler",
+    srcs = ["passthrough_input_modeler.cc"],
+    hdrs = ["passthrough_input_modeler.h"],
+    deps = [
+        ":input_model_impl",
+        "//ink/geometry:distance",
+        "//ink/geometry:vec",
+        "//ink/strokes/input:stroke_input",
+        "//ink/strokes/input:stroke_input_batch",
+        "//ink/strokes/internal:modeled_stroke_input",
+        "//ink/types:duration",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "passthrough_input_modeler_test",
+    srcs = ["passthrough_input_modeler_test.cc"],
+    deps = [
+        "//ink/brush:brush_family",
+        "//ink/geometry:angle",
+        "//ink/geometry:type_matchers",
+        "//ink/strokes/input:fuzz_domains",
+        "//ink/strokes/input:stroke_input",
+        "//ink/strokes/input:stroke_input_batch",
+        "//ink/strokes/internal:stroke_input_modeler",
+        "//ink/types:duration",
+        "//ink/types:physical_distance",
+        "//ink/types:type_matchers",
+        "@com_google_absl//absl/log:absl_check",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_fuzztest//fuzztest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "sliding_window_input_modeler",
+    srcs = ["sliding_window_input_modeler.cc"],
+    hdrs = ["sliding_window_input_modeler.h"],
+    deps = [
+        ":input_model_impl",
+        "//ink/geometry:angle",
+        "//ink/geometry:distance",
+        "//ink/geometry:point",
+        "//ink/geometry:vec",
+        "//ink/geometry/internal:lerp",
+        "//ink/strokes/input:stroke_input",
+        "//ink/strokes/input:stroke_input_batch",
+        "//ink/strokes/internal:modeled_stroke_input",
+        "//ink/types:duration",
+        "@com_google_absl//absl/log:absl_check",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "sliding_window_input_modeler_test",
+    srcs = ["sliding_window_input_modeler_test.cc"],
+    deps = [
+        ":sliding_window_input_modeler",
+        "//ink/brush:brush_family",
+        "//ink/geometry:angle",
+        "//ink/geometry:type_matchers",
+        "//ink/strokes/input:fuzz_domains",
+        "//ink/strokes/input:stroke_input",
+        "//ink/strokes/input:stroke_input_batch",
+        "//ink/strokes/internal:modeled_stroke_input",
+        "//ink/strokes/internal:stroke_input_modeler",
+        "//ink/types:duration",
+        "@com_google_absl//absl/status:status_matchers",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "@com_google_fuzztest//fuzztest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
