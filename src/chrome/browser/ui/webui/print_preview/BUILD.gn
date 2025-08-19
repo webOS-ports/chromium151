@@ -7,8 +7,13 @@ import("//chrome/common/features.gni")
 import("//extensions/buildflags/buildflags.gni")
 import("//pdf/features.gni")
 import("//printing/buildflags/buildflags.gni")
+import("//neva/neva.gni")
 
-assert(enable_print_preview)
+# NEVA: neva sets enable_print_preview=false but never builds any //chrome
+# target. M151 references this target unconditionally from 16 places across
+# chrome/, so relax the assert to keep the GN graph parseable rather than
+# guarding every call site.
+assert(enable_print_preview || use_neva_appruntime)
 
 # Header-only target exposing the print_preview public API. This is kept
 # separate from ":impl" so that //chrome/browser/printing:impl can include
@@ -194,7 +199,9 @@ source_set("unit_tests") {
     "//chrome/browser/policy:test_support",
     "//chrome/browser/printing",
     "//chrome/browser/printing:impl",
-    "//chrome/browser/printing:test_support",
+    # NEVA: //chrome/browser/printing:test_support only exists when
+    # enable_print_preview is on.
+    # "//chrome/browser/printing:test_support",
     "//chrome/browser/ui",
     "//chrome/common",
     "//chrome/common:constants",

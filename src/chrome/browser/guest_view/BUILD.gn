@@ -110,7 +110,9 @@ if (!is_android && enable_extensions) {
 
     deps = [
       "//chrome/browser/extensions:test_support",
-      "//chrome/browser/printing:test_support",
+      # NEVA: //chrome/browser/printing:test_support only exists when
+      # enable_print_preview is on.
+      # "//chrome/browser/printing:test_support",
       "//chrome/browser/profiles:profile",
       "//chrome/browser/ui",
       "//chrome/browser/ui/webui/print_preview",

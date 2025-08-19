@@ -104,6 +104,10 @@ std::optional<webapps::ManifestId> GenerateManifestIdUnsafe(
 std::optional<webapps::AppId> FindInstalledAppWithUrlInScope(Profile* profile,
                                                              const GURL& url,
                                                              bool window_only) {
+#if defined(ENABLE_PWA_MANAGER_WEBAPI)
+  // webOS owns app installation via its own PWA manager.
+  return std::nullopt;
+#else
   auto* provider = WebAppProvider::GetForLocalAppsUnchecked(profile);
   return provider
              ? provider->registrar_unsafe().FindBestAppWithUrlInScope(
@@ -111,9 +115,13 @@ std::optional<webapps::AppId> FindInstalledAppWithUrlInScope(Profile* profile,
                             ? web_app::WebAppFilter::OpensInDedicatedWindow()
                             : web_app::WebAppFilter::InstalledInChrome())
              : std::nullopt;
+#endif  // ENABLE_PWA_MANAGER_WEBAPI
 }
 
 bool IsNonLocallyInstalledAppWithUrlInScope(Profile* profile, const GURL& url) {
+#if defined(ENABLE_PWA_MANAGER_WEBAPI)
+  return false;
+#else
   if (auto* provider = WebAppProvider::GetForWebApps(profile)) {
     FindBestAppInScopeOptions options(WebAppFilter::IsSuggestedApp());
     options.eligibility_filter = WebAppFilter::IsAppSurfaceableToUser();
@@ -122,6 +130,7 @@ bool IsNonLocallyInstalledAppWithUrlInScope(Profile* profile, const GURL& url) {
         .has_value();
   }
   return false;
+#endif  // ENABLE_PWA_MANAGER_WEBAPI
 }
 
 bool LooksLikePlaceholder(const WebApp& app) {

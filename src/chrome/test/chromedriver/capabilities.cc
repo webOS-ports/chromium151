@@ -555,7 +555,12 @@ Status ParseMobileEmulation(const base::Value& option,
                         "'version' field of type string");
         }
 
+// TODO(neva): Remove this when Neva GCC starts supporting C++20.
+#if (__cplusplus < 202002L)
+        brands.emplace_back(BrandVersion{*brand, *version});
+#else   // (__cplusplus < 202002L)
         brands.emplace_back(*brand, *version);
+#endif  // !(__cplusplus < 202002L)
       }
 
       client_hints.brands = std::move(brands);
@@ -593,7 +598,12 @@ Status ParseMobileEmulation(const base::Value& option,
                         "a 'version' field of type string");
         }
 
+// TODO(neva): Remove this when Neva GCC starts supporting C++20.
+#if (__cplusplus < 202002L)
+        full_version_list.emplace_back(BrandVersion{*brand, *version});
+#else   // (__cplusplus < 202002L)
         full_version_list.emplace_back(*brand, *version);
+#endif  // !(__cplusplus < 202002L)
       }
 
       client_hints.full_version_list = std::move(full_version_list);

@@ -5,9 +5,13 @@
 import("//printing/buildflags/buildflags.gni")
 
 import("//ui/webui/resources/tools/build_webui.gni")
+import("//neva/neva.gni")
 
 assert(is_chromeos, "chrome/browser/resources/ash/print_preview is CrOS only")
-assert(enable_print_preview, "enable_print_preview check failed")
+# NEVA: neva sets enable_print_preview=false but never builds any //chrome
+# target, while M151 references print_preview unconditionally from many
+# places. Relax the assert so the GN graph stays parseable.
+assert(enable_print_preview || use_neva_appruntime, "enable_print_preview check failed")
 
 build_webui("build") {
   grd_prefix = "print_preview"

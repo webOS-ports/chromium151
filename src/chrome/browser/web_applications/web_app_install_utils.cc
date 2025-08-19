@@ -229,6 +229,7 @@ void PopulateShortcutItemIcons(WebAppInstallInfo* web_app_info,
            web_app_info->shortcuts_menu_item_infos.size());
 }
 
+#if !defined(ENABLE_PWA_MANAGER_WEBAPI)
 // Reconcile the file handling icons that were specified in the manifest with
 // the icons we were successfully able to download. Store the actual bitmaps and
 // update the icon metadata in `web_app_info`.
@@ -319,6 +320,7 @@ void PopulateHomeTabIcons(WebAppInstallInfo* web_app_info,
     DCHECK(other_icon_bitmaps.size() <= kMaxIcons);
   }
 }
+#endif  // ENABLE_PWA_MANAGER_WEBAPI
 
 apps::FileHandler::LaunchType ToFileHandlerLaunchType(
     blink::mojom::ManifestFileHandler::LaunchType launch_type) {
@@ -383,6 +385,7 @@ void PopulateFileHandlerInfoFromManifest(
       web_app_file_handler.accept.push_back(std::move(web_app_accept_entry));
     }
 
+#if !defined(ENABLE_PWA_MANAGER_WEBAPI)
     if (WebAppFileHandlerManager::IconsEnabled()) {
       for (const auto& image_resource : manifest_file_handler->icons) {
         for (const auto manifest_purpose : image_resource.purpose) {
@@ -427,8 +430,10 @@ void PopulateOtherIcons(WebAppInstallInfo* web_app_info,
   IconsMap& other_icon_bitmaps = web_app_info->other_icon_bitmaps;
   other_icon_bitmaps.clear();
   PopulateShortcutItemIcons(web_app_info, icons_map);
+#if !defined(ENABLE_PWA_MANAGER_WEBAPI)
   PopulateFileHandlingIcons(web_app_info, icons_map, other_icon_bitmaps);
   PopulateHomeTabIcons(web_app_info, icons_map, other_icon_bitmaps);
+#endif  // ENABLE_PWA_MANAGER_WEBAPI
 }
 
 void PopulateProductIcons(WebAppInstallInfo* web_app_info,
@@ -712,6 +717,7 @@ void CreateWebAppInstallTabHelpers(content::WebContents* web_contents) {
   webapps::InstallableManager::CreateForWebContents(web_contents);
   ChromeSecurityStateTabHelper::CreateForWebContents(web_contents);
   favicon::CreateContentFaviconDriverForWebContents(web_contents);
+#endif  // ENABLE_PWA_MANAGER_WEBAPI
   webapps::PreRedirectionURLObserver::CreateForWebContents(web_contents);
 }
 
