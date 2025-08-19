@@ -129,6 +129,7 @@ class AURA_EXPORT WindowTreeHostPlatform : ///@name USE_NEVA_APPRUNTIME
   void OnBoundsChanged(const BoundsChange& change) override;
   void OnDamageRect(const gfx::Rect& damaged_region) override;
   void DispatchEvent(ui::Event* event) override;
+  void OnWindowHostClose() override;
   void OnCloseRequest() override;
   void OnClosed() override;
   void OnWindowStateChanged(ui::PlatformWindowState old_state,
