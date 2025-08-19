@@ -935,7 +935,7 @@ void DesktopNativeWidgetAura::SetBounds(const gfx::Rect& bounds) {
   if (!desktop_window_tree_host_) {
     return;
   }
-  desktop_window_tree_host_->SetBoundsInDIP(bounds);
+  desktop_window_tree_host_->AsWindowTreeHost()->SetBoundsInPixels(bounds);
 }
 
 void DesktopNativeWidgetAura::SetBoundsConstrained(const gfx::Rect& bounds) {
