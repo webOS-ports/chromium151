@@ -31,6 +31,12 @@ declare_args() {
   #   (which may be used outside of Chromium build)
   # * `enable_rust` should *not* be consulted in other Chromium directories
   #   (including `//base`, `//net`, etc.)
+  #
+  # NEVA/M151: the 120-era workaround `&& !use_neva_appruntime` is deliberately
+  # NOT carried forward. Since M151 this flag only governs //build and //testing;
+  # //base pulls serde_json_lenient, //build/rust:cxx_cppdeps, rust_logger and
+  # rust_static_library("file_path") unconditionally, so Rust cannot be switched
+  # off. The OE build must supply a Rust toolchain for the target architecture.
   enable_rust = build_with_chromium
 
   # The chromium prelude crate provides the `chromium::import!` macro which

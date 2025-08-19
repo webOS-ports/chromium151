@@ -25,6 +25,7 @@ import("//build/config/unwind.gni")
 import("//build/toolchain/rbe.gni")
 import("//build/toolchain/toolchain.gni")
 import("//build_overrides/build.gni")
+import("//neva/neva.gni")
 
 if (current_cpu == "arm" || current_cpu == "arm64") {
   import("//build/config/arm.gni")
@@ -548,6 +549,29 @@ config("compiler") {
     # Do not use the -pthread ldflag here since it becomes a no-op
     # when using -nodefaultlibs, which would cause an unused argument
     # error.  "-lpthread" is added in //build/config:default_libs.
+  }
+
+  # webOS-specific compiler flags setup.
+  # ------------------------------------
+  # NEVA: the OE (wrynose) build sets use_custom_libcxx=false and supplies
+  # libc++ from the target sysroot via clang_extra_cxxflags, so the in-tree
+  # hermetic libc++ is not linked and we have to name the C++ runtime and the
+  # target dynamic linker ourselves.
+  if (current_toolchain == default_toolchain) {
+    if (is_clang && is_webos && !use_custom_libcxx) {
+      if (!clang_use_stdlib) {
+        ldflags += [ "-lc++" ]
+      } else {
+        ldflags += [ "-stdlib=libstdc++" ]
+      }
+
+      if (target_cpu == "x64") {
+        ldflags += [ "-Wl,-dynamic-linker,/lib/ld-linux-x86-64.so.2" ]
+      }
+      if (target_cpu == "arm") {
+        ldflags += [ "-Wl,-dynamic-linker,/lib/ld-linux-armhf.so.3" ]
+      }
+    }
   }
 
   # ChromeOS-specific compiler flags setup.

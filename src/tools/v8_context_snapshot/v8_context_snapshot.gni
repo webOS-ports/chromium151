@@ -9,6 +9,7 @@
 
 import("//build/config/cast.gni")
 import("//build/config/v8_target_cpu.gni")
+import("//neva/neva.gni")
 import("//v8/gni/v8.gni")
 
 declare_args() {
@@ -34,7 +35,9 @@ declare_args() {
   # Disable in mac and win cross builds since building Blink twice is slow.
   use_v8_context_snapshot =
       include_both_v8_snapshots ||
-      (!is_chromeos && !is_android && !is_castos && !is_fuchsia &&
+      # NEVA: webOS does not ship a v8 context snapshot.
+      (!is_chromeos && !is_android && !is_castos && !is_fuchsia && !is_webos &&
+       !is_webos_lite &&
        !(host_toolchain == default_toolchain && is_msan) &&
        !(is_win && host_os != "win") && !(is_mac && host_os != "mac"))
 }

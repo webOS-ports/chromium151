@@ -14,6 +14,10 @@ declare_args() {
   #
   # WARNING: Bringing your own C++ standard library is deprecated and will not
   # be supported in the future. This flag will be removed.
+  #
+  # NEVA/M151: the 120-era override existed only so non-Clang (GCC) webOS builds
+  # would skip the in-tree libc++. M151 is Clang-only and upstream is removing
+  # this flag, so the override is dropped rather than ported.
   use_custom_libcxx = true
 
   # Use libc++ instead of stdlibc++ when using the host_cpu toolchain, even if

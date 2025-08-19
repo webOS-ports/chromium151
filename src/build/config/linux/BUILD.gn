@@ -18,12 +18,19 @@ config("compiler") {
     import("//build/config/arm.gni")
     cflags = []
     asmflags = []
+    # Neva: Switching off compiler branch protection feature for ARMv8.0
+    # to successfully build webOS for RP build #2250
+    defines = []
     if (arm_control_flow_integrity == "standard") {
       cflags += [ "-mbranch-protection=standard" ]
       asmflags += [ "-mbranch-protection=standard" ]
     } else if (arm_control_flow_integrity == "pac") {
       cflags += [ "-mbranch-protection=pac-ret" ]
       asmflags += [ "-mbranch-protection=pac-ret" ]
+    # Neva: Switching off compiler branch protection feature for ARMv8.0
+    # to successfully build webOS for RP build #2250
+    } else {
+      defines += [ "NO_ARM_CONTROL_FLOW_INTEGRITY" ]
     }
   }
 }
@@ -39,7 +46,9 @@ config("runtime_library") {
     defines = [ "OS_CHROMEOS" ]
   }
 
+  # Only target requires <atomic>
   if ((!is_chromeos || default_toolchain != "//build/toolchain/cros:target") &&
+      (current_toolchain != host_toolchain) &&
       (!use_custom_libcxx || current_cpu == "mipsel")) {
     libs = [ "atomic" ]
   }
