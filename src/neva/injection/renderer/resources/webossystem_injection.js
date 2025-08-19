@@ -15,7 +15,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 window.webOSGetResource = function(p1, p2) {
-  return webOSSystem.getResource(p1, p2);
+  var a = p1 || "";
+  var b = p2 || "";
+
+  if(a.indexOf("file://") === 0){
+      a = a.substring(7);
+  }
+
+  var result = webOSSystem.getResource(a, b);
+
+  if (result.length === 0)
+    return "";
+
+  if (b === "const json")
+      return JSON.parse(result);
+
+  return result;
 };
 
 window.webos = {
