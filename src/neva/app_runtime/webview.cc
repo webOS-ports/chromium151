@@ -141,8 +141,11 @@ WebView::WebView(int width, int height, WebViewProfile* profile, std::unique_ptr
     CreateWebContents();
   }
   else {
-    AppRuntimeWebViewHostImpl::CreateForWebContents(web_contents_.get());
-    AppRuntimeWebViewControllerImpl::CreateForWebContents(web_contents_.get());
+    // An adopted WebContents (window.open) needs exactly the same helpers
+    // attached as one we create ourselves -- notably InstallableManager, which
+    // DidFinishLoad() reaches through installable_manager_.MaybeUpdate() for
+    // every http/https load.
+    AttachWebContentsHelpers();
   }
   injection_manager_ = std::make_unique<WebAppInjectionManager>();
 
@@ -227,6 +230,13 @@ void WebView::CreateWebContents() {
   params.desired_renderer_state =
       content::WebContents::CreateParams::kNoRendererProcess;
   web_contents_ = content::WebContents::Create(params);
+  AttachWebContentsHelpers();
+}
+
+// Attach the per-WebContents helpers this WebView relies on. Called for both
+// the WebContents we create and the one adopted from a window.open(), so the
+// two kinds of page are equally equipped.
+void WebView::AttachWebContentsHelpers() {
   AppRuntimeWebViewHostImpl::CreateForWebContents(web_contents_.get());
   AppRuntimeWebViewControllerImpl::CreateForWebContents(web_contents_.get());
 

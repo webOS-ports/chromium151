@@ -99,6 +99,7 @@ class WebView : public AppRuntimeWebContentsDelegate,
   void SetControllerDelegate(WebViewControllerDelegate* delegate);
 
   void CreateWebContents();
+  void AttachWebContentsHelpers();
   content::WebContents* GetWebContents();
   void AddUserStyleSheet(const std::string& sheet);
   std::string UserAgent() const;
