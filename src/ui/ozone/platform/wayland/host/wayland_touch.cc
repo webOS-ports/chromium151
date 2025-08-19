@@ -9,6 +9,8 @@
 #include "base/time/time.h"
 #include "ui/events/types/event_type.h"
 #include "ui/gfx/geometry/point_f.h"
+#include "ui/display/display.h"
+#include "ui/display/screen.h"
 #include "ui/ozone/common/features.h"
 #include "ui/ozone/platform/wayland/common/wayland_util.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
@@ -93,9 +95,18 @@ void WaylandTouch::OnTouchDown(void* data,
     window_manager->GrabTouchEvents(device_id, window);
   }
 #endif  // defined(OS_WEBOS)
-  self->delegate_->OnTouchPressEvent(
-      window, gfx::PointF(wl_fixed_to_double(x), wl_fixed_to_double(y)),
-      wl::EventMillisecondsToTimeTicks(time), id, GetEventDispatchPolicy()
+  // M151 removed WaylandConnection::MaybeConvertLocation(); upstream now feeds
+  // the raw surface-local coordinates straight through.
+  gfx::PointF location(wl_fixed_to_double(x), wl_fixed_to_double(y));
+
+  // LuneOS: LSM reports touch in unscaled coordinates, so apply the display
+  // scale ourselves. TODO(neva-port): re-verify on device against M151.
+  display::Display display = display::Screen::Get()->GetPrimaryDisplay();
+  location.Scale(display.device_scale_factor());
+
+  self->delegate_->OnTouchPressEvent(window, location,
+                                     wl::EventMillisecondsToTimeTicks(time), id,
+                                     GetEventDispatchPolicy()
 #if defined(OS_WEBOS)
                                          ,
                                      device_id
@@ -143,10 +154,15 @@ void WaylandTouch::OnTouchMotion(void* data,
     LOG(WARNING) << "Touch event fired with wrong id";
     return;
   }
+  gfx::PointF location(wl_fixed_to_double(x), wl_fixed_to_double(y));
+
+  // LuneOS: see the press handler above.
+  display::Display display = display::Screen::Get()->GetPrimaryDisplay();
+  location.Scale(display.device_scale_factor());
+
   self->delegate_->OnTouchMotionEvent(
-      gfx::PointF(wl_fixed_to_double(x), wl_fixed_to_double(y)),
-      wl::EventMillisecondsToTimeTicks(time), id, GetEventDispatchPolicy(),
-      /*is_synthesized=*/false
+      location, wl::EventMillisecondsToTimeTicks(time), id,
+      GetEventDispatchPolicy(), /*is_synthesized=*/false
 #if defined(OS_WEBOS)
       ,
       self->obj_.id()
