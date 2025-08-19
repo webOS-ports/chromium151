@@ -59,6 +59,12 @@
 #include "ui/gfx/skia_span_util.h"
 #include "ui/gl/trace_util.h"
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "base/command_line.h"
+#include "base/strings/string_number_conversions.h"
+#include "cc/base/switches_neva.h"
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
 namespace cc {
 
 namespace {
@@ -68,6 +74,9 @@ namespace {
 // be deleted.
 static const int kNormalMaxItemsInCacheForGpu = 2000;
 static const int kSuspendedMaxItemsInCacheForGpu = 0;
+#if defined(OS_WEBOS)
+static const int kThrottledMaxItemsInCacheForGpu = 100;
+#endif
 
 // The maximum number of images that we can lock simultaneously in our working
 // set. This is separate from the memory limit, as keeping very large numbers
@@ -949,6 +958,19 @@ GpuImageDecodeCache::GpuImageDecodeCache(
           SkYUVAPixmapInfo::DataType::kFloat16, 1);
     }
   }
+
+#if defined(USE_NEVA_APPRUNTIME)
+  base::CommandLine& cmd_line = *base::CommandLine::ForCurrentProcess();
+  if (cmd_line.HasSwitch(
+          switches::kMemPressureGPUCacheSizeReductionFactor)) {
+    size_t cache_size_reduction_factor;
+    if (base::StringToSizeT(
+            cmd_line.GetSwitchValueASCII(
+                switches::kMemPressureGPUCacheSizeReductionFactor),
+            &cache_size_reduction_factor))
+      mem_pressure_cache_size_reduction_factor_ = cache_size_reduction_factor;
+  }
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
   // In certain cases, SingleThreadTaskRunner::CurrentDefaultHandle isn't set
   // (Android Webview).  Don't register a dump provider in these cases.
@@ -1868,13 +1890,19 @@ bool GpuImageDecodeCache::EnsureCapacity(size_t required_size) {
 bool GpuImageDecodeCache::CanFitInWorkingSet(size_t size) const {
   lock_.AssertAcquired();
 
+// TODO(neva-port): M151 removed cc's MemoryPressureListener plumbing in favour
+// of the MemoryConsumer registration API, so LG's memory-pressure-driven
+// working-set and cache-item reduction has no signal to read. Re-implement
+// against the new API as part of low-end-mode tuning (Phase 10/11).
+
   if (working_set_items_ >= max_working_set_items_)
     return false;
 
   base::CheckedNumeric<uint32_t> new_size(working_set_bytes_);
   new_size += size;
-  if (!new_size.IsValid() || new_size.ValueOrDie() > max_working_set_bytes_)
+  if (!new_size.IsValid() || new_size.ValueOrDie() > max_working_set_bytes_) {
     return false;
+  }
 
   return true;
 }

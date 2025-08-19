@@ -700,6 +700,7 @@ class CC_EXPORT GpuImageDecodeCache
       std::unordered_map<InUseCacheKey, InUseCacheEntry, InUseCacheKeyHash>;
   InUseCache in_use_cache_ GUARDED_BY(lock_);
 
+  size_t mem_pressure_cache_size_reduction_factor_ GUARDED_BY(lock_) = 1;
   size_t max_working_set_bytes_ GUARDED_BY(lock_) = 0;
   size_t max_working_set_items_ GUARDED_BY(lock_) = 0;
   size_t working_set_bytes_ GUARDED_BY(lock_) = 0;

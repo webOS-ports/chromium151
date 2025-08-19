@@ -29,6 +29,7 @@ class CC_ANIMATION_EXPORT ScrollOffsetAnimationCurveFactory {
   static std::unique_ptr<ScrollOffsetAnimationCurve> CreateEaseInOutAnimation(
       const gfx::PointF& target_value,
       ScrollOffsetAnimationCurve::ScrollType scroll_type,
+      bool is_continuation,
       ScrollOffsetAnimationCurve::DurationBehavior duration_hint);
 
   static std::unique_ptr<ScrollOffsetAnimationCurve> CreateLinearAnimation(

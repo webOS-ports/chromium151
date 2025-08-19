@@ -54,7 +54,14 @@ class CC_ANIMATION_EXPORT ScrollOffsetAnimationCurve
     kInverseDelta
   };
 
-  enum class ScrollType { kProgrammatic, kKeyboard, kMouseWheel, kAutoScroll };
+  enum class ScrollType {
+    kProgrammatic,
+    kKeyboard,
+    kMouseWheel,
+    kAutoScroll,
+    // Neva: a programmatic scroll issued while another is still running.
+    kContinueProgrammatic
+  };
 
   static const ScrollOffsetAnimationCurve* ToScrollOffsetAnimationCurve(
       const AnimationCurve* c);
@@ -111,7 +118,7 @@ class CC_ANIMATION_EXPORT ScrollOffsetAnimationCurve
   FRIEND_TEST_ALL_PREFIXES(ScrollOffsetAnimationCurveTest,
                            UpdateTargetZeroLastSegmentDuration);
   friend class ScrollOffsetAnimationCurveFactory;
-  enum class AnimationType { kLinear, kEaseInOut };
+  enum class AnimationType { kLinear, kEaseInOut, kEaseOut };
 
   // |duration_behavior| should be provided if (and only if) |animation_type| is
   // kEaseInOut.

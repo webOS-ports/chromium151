@@ -546,6 +546,10 @@ cc_component("cc") {
     "//ui/latency",
   ]
 
+  if (use_neva_appruntime) {
+    deps += [ "//base/neva" ]
+  }
+
   if (is_android) {
     sources += [
       "input/android/offset_tag_android.cc",

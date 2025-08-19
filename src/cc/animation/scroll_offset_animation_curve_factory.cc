@@ -18,6 +18,8 @@ ScrollOffsetAnimationCurve::DurationBehavior GetDurationBehaviorFromScrollType(
       return ScrollOffsetAnimationCurve::DurationBehavior::kConstant;
     case ScrollOffsetAnimationCurve::ScrollType::kMouseWheel:
       return ScrollOffsetAnimationCurve::DurationBehavior::kInverseDelta;
+    case ScrollOffsetAnimationCurve::ScrollType::kContinueProgrammatic:
+      return ScrollOffsetAnimationCurve::DurationBehavior::kDeltaBased;
     case ScrollOffsetAnimationCurve::ScrollType::kAutoScroll:
       NOTREACHED();
   }
@@ -33,8 +35,12 @@ ScrollOffsetAnimationCurveFactory::CreateAnimation(
     return CreateLinearAnimation(target_value);
   }
 
+  bool is_continuation =
+      scroll_type ==
+      ScrollOffsetAnimationCurve::ScrollType::kContinueProgrammatic;
+
   return CreateEaseInOutAnimation(
-      target_value, scroll_type,
+      target_value, scroll_type, is_continuation,
       GetDurationBehaviorFromScrollType(scroll_type));
 }
 
@@ -45,7 +51,7 @@ ScrollOffsetAnimationCurveFactory::CreateEaseInOutAnimationForTesting(
     ScrollOffsetAnimationCurve::DurationBehavior duration_behavior) {
   return CreateEaseInOutAnimation(
       target_value, ScrollOffsetAnimationCurve::ScrollType::kProgrammatic,
-      duration_behavior);
+      /*is_continuation=*/false, duration_behavior);
 }
 
 // static
@@ -60,9 +66,12 @@ std::unique_ptr<ScrollOffsetAnimationCurve>
 ScrollOffsetAnimationCurveFactory::CreateEaseInOutAnimation(
     const gfx::PointF& target_value,
     ScrollOffsetAnimationCurve::ScrollType scroll_type,
+    bool is_continuation,
     ScrollOffsetAnimationCurve::DurationBehavior duration_behavior) {
   return base::WrapUnique(new ScrollOffsetAnimationCurve(
-      target_value, ScrollOffsetAnimationCurve::AnimationType::kEaseInOut,
+      target_value,
+      is_continuation ? ScrollOffsetAnimationCurve::AnimationType::kEaseOut
+                      : ScrollOffsetAnimationCurve::AnimationType::kEaseInOut,
       scroll_type, duration_behavior));
 }
 

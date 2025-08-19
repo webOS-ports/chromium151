@@ -87,6 +87,7 @@ component("service") {
     "//services/on_device_model:ml_internal_buildflags",
     "//ui/base:ozone_buildflags",
   ]
+
   libs = []
   ldflags = []
   if (is_win) {

@@ -39,7 +39,8 @@ size_t GetCustomGpuCacheSizeBytesIfExists(std::string_view switch_string) {
 
 size_t GetDefaultGpuDiskCacheSize() {
   size_t cache_size = 0;
-#if !BUILDFLAG(IS_ANDROID)
+// NEVA: webOS uses the low-end program cache budget, as Android does.
+#if !BUILDFLAG(IS_ANDROID) && !defined(OS_WEBOS)
   size_t custom_cache_size =
       GetCustomGpuCacheSizeBytesIfExists(switches::kGpuDiskCacheSizeKB);
   if (custom_cache_size) {
@@ -47,11 +48,11 @@ size_t GetDefaultGpuDiskCacheSize() {
   } else {
     cache_size = kDefaultMaxProgramCacheMemoryBytes;
   }
-#else   // !BUILDFLAG(IS_ANDROID)
+#else   // !BUILDFLAG(IS_ANDROID) && !defined(OS_WEBOS)
   cache_size = base::SysInfo::IsLowEndDevice()
                    ? kLowEndMaxProgramCacheMemoryBytes
                    : kDefaultMaxProgramCacheMemoryBytes;
-#endif  // !BUILDFLAG(IS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID) && !defined(OS_WEBOS)
 
   if (base::FeatureList::IsEnabled(::features::kAggressiveShaderCacheLimits)) {
     cache_size *= 2;

@@ -6,6 +6,7 @@ import("//build/config/cast.gni")
 import("//build/config/chromeos/args.gni")
 import("//build/config/features.gni")
 import("//build/config/sanitizers/sanitizers.gni")
+import("//neva/neva.gni")
 import("//pdf/features.gni")
 
 declare_args() {
@@ -22,7 +23,8 @@ declare_args() {
   # Enables printing with print preview.
   # Print preview requires PDF per //printing/BUILD.gn.
   # The is_android condition is currently redundant but left for clarity.
-  enable_print_preview = enable_printing && enable_pdf && !is_android
+  enable_print_preview = enable_printing && enable_pdf && !is_android &&
+                         !use_neva_appruntime
 
   # Enables the printing system dialog for platforms that support printing
   # and have a system dialog.
@@ -40,7 +42,10 @@ declare_args() {
   # Enables out-of-process printing.  Do not have this definition just be
   # based on `enable_print_preview`; this feature could still be appropriate
   # for some build configurations which explicitly disable print preview.
-  enable_oop_printing = enable_printing && !is_android
+  # NEVA: neva has no OOP printing service. !is_fuchsia is dropped -- M151's
+  # enable_printing already excludes fuchsia. enable_print_content_analysis is
+  # dropped too; upstream no longer declares it here.
+  enable_oop_printing = enable_printing && !is_android && !use_neva_appruntime
 }
 
 declare_args() {

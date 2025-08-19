@@ -38,6 +38,11 @@ GPU_COMMAND_BUFFER_SERVICE_EXPORT extern const char
 GPU_COMMAND_BUFFER_SERVICE_EXPORT extern const char
     kVulkanImplementationNameSwiftshader[];
 GPU_COMMAND_BUFFER_SERVICE_EXPORT extern const char kDisableVulkanSurface[];
+GPU_COMMAND_BUFFER_SERVICE_EXPORT extern const char kMaxCachedSkSurfaces[];
+GPU_COMMAND_BUFFER_SERVICE_EXPORT extern const char
+    kEnableCompressGpuProgramBinaries[];
+GPU_COMMAND_BUFFER_SERVICE_EXPORT extern const char
+    kDisableCompressGpuProgramBinaries[];
 
 }  // namespace switches
 

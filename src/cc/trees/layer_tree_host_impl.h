@@ -20,6 +20,7 @@
 #include "base/containers/flat_set.h"
 #include "base/containers/lru_cache.h"
 #include "base/functional/callback.h"
+#include "base/memory/memory_pressure_listener.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/shared_memory_mapping.h"
@@ -136,6 +137,9 @@ using UIResourceChangeMap = std::unordered_map<UIResourceId, UIResourceChange>;
 // LayerTreeHostImpl owns the LayerImpl trees as well as associated rendering
 // state.
 class CC_EXPORT LayerTreeHostImpl : public TileManagerClient,
+#if defined(USE_NEVA_APPRUNTIME)
+                                    public base::MemoryPressureListener,
+#endif
                                     public LayerTreeFrameSinkClient,
                                     public BrowserControlsOffsetManagerClient,
                                     public ScrollbarAnimationControllerClient,
@@ -1209,6 +1213,19 @@ class CC_EXPORT LayerTreeHostImpl : public TileManagerClient,
 
   raw_ptr<RenderingStatsInstrumentation> rendering_stats_instrumentation_;
   MicroBenchmarkControllerImpl micro_benchmark_controller_;
+#if defined(USE_NEVA_APPRUNTIME)
+  // NEVA: M151 removed cc's own memory-pressure plumbing; keep a listener here
+  // so the low-end tile memory policy still has a signal to react to.
+  // base::MemoryPressureListener:
+  void OnMemoryPressure(base::MemoryPressureLevel level) override;
+
+  std::optional<base::MemoryPressureListenerRegistration>
+      memory_pressure_listener_registration_;
+  base::MemoryPressureLevel memory_pressure_level_ =
+      base::MEMORY_PRESSURE_LEVEL_NONE;
+  size_t bytes_limit_reduction_factor_ = 1;
+  bool seen_first_contentful_paint_ = false;
+#endif  // defined(USE_NEVA_APPRUNTIME)
   std::unique_ptr<SynchronousTaskGraphRunner>
       single_thread_synchronous_task_graph_runner_;
 
