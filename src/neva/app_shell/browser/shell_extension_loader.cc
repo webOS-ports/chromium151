@@ -5,12 +5,16 @@
 #include "neva/app_shell/browser/shell_extension_loader.h"
 
 #include "apps/launcher.h"
+#include "base/command_line.h"
 #include "base/auto_reset.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
+#include "content/public/browser/browser_context.h"
+#include "extensions/common/constants.h"
 #include "extensions/browser/extension_file_task_runner.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registry.h"
@@ -18,7 +22,6 @@
 
 namespace extensions {
 
-using LoadErrorBehavior = ExtensionRegistrar::LoadErrorBehavior;
 
 namespace {
 
@@ -34,13 +37,13 @@ scoped_refptr<const Extension> LoadUnpacked(
   }
 
   int load_flags = Extension::FOLLOW_SYMLINKS_ANYWHERE;
-  std::string load_error;
+  std::u16string load_error;
   scoped_refptr<Extension> extension = file_util::LoadExtension(
       extension_dir, mojom::ManifestLocation::kCommandLine, load_flags,
       &load_error);
   if (!extension.get()) {
     LOG(ERROR) << "Loading extension at " << extension_dir.value()
-               << " failed with: " << load_error;
+               << " failed with: " << base::UTF16ToUTF8(load_error);
     return nullptr;
   }
 
@@ -60,8 +63,17 @@ scoped_refptr<const Extension> LoadUnpacked(
 ShellExtensionLoader::ShellExtensionLoader(
     content::BrowserContext* browser_context)
     : browser_context_(browser_context),
-      extension_registrar_(browser_context, this),
-      keep_alive_requester_(browser_context) {}
+      extension_registrar_(ExtensionRegistrar::Get(browser_context)),
+      keep_alive_requester_(browser_context) {
+  // M151: see NevaExtensionLoader — the registrar is a KeyedService whose
+  // delegate must be installed before AddExtension() is called.
+  if (!extension_registrar_->IsInitialized()) {
+    extension_registrar_->Init(
+        this, /*extensions_enabled=*/true, base::CommandLine::ForCurrentProcess(),
+        browser_context->GetPath().AppendASCII(kInstallDirectoryName),
+        browser_context->GetPath().AppendASCII(kUnpackedInstallDirectoryName));
+  }
+}
 
 ShellExtensionLoader::~ShellExtensionLoader() = default;
 
@@ -69,7 +81,7 @@ const Extension* ShellExtensionLoader::LoadExtension(
     const base::FilePath& extension_dir) {
   scoped_refptr<const Extension> extension = LoadUnpacked(extension_dir);
   if (extension)
-    extension_registrar_.AddExtension(extension);
+    extension_registrar_->AddExtension(extension);
 
   return extension.get();
 }
@@ -89,7 +101,7 @@ void ShellExtensionLoader::ReloadExtension(ExtensionId extension_id) {
   // the reload so that the first step, disabling the extension, doesn't release
   // the last remaining keep-alive and shut down the application.
   keep_alive_requester_.StartTrackingReload(extension);
-  extension_registrar_.ReloadExtension(extension_id, LoadErrorBehavior::kQuiet);
+  extension_registrar_->ReloadExtensionWithQuietFailure(extension_id);
   if (did_schedule_reload_)
     return;
 
@@ -102,7 +114,7 @@ void ShellExtensionLoader::FinishExtensionReload(
     const ExtensionId old_extension_id,
     scoped_refptr<const Extension> extension) {
   if (extension) {
-    extension_registrar_.AddExtension(extension);
+    extension_registrar_->AddExtension(extension);
     // If the extension is a platform app, adding it above caused
     // ShellKeepAliveRequester to create a new keep-alive to wait for the app to
     // open its first window.
@@ -127,13 +139,11 @@ void ShellExtensionLoader::PreAddExtension(const Extension* extension,
   if (extension_prefs->IsExtensionDisabled(extension->id()) &&
       extension_prefs->HasDisableReason(extension->id(),
                                         disable_reason::DISABLE_RELOAD)) {
-    extension_prefs->RemoveDisableReason(extension->id(),
-                                         disable_reason::DISABLE_RELOAD);
-    // Only re-enable the extension if there are no other disable reasons.
-    if (extension_prefs->GetDisableReasons(extension->id()) ==
-        disable_reason::DISABLE_NONE) {
-      extension_prefs->SetExtensionEnabled(extension->id());
-    }
+    // M151: the registrar does remove-reason-and-re-enable-if-clear in one
+    // step; ExtensionPrefs::SetExtensionEnabled is gone and GetDisableReasons
+    // now returns a DisableReasonSet rather than a bitmask.
+    extension_registrar_->RemoveDisableReasonAndMaybeEnable(
+        extension->id(), disable_reason::DISABLE_RELOAD);
   }
 }
 
@@ -145,8 +155,7 @@ void ShellExtensionLoader::PostDeactivateExtension(
 
 void ShellExtensionLoader::LoadExtensionForReload(
     const ExtensionId& extension_id,
-    const base::FilePath& path,
-    LoadErrorBehavior load_error_behavior) {
+    const base::FilePath& path) {
   CHECK(!path.empty());
 
   GetExtensionFileTaskRunner()->PostTaskAndReplyWithResult(
@@ -154,6 +163,14 @@ void ShellExtensionLoader::LoadExtensionForReload(
       base::BindOnce(&ShellExtensionLoader::FinishExtensionReload,
                      weak_factory_.GetWeakPtr(), extension_id));
   did_schedule_reload_ = true;
+}
+
+// M151: the quiet-failure variant exists so the registrar can reload without
+// surfacing an error to the user. Nothing here surfaces load errors anyway.
+void ShellExtensionLoader::LoadExtensionForReloadWithQuietFailure(
+    const ExtensionId& extension_id,
+    const base::FilePath& path) {
+  LoadExtensionForReload(extension_id, path);
 }
 
 bool ShellExtensionLoader::CanEnableExtension(const Extension* extension) {
@@ -165,8 +182,32 @@ bool ShellExtensionLoader::CanDisableExtension(const Extension* extension) {
   return false;
 }
 
-bool ShellExtensionLoader::ShouldBlockExtension(const Extension* extension) {
-  return false;
+// The remaining Delegate hooks below became pure virtual in M151. They belong
+// to the packed-install and enterprise-policy paths that this loader does not
+// have: extensions are loaded unpacked from the command line, never installed
+// through CrxInstaller, uninstalled, or disabled by policy. ExtensionRegistrar
+// only reaches them from paths this embedder never enters.
+void ShellExtensionLoader::OnAddNewOrUpdatedExtension(const Extension* extension) {}
+
+void ShellExtensionLoader::PreUninstallExtension(
+    scoped_refptr<const Extension> extension) {}
+
+void ShellExtensionLoader::PostUninstallExtension(
+    scoped_refptr<const Extension> extension,
+    base::OnceClosure done_callback) {
+  std::move(done_callback).Run();
 }
+
+void ShellExtensionLoader::ShowExtensionDisabledError(const Extension* extension,
+                                       bool is_remote_install) {}
+
+void ShellExtensionLoader::GrantActivePermissions(const Extension* extension) {}
+
+void ShellExtensionLoader::UpdateExternalExtensionAlert() {}
+
+void ShellExtensionLoader::OnExtensionInstalled(const Extension* extension,
+                                 const syncer::StringOrdinal& page_ordinal,
+                                 int install_flags,
+                                 base::DictValue ruleset_install_prefs) {}
 
 }  // namespace extensions

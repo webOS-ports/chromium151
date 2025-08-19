@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "neva/app_shell/browser/api/feedback_private/shell_feedback_private_delegate.h"
+#include "base/notimplemented.h"
 
 #include <string>
 
@@ -36,7 +37,7 @@ void ShellFeedbackPrivateDelegate::FetchSystemInformation(
   fetcher->Fetch(std::move(callback));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 std::unique_ptr<system_logs::SystemLogsSource>
 ShellFeedbackPrivateDelegate::CreateSingleLogSource(
     api::feedback_private::LogSource source_type) const {

@@ -37,6 +37,7 @@ set_defaults("app_shell_executable") {
 
   if (use_cbe) {
     configs += [
+      "//build/config/compiler:linker",
       "//build/config/gcc:rpath_for_built_shared_libraries",
     ]
   } else {

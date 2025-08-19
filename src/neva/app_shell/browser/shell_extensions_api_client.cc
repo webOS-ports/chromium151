@@ -14,13 +14,13 @@
 #include "neva/app_shell/browser/delegates/shell_kiosk_delegate.h"
 #include "neva/app_shell/browser/shell_app_view_guest_delegate.h"
 #include "neva/app_shell/browser/shell_display_info_provider.h"
+#include "ui/display/screen.h"
 #include "neva/app_shell/browser/shell_extension_web_contents_observer.h"
-#include "neva/app_shell/browser/shell_virtual_keyboard_delegate.h"
 #include "neva/app_shell/browser/shell_web_view_guest_delegate.h"
 
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX)
 #include "neva/app_shell/browser/api/file_system/shell_file_system_delegate.h"
 #endif
 
@@ -35,30 +35,26 @@ void ShellExtensionsAPIClient::AttachWebContentsHelpers(
   ShellExtensionWebContentsObserver::CreateForWebContents(web_contents);
 }
 
-AppViewGuestDelegate* ShellExtensionsAPIClient::CreateAppViewGuestDelegate()
-    const {
-  return new ShellAppViewGuestDelegate();
+std::unique_ptr<AppViewGuestDelegate>
+ShellExtensionsAPIClient::CreateAppViewGuestDelegate() const {
+  return std::make_unique<ShellAppViewGuestDelegate>();
 }
 
-WebViewGuestDelegate* ShellExtensionsAPIClient::CreateWebViewGuestDelegate(
+std::unique_ptr<WebViewGuestDelegate>
+ShellExtensionsAPIClient::CreateWebViewGuestDelegate(
     WebViewGuest* web_view_guest) const {
-  return new ShellWebViewGuestDelegate();
-}
-
-std::unique_ptr<VirtualKeyboardDelegate>
-ShellExtensionsAPIClient::CreateVirtualKeyboardDelegate(
-    content::BrowserContext* browser_context) const {
-  return std::make_unique<ShellVirtualKeyboardDelegate>();
+  return std::make_unique<ShellWebViewGuestDelegate>();
 }
 
 std::unique_ptr<DisplayInfoProvider>
 ShellExtensionsAPIClient::CreateDisplayInfoProvider() const {
-  return std::make_unique<ShellDisplayInfoProvider>();
+  return std::make_unique<ShellDisplayInfoProvider>(
+      display::Screen::Get());
 }
 
 // TODO(crbug.com/1052397): Revisit the macro expression once build flag switch
 // of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX)
 FileSystemDelegate* ShellExtensionsAPIClient::GetFileSystemDelegate() {
   if (!file_system_delegate_)
     file_system_delegate_ = std::make_unique<ShellFileSystemDelegate>();

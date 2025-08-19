@@ -14,7 +14,7 @@ SystemLogsFetcher* BuildShellSystemLogsFetcher(
   // Deletes itself after Fetch() is completes.
   SystemLogsFetcher* fetcher =
       new SystemLogsFetcher(/* scrub_data= */ true,
-                            /* first_party_extension_ids= */ nullptr);
+                            /* first_party_extension_ids= */ {});
   fetcher->AddSource(std::make_unique<BasicLogSource>(browser_context));
   return fetcher;
 }

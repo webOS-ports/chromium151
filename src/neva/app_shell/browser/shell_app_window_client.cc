@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "neva/app_shell/browser/shell_app_window_client.h"
+#include "base/notimplemented.h"
 
 #include <vector>
 
@@ -20,13 +21,6 @@ AppWindow* ShellAppWindowClient::CreateAppWindow(
     const Extension* extension) {
   return new AppWindow(context, std::make_unique<ShellAppDelegate>(),
                        extension);
-}
-
-AppWindow* ShellAppWindowClient::CreateAppWindowForLockScreenAction(
-    content::BrowserContext* context,
-    const Extension* extension,
-    api::app_runtime::ActionType action) {
-  return nullptr;
 }
 
 void ShellAppWindowClient::OpenDevToolsWindow(

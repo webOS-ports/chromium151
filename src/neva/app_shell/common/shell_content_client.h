@@ -18,7 +18,7 @@ class ShellContentClient : public content::ContentClient {
 
   ~ShellContentClient() override;
 
-  void AddPlugins(std::vector<content::ContentPluginInfo>* plugins) override;
+  void AddPlugins(std::vector<content::WebPluginInfo>* plugins) override;
   void AddAdditionalSchemes(Schemes* schemes) override;
   std::u16string GetLocalizedString(int message_id) override;
   std::string_view GetDataResource(
@@ -27,7 +27,7 @@ class ShellContentClient : public content::ContentClient {
   base::RefCountedMemory* GetDataResourceBytes(int resource_id) override;
   gfx::Image& GetNativeImageNamed(int resource_id) override;
 
-#if defined(USE_NEVA_MEDIA)
+#if defined(USE_NEVA_CDM)
   void AddContentDecryptionModules(
       std::vector<content::CdmInfo>* cdms,
       std::vector<media::CdmHostFilePath>* cdm_host_file_paths) override;

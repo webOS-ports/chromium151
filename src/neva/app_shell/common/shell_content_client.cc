@@ -4,23 +4,13 @@
 
 #include "neva/app_shell/common/shell_content_client.h"
 
-#include "base/strings/string_piece.h"
+#include <string_view>
 #include "base/strings/utf_string_conversions.h"
-#include "components/nacl/common/buildflags.h"
 #include "extensions/common/constants.h"
 #include "neva/app_shell/common/version.h"  // Generated file.
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 
-#if BUILDFLAG(ENABLE_NACL)
-#include "base/base_paths.h"
-#include "base/files/file_path.h"
-#include "base/path_service.h"
-#include "components/nacl/common/nacl_constants.h"              // nogncheck
-#include "components/nacl/renderer/plugin/ppapi_entrypoints.h"  // nogncheck
-#include "content/public/common/content_plugin_info.h"          // nogncheck
-#include "ppapi/shared_impl/ppapi_permissions.h"                // nogncheck
-#endif
 
 #if defined(USE_NEVA_MEDIA)
 #include "components/cdm/common/neva/cdm_info_util.h"
@@ -29,16 +19,6 @@
 namespace extensions {
 namespace {
 
-#if BUILDFLAG(ENABLE_NACL)
-bool GetNaClPluginPath(base::FilePath* path) {
-  // On Posix, plugins live in the module directory.
-  base::FilePath module;
-  if (!base::PathService::Get(base::DIR_MODULE, &module))
-    return false;
-  *path = module.Append(nacl::kInternalNaClPluginFileName);
-  return true;
-}
-#endif  // BUILDFLAG(ENABLE_NACL)
 
 }  // namespace
 
@@ -49,34 +29,7 @@ ShellContentClient::~ShellContentClient() {
 }
 
 void ShellContentClient::AddPlugins(
-    std::vector<content::ContentPluginInfo>* plugins) {
-#if BUILDFLAG(ENABLE_NACL)
-  base::FilePath path;
-  if (!GetNaClPluginPath(&path))
-    return;
-
-  content::ContentPluginInfo nacl;
-  // The nacl plugin is now built into the binary.
-  nacl.is_internal = true;
-  nacl.path = path;
-  nacl.name = nacl::kNaClPluginName;
-  content::WebPluginMimeType nacl_mime_type(nacl::kNaClPluginMimeType,
-                                            nacl::kNaClPluginExtension,
-                                            nacl::kNaClPluginDescription);
-  nacl.mime_types.push_back(nacl_mime_type);
-  content::WebPluginMimeType pnacl_mime_type(nacl::kPnaclPluginMimeType,
-                                             nacl::kPnaclPluginExtension,
-                                             nacl::kPnaclPluginDescription);
-  nacl.mime_types.push_back(pnacl_mime_type);
-  nacl.internal_entry_points.get_interface = nacl_plugin::PPP_GetInterface;
-  nacl.internal_entry_points.initialize_module =
-      nacl_plugin::PPP_InitializeModule;
-  nacl.internal_entry_points.shutdown_module =
-      nacl_plugin::PPP_ShutdownModule;
-  nacl.permissions = ppapi::PERMISSION_PRIVATE | ppapi::PERMISSION_DEV;
-  plugins->push_back(nacl);
-#endif  // BUILDFLAG(ENABLE_NACL)
-}
+    std::vector<content::WebPluginInfo>* plugins) {}
 
 void ShellContentClient::AddAdditionalSchemes(Schemes* schemes) {
   schemes->standard_schemes.push_back(extensions::kExtensionScheme);
@@ -108,7 +61,10 @@ gfx::Image& ShellContentClient::GetNativeImageNamed(int resource_id) {
       resource_id);
 }
 
-#if defined(USE_NEVA_MEDIA)
+// NOTE: guarded on USE_NEVA_CDM, not USE_NEVA_MEDIA - cdm_info_util is only
+// built when use_neva_cdm is on, and LuneOS ships no CDM. app_runtime's
+// equivalent has always used USE_NEVA_CDM.
+#if defined(USE_NEVA_CDM)
 void ShellContentClient::AddContentDecryptionModules(
     std::vector<content::CdmInfo>* cdms,
     std::vector<media::CdmHostFilePath>* cdm_host_file_paths) {

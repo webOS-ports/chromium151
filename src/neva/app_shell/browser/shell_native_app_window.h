@@ -6,7 +6,10 @@
 #define NEVA_APP_SHELL_BROWSER_SHELL_NATIVE_APP_WINDOW_H_
 
 #include "base/memory/raw_ptr.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "extensions/browser/app_window/app_window.h"
+#include "ui/base/mojom/window_show_state.mojom-shared.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "extensions/browser/app_window/native_app_window.h"
 
 namespace extensions {
@@ -29,7 +32,7 @@ class ShellNativeAppWindow : public NativeAppWindow {
   bool IsMinimized() const override;
   bool IsFullscreen() const override;
   gfx::Rect GetRestoredBounds() const override;
-  ui::WindowShowState GetRestoredState() const override;
+  ui::mojom::WindowShowState GetRestoredState() const override;
   void ShowInactive() override;
   void Close() override;
   void Maximize() override;
@@ -53,12 +56,13 @@ class ShellNativeAppWindow : public NativeAppWindow {
   bool IsFullscreenOrPending() const override;
   void UpdateWindowIcon() override;
   void UpdateWindowTitle() override;
-  void UpdateDraggableRegions(
-      const std::vector<mojom::DraggableRegionPtr>& regions) override;
+  void DraggableRegionsChanged(
+      const std::vector<blink::mojom::DraggableRegionPtr>& regions) override;
+  gfx::RoundedCornersF GetWindowRadii() const override;
   SkRegion* GetDraggableRegion() override;
   void UpdateShape(std::unique_ptr<ShapeRects> rects) override;
   bool HandleKeyboardEvent(
-      const content::NativeWebKeyboardEvent& event) override;
+      const input::NativeWebKeyboardEvent& event) override;
   bool IsFrameless() const override;
   bool HasFrameColor() const override;
   SkColor ActiveFrameColor() const override;

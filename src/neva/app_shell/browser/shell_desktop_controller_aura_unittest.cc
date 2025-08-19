@@ -36,7 +36,7 @@
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/geometry/rect.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/dbus/power/fake_power_manager_client.h"
 #endif
 
@@ -69,7 +69,7 @@ class ShellDesktopControllerAuraTest : public ShellTestBaseAura {
     display::Screen::SetScreenInstance(screen_.get());
     ShellTestBaseAura::SetUp();
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     chromeos::PowerManagerClient::InitializeFake();
 #endif
 
@@ -79,7 +79,7 @@ class ShellDesktopControllerAuraTest : public ShellTestBaseAura {
 
   void TearDown() override {
     controller_.reset();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     chromeos::PowerManagerClient::Shutdown();
 #endif
     ShellTestBaseAura::TearDown();
@@ -100,7 +100,7 @@ class ShellDesktopControllerAuraTest : public ShellTestBaseAura {
   std::unique_ptr<ShellDesktopControllerAura> controller_;
 };
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 // Tests that a shutdown request is sent to the power manager when the power
 // button is pressed.
 TEST_F(ShellDesktopControllerAuraTest, PowerButton) {

@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "components/nacl/common/buildflags.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_frame_observer.h"
@@ -19,10 +18,6 @@
 #include "neva/app_shell/renderer/shell_extensions_renderer_client.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 
-#if BUILDFLAG(ENABLE_NACL)
-#include "components/nacl/common/nacl_constants.h"
-#include "components/nacl/renderer/nacl_helper.h"
-#endif
 
 #if defined(OS_WEBOS)
 #include "webos/renderer/webos_network_error_helper.h"
@@ -65,9 +60,6 @@ void ShellContentRendererClient::RenderFrameCreated(
   // TODO(jamescook): Do we need to add a new PepperHelper(render_frame) here?
   // It doesn't seem necessary for either Pepper or NaCl.
   // http://crbug.com/403004
-#if BUILDFLAG(ENABLE_NACL)
-  new nacl::NaClHelper(render_frame);
-#endif
 
 #if defined(OS_WEBOS)
   new webos::WebOSNetworkErrorHelper(render_frame);
@@ -86,33 +78,15 @@ bool ShellContentRendererClient::OverrideCreatePlugin(
   return false;
 }
 
-blink::WebPlugin* ShellContentRendererClient::CreatePluginReplacement(
-    content::RenderFrame* render_frame,
-    const base::FilePath& plugin_path) {
-  // Don't provide a custom "failed to load" plugin.
-  return nullptr;
-}
-
 void ShellContentRendererClient::WillSendRequest(
     blink::WebLocalFrame* frame,
     ui::PageTransition transition_type,
-    const blink::WebURL& url,
+    const blink::WebURL& upstream_url,
+    const blink::WebURL& target_url,
     const net::SiteForCookies& site_for_cookies,
     const url::Origin* initiator_origin,
     GURL* new_url) {
   // TODO(jamescook): Cause an error for bad extension scheme requests?
-}
-
-bool ShellContentRendererClient::IsExternalPepperPlugin(
-    const std::string& module_name) {
-#if BUILDFLAG(ENABLE_NACL)
-  // TODO(bbudge) remove this when the trusted NaCl plugin has been removed.
-  // We must defer certain plugin events for NaCl instances since we switch
-  // from the in-process to the out-of-process proxy after instantiating them.
-  return module_name == nacl::kNaClPluginName;
-#else
-  return false;
-#endif
 }
 
 void ShellContentRendererClient::RunScriptsAtDocumentStart(

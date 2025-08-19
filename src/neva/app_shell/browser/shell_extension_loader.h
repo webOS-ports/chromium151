@@ -57,18 +57,35 @@ class ShellExtensionLoader : public ExtensionRegistrar::Delegate {
   void PostActivateExtension(scoped_refptr<const Extension> extension) override;
   void PostDeactivateExtension(
       scoped_refptr<const Extension> extension) override;
-  void LoadExtensionForReload(
+  void OnAddNewOrUpdatedExtension(const Extension* extension) override;
+  void PreUninstallExtension(scoped_refptr<const Extension> extension) override;
+  void PostUninstallExtension(scoped_refptr<const Extension> extension,
+                              base::OnceClosure done_callback) override;
+  // M151 split the old three-argument LoadExtensionForReload() in two; the
+  // LoadErrorBehavior enum is now private to ExtensionRegistrar. Neither
+  // variant reports load failures here, so both do the same thing.
+  void LoadExtensionForReload(const ExtensionId& extension_id,
+                              const base::FilePath& path) override;
+  void LoadExtensionForReloadWithQuietFailure(
       const ExtensionId& extension_id,
-      const base::FilePath& path,
-      ExtensionRegistrar::LoadErrorBehavior load_error_behavior) override;
+      const base::FilePath& path) override;
+  void ShowExtensionDisabledError(const Extension* extension,
+                                  bool is_remote_install) override;
   bool CanEnableExtension(const Extension* extension) override;
   bool CanDisableExtension(const Extension* extension) override;
-  bool ShouldBlockExtension(const Extension* extension) override;
+  void GrantActivePermissions(const Extension* extension) override;
+  void UpdateExternalExtensionAlert() override;
+  void OnExtensionInstalled(const Extension* extension,
+                            const syncer::StringOrdinal& page_ordinal,
+                            int install_flags,
+                            base::DictValue ruleset_install_prefs) override;
 
   raw_ptr<content::BrowserContext> browser_context_;  // Not owned.
 
   // Registers and unregisters extensions.
-  ExtensionRegistrar extension_registrar_;
+  // M151: ExtensionRegistrar is a KeyedService owned by the browser
+  // context; this is a borrowed pointer, initialised in the ctor.
+  raw_ptr<ExtensionRegistrar> extension_registrar_;
 
   // Holds keep-alives for relaunching apps.
   ShellKeepAliveRequester keep_alive_requester_;

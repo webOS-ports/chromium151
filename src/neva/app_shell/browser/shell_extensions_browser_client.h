@@ -21,6 +21,10 @@
 
 class PrefService;
 
+namespace custom_handlers {
+class ProtocolHandlerRegistry;
+}  // namespace custom_handlers
+
 namespace extensions {
 
 class ExtensionsAPIClient;
@@ -38,6 +42,12 @@ class ShellExtensionsBrowserClient : public ExtensionsBrowserClient {
   ~ShellExtensionsBrowserClient() override;
 
   // ExtensionsBrowserClient overrides:
+  // M151 added extensions/browser/api/protocol_handlers, whose
+  // ProtocolHandlersManager treats a null registry as test-only and aborts on
+  // CHECK_IS_TEST(). app_runtime owns a registry per BrowserContext, so return
+  // that rather than letting the base class hand back null.
+  custom_handlers::ProtocolHandlerRegistry* GetProtocolHandlerRegistry(
+      content::BrowserContext* context) override;
   bool IsShuttingDown() override;
   bool AreExtensionsDisabled(const base::CommandLine& command_line,
                              content::BrowserContext* context) override;
@@ -49,30 +59,43 @@ class ShellExtensionsBrowserClient : public ExtensionsBrowserClient {
       content::BrowserContext* context) override;
   content::BrowserContext* GetOriginalContext(
       content::BrowserContext* context) override;
+  // M151: nothing in app_shell needs post-browser-process setup.
+  void Init() override {}
 
   content::BrowserContext* GetContextRedirectedToOriginal(
-      content::BrowserContext* context,
-      bool force_guest_profile) override;
+      content::BrowserContext* context) override;
+  // M151 added this alongside GetContextRedirectedToOriginal; it only differs
+  // for ash-internal profiles, which app_shell does not have.
+  content::BrowserContext* GetContextRedirectedToOriginalWithoutAshInternals(
+      content::BrowserContext* context) override;
   content::BrowserContext* GetContextOwnInstance(
-      content::BrowserContext* context,
-      bool force_guest_profile) override;
+      content::BrowserContext* context) override;
   content::BrowserContext* GetContextForOriginalOnly(
-      content::BrowserContext* context,
-      bool force_guest_profile) override;
+      content::BrowserContext* context) override;
   bool AreExtensionsDisabledForContext(
       content::BrowserContext* context) override;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   std::string GetUserIdHashFromContext(
       content::BrowserContext* context) override;
-#endif
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  bool IsFromMainProfile(content::BrowserContext* context) override;
 #endif
   bool IsGuestSession(content::BrowserContext* context) const override;
   bool IsExtensionIncognitoEnabled(
       const std::string& extension_id,
       content::BrowserContext* context) const override;
+  // M151 added an Extension* overload alongside the id-based one.
+  bool IsExtensionIncognitoEnabled(
+      const Extension* extension,
+      content::BrowserContext* context) const override;
+  // M151: Controlled Frame is a ChromeOS/IWA feature; not available here.
+  mojo::PendingRemote<network::mojom::URLLoaderFactory>
+  GetControlledFrameEmbedderURLLoader(
+      const url::Origin& app_origin,
+      content::FrameTreeNodeId frame_tree_node_id,
+      content::BrowserContext* browser_context) override;
+  void CreateExtensionWebContentsObserver(
+      content::WebContents* web_contents) override;
+  SafeBrowsingDelegate* GetSafeBrowsingDelegate() override;
   bool CanExtensionCrossIncognito(
       const Extension* extension,
       content::BrowserContext* context) const override;
@@ -91,13 +114,14 @@ class ShellExtensionsBrowserClient : public ExtensionsBrowserClient {
       const network::ResourceRequest& request,
       network::mojom::RequestDestination destination,
       ui::PageTransition page_transition,
-      int child_id,
+      content::ChildProcessId child_id,
       bool is_incognito,
       const Extension* extension,
       const ExtensionSet& extensions,
-      const ProcessMap& process_map) override;
+      const ProcessMap& process_map,
+      const GURL& upstream_url) override;
   PrefService* GetPrefServiceForContext(
-      content::BrowserContext* context) override;
+      content::BrowserContext* context);
   void GetEarlyExtensionPrefsObservers(
       content::BrowserContext* context,
       std::vector<EarlyExtensionPrefsObserver*>* observers) const override;
@@ -130,9 +154,8 @@ class ShellExtensionsBrowserClient : public ExtensionsBrowserClient {
   ExtensionWebContentsObserver* GetExtensionWebContentsObserver(
       content::WebContents* web_contents) override;
   KioskDelegate* GetKioskDelegate() override;
-  bool IsLockScreenContext(content::BrowserContext* context) override;
   std::string GetApplicationLocale() override;
-  std::string GetUserAgent() const override;
+  std::string GetUserAgent() const;
 
   // |context| is the single BrowserContext used for IsValidContext().
   // |pref_service| is used for GetPrefServiceForContext().

@@ -6,6 +6,7 @@
 
 namespace extensions {
 
-ShellDisplayInfoProvider::ShellDisplayInfoProvider() = default;
+ShellDisplayInfoProvider::ShellDisplayInfoProvider(display::Screen* screen)
+    : DisplayInfoProvider(screen) {}
 
 }  // namespace extensions

@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "neva/app_shell/browser/api/file_system/shell_file_system_delegate.h"
+#include "base/notimplemented.h"
 
 #include "apps/saved_files_service.h"
 #include "base/files/file_path.h"

@@ -4,7 +4,7 @@
 
 #include "neva/app_shell/common/shell_extensions_api_provider.h"
 
-#include "base/strings/string_piece.h"
+#include <string_view>
 #include "neva/app_shell/common/api/shell_api_features.h"
 #include "neva/app_shell/grit/app_shell_resources.h"
 
@@ -49,6 +49,7 @@ std::string_view ShellExtensionsAPIProvider::GetAPISchema(
 void ShellExtensionsAPIProvider::RegisterPermissions(
     PermissionsInfo* permissions_info) {}
 
-void ShellExtensionsAPIProvider::RegisterManifestHandlers() {}
+void ShellExtensionsAPIProvider::RegisterManifestHandlers(
+    ManifestHandlerRegistry* registry) {}
 
 }  // namespace extensions

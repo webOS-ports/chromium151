@@ -35,7 +35,9 @@ class ShellAppDelegate : public AppDelegate {
   content::WebContents* OpenURLFromTab(
       content::BrowserContext* context,
       content::WebContents* source,
-      const content::OpenURLParams& params) override;
+      const content::OpenURLParams& params,
+      base::OnceCallback<void(content::NavigationHandle&)>
+          navigation_handle_callback) override;
   void AddNewContents(content::BrowserContext* context,
                       std::unique_ptr<content::WebContents> new_contents,
                       const GURL& target_url,
@@ -50,7 +52,7 @@ class ShellAppDelegate : public AppDelegate {
                                     content::MediaResponseCallback callback,
                                     const Extension* extension) override;
   bool CheckMediaAccessPermission(content::RenderFrameHost* render_frame_host,
-                                  const GURL& security_origin,
+                                  const url::Origin& security_origin,
                                   blink::mojom::MediaStreamType type,
                                   const Extension* extension) override;
   int PreferredIconSize() const override;
@@ -60,7 +62,6 @@ class ShellAppDelegate : public AppDelegate {
   void SetTerminatingCallback(base::OnceClosure callback) override;
   void OnHide() override {}
   void OnShow() override {}
-  bool TakeFocus(content::WebContents* web_contents, bool reverse) override;
   content::PictureInPictureResult EnterPictureInPicture(
       content::WebContents* web_contents) override;
   void ExitPictureInPicture() override;

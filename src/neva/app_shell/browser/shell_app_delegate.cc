@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "neva/app_shell/browser/shell_app_delegate.h"
+#include "base/notimplemented.h"
 
 #include "base/values.h"
 #include "content/public/browser/color_chooser.h"
@@ -10,7 +11,7 @@
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
-#include "extensions/browser/media_capture_util.h"
+#include "neva/app_shell/browser/media_capture_util.h"
 #include "extensions/common/constants.h"
 #include "neva/app_shell/browser/shell_extension_web_contents_observer.h"
 
@@ -174,7 +175,9 @@ void ShellAppDelegate::ResizeWebContents(content::WebContents* web_contents,
 content::WebContents* ShellAppDelegate::OpenURLFromTab(
     content::BrowserContext* context,
     content::WebContents* source,
-    const content::OpenURLParams& params) {
+    const content::OpenURLParams& params,
+    base::OnceCallback<void(content::NavigationHandle&)>
+        navigation_handle_callback) {
   NOTIMPLEMENTED();
   return nullptr;
 }
@@ -208,7 +211,7 @@ void ShellAppDelegate::RequestMediaAccessPermission(
 
 bool ShellAppDelegate::CheckMediaAccessPermission(
     content::RenderFrameHost* render_frame_host,
-    const GURL& security_origin,
+    const url::Origin& security_origin,
     blink::mojom::MediaStreamType type,
     const Extension* extension) {
   media_capture_util::VerifyMediaAccessPermission(type, extension);
@@ -233,11 +236,6 @@ bool ShellAppDelegate::IsWebContentsVisible(
 void ShellAppDelegate::SetTerminatingCallback(base::OnceClosure callback) {
   // TODO(jamescook): Should app_shell continue to close the app window
   // manually or should it use a browser termination callback like Chrome?
-}
-
-bool ShellAppDelegate::TakeFocus(content::WebContents* web_contents,
-                                 bool reverse) {
-  return false;
 }
 
 content::PictureInPictureResult ShellAppDelegate::EnterPictureInPicture(

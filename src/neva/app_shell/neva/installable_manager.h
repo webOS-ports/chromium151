@@ -17,12 +17,15 @@
 #ifndef NEVA_APP_SHELL_NEVA_INSTALLABLE_MANAGER_H_
 #define NEVA_APP_SHELL_NEVA_INSTALLABLE_MANAGER_H_
 
+#include <memory>
+
 #include "content/public/browser/web_contents_user_data.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
-#include "neva/app_runtime/browser/installable/webapp_installable_manager.h"
 #include "neva/app_runtime/public/mojom/installable_manager.mojom.h"
 
 namespace neva_app_runtime {
+
+class WebAppInstallableManager;
 
 class InstallableManager
     : public content::WebContentsUserData<InstallableManager>,
@@ -45,7 +48,7 @@ class InstallableManager
 
   content::WebContents* web_contents_;
   mojo::ReceiverSet<mojom::InstallableManager> receivers_;
-  WebAppInstallableManager installable_manager_;
+  std::unique_ptr<WebAppInstallableManager> installable_manager_;
   base::WeakPtrFactory<InstallableManager> weak_factory_;
 
   friend class content::WebContentsUserData<InstallableManager>;

@@ -287,9 +287,7 @@ void RootWindowController::OnWindowHostStateChanged(aura::WindowTreeHost* host,
         continue;
       browser_context->GetGuestManager()->ForEachGuest(
           web_contents,
-          base::BindRepeating(
-              [](ui::WidgetState new_state,
-                 content::WebContents* guest_contents) {
+          [new_state](content::WebContents* guest_contents) {
                 WebViewGuest* guest_view =
                     extensions::WebViewGuest::FromWebContents(guest_contents);
                 // Suspend or resume only for non-suspended WebViewGuest
@@ -309,9 +307,8 @@ void RootWindowController::OnWindowHostStateChanged(aura::WindowTreeHost* host,
                   }
                 }
 
-                return false;
-              },
-              new_state));
+            return false;
+          });
     }
   }
 }

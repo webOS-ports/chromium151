@@ -11,7 +11,6 @@
 #include "base/memory/raw_ptr.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
-#include "components/nacl/common/buildflags.h"
 #include "content/public/browser/browser_main_parts.h"
 
 #if defined(USE_NEVA_BROWSER_SERVICE)
@@ -44,7 +43,7 @@ class ShellExtensionsBrowserClient;
 class ShellExtensionSystem;
 class ShellUpdateQueryParamsDelegate;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 class ShellAudioController;
 class ShellNetworkController;
 #endif
@@ -93,7 +92,7 @@ class ShellBrowserMainParts : public content::BrowserMainParts {
   void ExitWhenPossibleOnUIThread(int signal);
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<ShellNetworkController> network_controller_;
 #endif
 
@@ -101,7 +100,7 @@ class ShellBrowserMainParts : public content::BrowserMainParts {
   std::unique_ptr<PrefService> local_state_;
   std::unique_ptr<PrefService> user_pref_service_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<ShellAudioController> audio_controller_;
 #endif
 

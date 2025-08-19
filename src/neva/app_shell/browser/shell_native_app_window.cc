@@ -3,9 +3,12 @@
 // found in the LICENSE file.
 
 #include "neva/app_shell/browser/shell_native_app_window.h"
+#include "base/notimplemented.h"
 
+#include "components/input/native_web_keyboard_event.h"
 #include "neva/app_shell/browser/desktop_controller.h"
 #include "third_party/skia/include/core/SkRegion.h"
+#include "ui/base/mojom/window_show_state.mojom-shared.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
@@ -43,8 +46,8 @@ gfx::Rect ShellNativeAppWindow::GetRestoredBounds() const {
   return GetBounds();
 }
 
-ui::WindowShowState ShellNativeAppWindow::GetRestoredState() const {
-  return ui::SHOW_STATE_NORMAL;
+ui::mojom::WindowShowState ShellNativeAppWindow::GetRestoredState() const {
+  return ui::mojom::WindowShowState::kNormal;
 }
 
 void ShellNativeAppWindow::ShowInactive() {
@@ -122,9 +125,14 @@ void ShellNativeAppWindow::UpdateWindowTitle() {
   // No window title to update.
 }
 
-void ShellNativeAppWindow::UpdateDraggableRegions(
-    const std::vector<mojom::DraggableRegionPtr>& regions) {
+void ShellNativeAppWindow::DraggableRegionsChanged(
+    const std::vector<blink::mojom::DraggableRegionPtr>& regions) {
   NOTIMPLEMENTED();
+}
+
+gfx::RoundedCornersF ShellNativeAppWindow::GetWindowRadii() const {
+  // app_shell windows are always square-cornered.
+  return gfx::RoundedCornersF();
 }
 
 SkRegion* ShellNativeAppWindow::GetDraggableRegion() {
@@ -137,7 +145,7 @@ void ShellNativeAppWindow::UpdateShape(std::unique_ptr<ShapeRects> rects) {
 }
 
 bool ShellNativeAppWindow::HandleKeyboardEvent(
-    const content::NativeWebKeyboardEvent& event) {
+    const input::NativeWebKeyboardEvent& event) {
   // No special handling. The WebContents will handle it.
   return false;
 }

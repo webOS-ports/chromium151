@@ -23,10 +23,9 @@ class ShellExtensionsRendererClient : public ExtensionsRendererClient {
   // ExtensionsRendererClient implementation.
   bool IsIncognitoProcess() const override;
   int GetLowestIsolatedWorldId() const override;
-  Dispatcher* GetDispatcher() override;
-  bool ExtensionAPIEnabledForServiceWorkerScript(
-      const GURL& scope,
-      const GURL& script_url) const override;
+  Dispatcher* GetDispatcher();
+  bool ExtensionAPIEnabledForServiceWorkerScript(const GURL& scope,
+                                                 const GURL& script_url) const;
 
  private:
   std::unique_ptr<Dispatcher> dispatcher_;

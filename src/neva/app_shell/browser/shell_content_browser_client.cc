@@ -13,26 +13,25 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "components/guest_view/common/guest_view.mojom.h"
-#include "components/nacl/common/buildflags.h"
 #include "components/network_session_configurator/common/network_switches.h"
 #include "content/public/browser/browser_main_runner.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/browser/security_principal.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_descriptors.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/url_constants.h"
-#include "content/public/common/user_agent.h"
+#include "components/embedder_support/user_agent_utils.h"
 #include "content/shell/browser/shell_browser_context.h"
 #include "content/shell/browser/shell_devtools_manager_delegate.h"
-#include "extensions/browser/api/messaging/messaging_api_message_filter.h"
 #include "extensions/browser/api/web_request/web_request_api.h"
 #include "extensions/browser/event_router.h"
-#include "extensions/browser/extension_message_filter.h"
 #include "extensions/browser/extension_navigation_throttle.h"
 #include "extensions/browser/extension_navigation_ui_data.h"
 #include "extensions/browser/extension_protocols.h"
@@ -51,6 +50,7 @@
 #include "extensions/common/mojom/guest_view.mojom.h"
 #include "extensions/common/mojom/renderer_host.mojom.h"
 #include "extensions/common/switches.h"
+#include "mojo/public/cpp/bindings/binder_map.h"
 #include "neva/app_shell/browser/shell_browser_context.h"
 #include "neva/app_shell/browser/shell_browser_main_parts.h"
 #include "neva/app_shell/browser/shell_extension_system.h"
@@ -60,18 +60,11 @@
 #include "neva/browser_service/browser/popupblocker_service_impl.h"
 #include "neva/browser_service/browser/userpermission_service_impl.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
+#include "services/network/public/cpp/url_loader_factory_builder.h"
+#include "services/service_manager/public/cpp/binder_registry.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(ENABLE_NACL)
-#include "components/nacl/browser/nacl_browser.h"
-#include "components/nacl/browser/nacl_host_message_filter.h"
-#include "components/nacl/browser/nacl_process_host.h"
-#include "components/nacl/common/nacl_process_type.h"  // nogncheck
-#include "components/nacl/common/nacl_switches.h"      // nogncheck
-#include "content/public/browser/browser_child_process_host.h"
-#include "content/public/browser/child_process_data.h"
-#endif
 
 #if defined(USE_NEVA_APPRUNTIME)
 #include "base/neva/base_switches.h"
@@ -108,7 +101,7 @@ const int kDefaultDiskCacheSize = 16 * 1024 * 1024;  // default size is 16MB
 const char kWebexScheme[] = "webex";
 
 void AuthRequestCallback(
-    LoginAuthRequiredCallback callback,
+    content::LoginDelegate::LoginAuthRequiredCallback callback,
     const std::optional<net::AuthCredentials>& credentials,
     bool should_cancel) {
   if (credentials) {
@@ -121,6 +114,33 @@ void AuthRequestCallback(
 ShellContentBrowserClient* g_instance = nullptr;
 
 }  // namespace
+
+#if defined(USE_NEVA_APPRUNTIME)
+// Implements a stub BadgeService. This implementation does nothing, but is
+// required because inbound Mojo messages which do not have a registered
+// handler are considered an error, and the render process is terminated.
+// See https://crbug.com/1090429
+class ShellContentBrowserClient::StubBadgeService
+    : public blink::mojom::BadgeService {
+ public:
+  StubBadgeService() = default;
+  StubBadgeService(const StubBadgeService&) = delete;
+  StubBadgeService& operator=(const StubBadgeService&) = delete;
+  ~StubBadgeService() override = default;
+
+  void Bind(mojo::PendingReceiver<blink::mojom::BadgeService> receiver) {
+    receivers_.Add(this, std::move(receiver));
+  }
+
+  // blink::mojom::BadgeService:
+  void SetBadge(blink::mojom::BadgeValuePtr value) override {}
+  void ClearBadge() override {}
+
+ private:
+  mojo::ReceiverSet<blink::mojom::BadgeService> receivers_;
+};
+
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
 ShellContentBrowserClient::ShellContentBrowserClient(
     ShellBrowserMainDelegate* browser_main_delegate)
@@ -182,28 +202,14 @@ ShellContentBrowserClient::CreateBrowserMainParts(bool is_integration_test) {
 
 void ShellContentBrowserClient::RenderProcessWillLaunch(
     content::RenderProcessHost* host) {
-#if BUILDFLAG(ENABLE_EXTENSIONS_LEGACY_IPC) || BUILDFLAG(ENABLE_NACL)
-  int render_process_id = host->GetID();
-  BrowserContext* browser_context = browser_main_parts_->browser_context();
-#endif
-#if BUILDFLAG(ENABLE_EXTENSIONS_LEGACY_IPC)
-  host->AddFilter(
-      new ExtensionMessageFilter(render_process_id, browser_context));
-  host->AddFilter(
-      new MessagingAPIMessageFilter(render_process_id, browser_context));
-#endif
-  // PluginInfoMessageFilter is not required because app_shell does not have
-  // the concept of disabled plugins.
-#if BUILDFLAG(ENABLE_NACL)
-  host->AddFilter(new nacl::NaClHostMessageFilter(
-      render_process_id, browser_context->IsOffTheRecord(),
-      browser_context->GetPath()));
-#endif
+  // M151 removed the legacy extension IPC message filters (ExtensionMessageFilter
+  // and MessagingAPIMessageFilter); those channels are mojo interfaces now, set
+  // up by RendererStartupHelper. Nothing is left to install here.
 }
 
 bool ShellContentBrowserClient::ShouldUseProcessPerSite(
     content::BrowserContext* browser_context,
-    const GURL& site_url) {
+    const content::SecurityPrincipal& security_principal) {
   // This ensures that all render views created for a single app will use the
   // same render process (see content::SiteInstance::GetProcess). Otherwise the
   // default behavior of ContentBrowserClient will lead to separate render
@@ -233,7 +239,7 @@ bool ShellContentBrowserClient::IsHandledURL(const GURL& url) {
   return false;
 }
 
-void ShellContentBrowserClient::SiteInstanceGotProcess(
+void ShellContentBrowserClient::SiteInstanceGotProcessAndSite(
     content::SiteInstance* site_instance) {
 #if defined(USE_NEVA_BROWSER_SERVICE)
   // We need to set the new cookie manager instance as it is changed
@@ -255,7 +261,7 @@ void ShellContentBrowserClient::SiteInstanceGotProcess(
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           ::switches::kV8SnapshotBlobPath)) {
     v8_snapshot_path_ =
-        std::make_pair(site_instance->GetProcess()->GetID(),
+        std::make_pair(site_instance->GetProcess()->GetDeprecatedID(),
                        base::CommandLine::ForCurrentProcess()
                            ->GetSwitchValuePath(::switches::kV8SnapshotBlobPath)
                            .value());
@@ -305,24 +311,6 @@ ShellContentBrowserClient::CreateSpeechRecognitionManagerDelegate() {
   return new speech::ShellSpeechRecognitionManagerDelegate();
 }
 
-content::BrowserPpapiHost*
-ShellContentBrowserClient::GetExternalBrowserPpapiHost(int plugin_process_id) {
-#if BUILDFLAG(ENABLE_NACL)
-  content::BrowserChildProcessHostIterator iter(PROCESS_TYPE_NACL_LOADER);
-  while (!iter.Done()) {
-    nacl::NaClProcessHost* host = static_cast<nacl::NaClProcessHost*>(
-        iter.GetDelegate());
-    if (host->process() &&
-        host->process()->GetData().id == plugin_process_id) {
-      // Found the plugin.
-      return host->browser_ppapi_host();
-    }
-    ++iter;
-  }
-#endif
-  return nullptr;
-}
-
 void ShellContentBrowserClient::GetAdditionalAllowedSchemesForFileSystem(
     std::vector<std::string>* additional_allowed_schemes) {
   ContentBrowserClient::GetAdditionalAllowedSchemesForFileSystem(
@@ -342,30 +330,27 @@ void ShellContentBrowserClient::ExposeInterfacesToRenderer(
     content::RenderProcessHost* render_process_host) {
   associated_registry->AddInterface<mojom::EventRouter>(base::BindRepeating(
       &EventRouter::BindForRenderer, render_process_host->GetID()));
-  associated_registry->AddInterface<guest_view::mojom::GuestViewHost>(
-      base::BindRepeating(&ExtensionsGuestView::CreateForComponents,
-                          render_process_host->GetID()));
 #if defined(USE_NEVA_BROWSER_SERVICE)
   auto sitefilter_service =
       [](mojo::PendingReceiver<browser::mojom::SiteFilterService> receiver) {
         browser::BrowserService::GetBrowserService()->BindSiteFilterService(
             std::move(receiver));
       };
-  registry->AddInterface(base::BindRepeating(sitefilter_service),
+  registry->AddInterface<browser::mojom::SiteFilterService>(base::BindRepeating(sitefilter_service),
                          content::GetUIThreadTaskRunner({}));
   auto popupblocker_service =
       [](mojo::PendingReceiver<browser::mojom::PopupBlockerService> receiver) {
         browser::BrowserService::GetBrowserService()->BindPopupBlockerService(
             std::move(receiver));
       };
-  registry->AddInterface(base::BindRepeating(popupblocker_service),
+  registry->AddInterface<browser::mojom::PopupBlockerService>(base::BindRepeating(popupblocker_service),
                          content::GetUIThreadTaskRunner({}));
   auto cookiemanager_service =
       [](mojo::PendingReceiver<browser::mojom::CookieManagerService> receiver) {
         browser::BrowserService::GetBrowserService()->BindCookieManagerService(
             std::move(receiver));
       };
-  registry->AddInterface(base::BindRepeating(cookiemanager_service),
+  registry->AddInterface<browser::mojom::CookieManagerService>(base::BindRepeating(cookiemanager_service),
                          content::GetUIThreadTaskRunner({}));
   auto userpermission_service =
       [](mojo::PendingReceiver<browser::mojom::UserPermissionService>
@@ -373,14 +358,14 @@ void ShellContentBrowserClient::ExposeInterfacesToRenderer(
         browser::BrowserService::GetBrowserService()->BindUserPermissionService(
             std::move(receiver));
       };
-  registry->AddInterface(base::BindRepeating(userpermission_service),
+  registry->AddInterface<browser::mojom::UserPermissionService>(base::BindRepeating(userpermission_service),
                          content::GetUIThreadTaskRunner({}));
   auto mediacapture_service =
       [](mojo::PendingReceiver<browser::mojom::MediaCaptureService> receiver) {
         browser::BrowserService::GetBrowserService()->BindMediaCaptureService(
             std::move(receiver));
       };
-  registry->AddInterface(base::BindRepeating(mediacapture_service),
+  registry->AddInterface<browser::mojom::MediaCaptureService>(base::BindRepeating(mediacapture_service),
                          content::GetUIThreadTaskRunner({}));
   auto customuseragent_service =
       [](mojo::PendingReceiver<browser::mojom::CustomUserAgentService>
@@ -388,11 +373,9 @@ void ShellContentBrowserClient::ExposeInterfacesToRenderer(
         browser::BrowserService::GetBrowserService()
             ->BindCustomUserAgentService(std::move(receiver));
       };
-  registry->AddInterface(base::BindRepeating(customuseragent_service),
+  registry->AddInterface<browser::mojom::CustomUserAgentService>(base::BindRepeating(customuseragent_service),
                          content::GetUIThreadTaskRunner({}));
 #endif
-  associated_registry->AddInterface<mojom::GuestView>(base::BindRepeating(
-      &ExtensionsGuestView::CreateForExtensions, render_process_host->GetID()));
   associated_registry->AddInterface<mojom::RendererHost>(base::BindRepeating(
       &RendererStartupHelper::BindForRenderer, render_process_host->GetID()));
 }
@@ -401,6 +384,14 @@ void ShellContentBrowserClient::
     RegisterAssociatedInterfaceBindersForRenderFrameHost(
         content::RenderFrameHost& render_frame_host,
         blink::AssociatedInterfaceRegistry& associated_registry) {
+  // M151 moved the guest view binders from the process-wide registry to the
+  // per-frame one, keyed by GlobalRenderFrameHostId.
+  associated_registry.AddInterface<guest_view::mojom::GuestViewHost>(
+      base::BindRepeating(&ExtensionsGuestView::CreateForComponents,
+                          render_frame_host.GetGlobalId()));
+  associated_registry.AddInterface<mojom::GuestView>(
+      base::BindRepeating(&ExtensionsGuestView::CreateForExtensions,
+                          render_frame_host.GetGlobalId()));
   associated_registry.AddInterface<extensions::mojom::LocalFrameHost>(
       base::BindRepeating(
           [](content::RenderFrameHost* render_frame_host,
@@ -443,17 +434,16 @@ void ShellContentBrowserClient::
 #endif  // USE_NEVA_APPRUNTIME
 }
 
-std::vector<std::unique_ptr<content::NavigationThrottle>>
-ShellContentBrowserClient::CreateThrottlesForNavigation(
-    content::NavigationHandle* navigation_handle) {
-  std::vector<std::unique_ptr<content::NavigationThrottle>> throttles;
+void ShellContentBrowserClient::CreateThrottlesForNavigation(
+    content::NavigationThrottleRegistry& registry) {
+  // M151: throttles are added to the registry rather than returned, and each
+  // throttle takes the registry instead of the handle.
   if (!extensions::ExtensionsBrowserClient::Get()
-           ->AreExtensionsDisabledForContext(
-               navigation_handle->GetWebContents()->GetBrowserContext())) {
-    throttles.push_back(
-        std::make_unique<ExtensionNavigationThrottle>(navigation_handle));
+           ->AreExtensionsDisabledForContext(registry.GetNavigationHandle()
+                                                 .GetWebContents()
+                                                 ->GetBrowserContext())) {
+    registry.AddThrottle(std::make_unique<ExtensionNavigationThrottle>(registry));
   }
-  return throttles;
 }
 
 std::unique_ptr<content::NavigationUIData>
@@ -462,24 +452,30 @@ ShellContentBrowserClient::GetNavigationUIData(
   return std::make_unique<ShellNavigationUIData>(navigation_handle);
 }
 
-void ShellContentBrowserClient::RegisterNonNetworkNavigationURLLoaderFactories(
-    int frame_tree_node_id,
-    ukm::SourceIdObj ukm_source_id,
-    NonNetworkURLLoaderFactoryMap* factories) {
-  DCHECK(factories);
-
+mojo::PendingRemote<network::mojom::URLLoaderFactory>
+ShellContentBrowserClient::CreateNonNetworkNavigationURLLoaderFactory(
+    const std::string& scheme,
+    content::FrameTreeNodeId frame_tree_node_id) {
+  // M151 replaced the map-filling hook with a per-scheme factory request; the
+  // ukm source id is no longer plumbed through.
+  if (scheme != extensions::kExtensionScheme) {
+    return {};
+  }
   content::WebContents* web_contents =
       content::WebContents::FromFrameTreeNodeId(frame_tree_node_id);
-  factories->emplace(
-      extensions::kExtensionScheme,
-      extensions::CreateExtensionNavigationURLLoaderFactory(
-          web_contents->GetBrowserContext(), ukm_source_id,
-          !!extensions::WebViewGuest::FromWebContents(web_contents)));
+  if (!web_contents) {
+    return {};
+  }
+  return extensions::CreateExtensionNavigationURLLoaderFactory(
+      web_contents->GetBrowserContext(),
+      !!extensions::WebViewGuest::FromWebContents(web_contents));
 }
 
 void ShellContentBrowserClient::
     RegisterNonNetworkWorkerMainResourceURLLoaderFactories(
         content::BrowserContext* browser_context,
+        const std::optional<url::Origin>& request_initiator,
+        network::mojom::RequestDestination request_destination,
         NonNetworkURLLoaderFactoryMap* factories) {
   DCHECK(browser_context);
   DCHECK(factories);
@@ -487,7 +483,7 @@ void ShellContentBrowserClient::
   factories->emplace(
       extensions::kExtensionScheme,
       extensions::CreateExtensionWorkerMainResourceURLLoaderFactory(
-          browser_context));
+          browser_context, request_initiator));
 }
 
 void ShellContentBrowserClient::
@@ -510,42 +506,46 @@ void ShellContentBrowserClient::RegisterNonNetworkSubresourceURLLoaderFactories(
     NonNetworkURLLoaderFactoryMap* factories) {
   DCHECK(factories);
 
-  factories->emplace(extensions::kExtensionScheme,
-                     extensions::CreateExtensionURLLoaderFactory(
-                         render_process_id, render_frame_id));
+  factories->emplace(
+      extensions::kExtensionScheme,
+      extensions::CreateExtensionURLLoaderFactory(
+          content::ChildProcessId(render_process_id), render_frame_id));
 }
 
-bool ShellContentBrowserClient::WillCreateURLLoaderFactory(
+void ShellContentBrowserClient::WillCreateURLLoaderFactory(
     content::BrowserContext* browser_context,
     content::RenderFrameHost* frame,
     int render_process_id,
     URLLoaderFactoryType type,
     const url::Origin& request_initiator,
+    const net::IsolationInfo& isolation_info,
     std::optional<int64_t> navigation_id,
     ukm::SourceIdObj ukm_source_id,
-    mojo::PendingReceiver<network::mojom::URLLoaderFactory>* factory_receiver,
+    network::URLLoaderFactoryBuilder& factory_builder,
     mojo::PendingRemote<network::mojom::TrustedURLLoaderHeaderClient>*
         header_client,
     bool* bypass_redirect_checks,
     bool* disable_secure_dns,
     network::mojom::URLLoaderFactoryOverridePtr* factory_override,
     scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner) {
+  // M151: the receiver/remote pair is now brokered by URLLoaderFactoryBuilder
+  // and the hook returns void; whether a proxy was inserted is still needed for
+  // the redirect-check bypass.
   auto* web_request_api =
       extensions::BrowserContextKeyedAPIFactory<extensions::WebRequestAPI>::Get(
           browser_context);
   bool use_proxy = web_request_api->MaybeProxyURLLoaderFactory(
       browser_context, frame, render_process_id, type, std::move(navigation_id),
-      ukm_source_id, factory_receiver, header_client,
-      std::move(navigation_response_task_runner));
+      ukm_source_id, factory_builder, header_client,
+      std::move(navigation_response_task_runner), request_initiator);
   if (bypass_redirect_checks)
     *bypass_redirect_checks = use_proxy;
-  return use_proxy;
 }
 
 bool ShellContentBrowserClient::HandleExternalProtocol(
     const GURL& url,
     content::WebContents::Getter web_contents_getter,
-    int frame_tree_node_id,
+    content::FrameTreeNodeId frame_tree_node_id,
     content::NavigationUIData* navigation_data,
     bool is_primary_main_frame,
     bool is_in_fenced_frame_tree,
@@ -554,6 +554,7 @@ bool ShellContentBrowserClient::HandleExternalProtocol(
     bool has_user_gesture,
     const std::optional<url::Origin>& initiating_origin,
     content::RenderFrameHost* initiator_document,
+    const net::IsolationInfo& isolation_info,
     mojo::PendingRemote<network::mojom::URLLoaderFactory>* out_factory) {
 #if defined(USE_NEVA_APPRUNTIME)
   if (url.scheme() == kWebexScheme)
@@ -566,9 +567,11 @@ void ShellContentBrowserClient::OverrideURLLoaderFactoryParams(
     content::BrowserContext* browser_context,
     const url::Origin& origin,
     bool is_for_isolated_world,
+    bool is_for_service_worker,
     network::mojom::URLLoaderFactoryParams* factory_params) {
   URLLoaderFactoryManager::OverrideURLLoaderFactoryParams(
-      browser_context, origin, is_for_isolated_world, factory_params);
+      browser_context, origin, is_for_isolated_world, is_for_service_worker,
+      factory_params);
 }
 
 base::FilePath
@@ -582,7 +585,7 @@ std::string ShellContentBrowserClient::GetUserAgent() {
 #else
   // Must contain a user agent string for version sniffing. For example,
   // pluginless WebRTC Hangouts checks the Chrome version number.
-  return content::BuildUserAgentFromProduct("Chrome/" PRODUCT_VERSION);
+  return embedder_support::BuildUserAgentFromProduct("Chrome/" PRODUCT_VERSION);
 #endif  // defined(USE_NEVA_APPRUNTIME)
 }
 
@@ -612,13 +615,6 @@ void ShellContentBrowserClient::AppendRendererSwitches(
   command_line->CopySwitchesFrom(*base::CommandLine::ForCurrentProcess(),
                                  kSwitchNames);
 
-#if BUILDFLAG(ENABLE_NACL)
-  static const char* const kNaclSwitchNames[] = {
-      ::switches::kEnableNaClDebug,
-  };
-  command_line->CopySwitchesFrom(*base::CommandLine::ForCurrentProcess(),
-                                 kNaclSwitchNames);
-#endif  // BUILDFLAG(ENABLE_NACL)
 }
 
 const Extension* ShellContentBrowserClient::GetExtension(
@@ -626,7 +622,7 @@ const Extension* ShellContentBrowserClient::GetExtension(
   ExtensionRegistry* registry =
       ExtensionRegistry::Get(site_instance->GetBrowserContext());
   return registry->enabled_extensions().GetExtensionOrAppByURL(
-      site_instance->GetSiteURL());
+      site_instance->GetSecurityPrincipal().GetDeprecatedSiteURL());
 }
 
 #if defined(USE_NEVA_APPRUNTIME)
@@ -634,12 +630,15 @@ std::unique_ptr<content::LoginDelegate>
 ShellContentBrowserClient::CreateLoginDelegate(
     const net::AuthChallengeInfo& auth_info,
     content::WebContents* web_contents,
+    content::BrowserContext* passed_browser_context,
     const content::GlobalRequestID& request_id,
-    bool is_request_for_main_frame,
+    bool is_request_for_primary_main_frame_navigation,
+    bool is_request_for_navigation,
     const GURL& url,
     scoped_refptr<net::HttpResponseHeaders> response_headers,
     bool first_auth_attempt,
-    LoginAuthRequiredCallback auth_required_callback) {
+    content::GuestPageHolder* guest_page_holder,
+    content::LoginDelegate::LoginAuthRequiredCallback auth_required_callback) {
   BrowserContext* browser_context = GetBrowserContext();
   extensions::WebRequestAPI* api =
       extensions::BrowserContextKeyedAPIFactory<extensions::WebRequestAPI>::Get(
@@ -647,9 +646,14 @@ ShellContentBrowserClient::CreateLoginDelegate(
   auto continuation =
       base::BindOnce(&AuthRequestCallback, std::move(auth_required_callback));
 
+  // M151 takes the navigation flag (not "main frame") and the WebViewGuest the
+  // request belongs to, if any.
   if (api->MaybeProxyAuthRequest(
           browser_context, auth_info, std::move(response_headers), request_id,
-          is_request_for_main_frame, std::move(continuation))) {
+          is_request_for_navigation, std::move(continuation),
+          web_contents
+              ? extensions::WebViewGuest::FromWebContents(web_contents)
+              : nullptr)) {
   }
 
   return std::make_unique<content::LoginDelegate>();
@@ -669,7 +673,7 @@ ShellContentBrowserClient::GetStoragePartitionConfigForSite(
     // The host in an extension site URL is the extension_id.
     CHECK(site.has_host());
     return extensions::util::GetStoragePartitionConfigForExtensionId(
-        site.host(), browser_context);
+        extensions::ExtensionId(site.host()), browser_context);
   }
 #endif
 
@@ -720,30 +724,6 @@ void ShellContentBrowserClient::ConfigureNetworkContextParams(
       context->GetPath().Append(kCacheStoreFile);
 }
 
-// Implements a stub BadgeService. This implementation does nothing, but is
-// required because inbound Mojo messages which do not have a registered
-// handler are considered an error, and the render process is terminated.
-// See https://crbug.com/1090429
-class ShellContentBrowserClient::StubBadgeService
-    : public blink::mojom::BadgeService {
- public:
-  StubBadgeService() = default;
-  StubBadgeService(const StubBadgeService&) = delete;
-  StubBadgeService& operator=(const StubBadgeService&) = delete;
-  ~StubBadgeService() override = default;
-
-  void Bind(mojo::PendingReceiver<blink::mojom::BadgeService> receiver) {
-    receivers_.Add(this, std::move(receiver));
-  }
-
-  // blink::mojom::BadgeService:
-  void SetBadge(blink::mojom::BadgeValuePtr value) override {}
-  void ClearBadge() override {}
-
- private:
-  mojo::ReceiverSet<blink::mojom::BadgeService> receivers_;
-};
-
 void ShellContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
     content::RenderFrameHost* render_frame_host,
     mojo::BinderMapWithContext<content::RenderFrameHost*>* map) {
@@ -769,7 +749,8 @@ ShellContentBrowserClient::CreateURLLoaderThrottles(
     content::BrowserContext* browser_context,
     const base::RepeatingCallback<content::WebContents*()>& wc_getter,
     content::NavigationUIData* navigation_ui_data,
-    int frame_tree_node_id) {
+    content::FrameTreeNodeId frame_tree_node_id,
+    std::optional<int64_t> navigation_id) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   std::vector<std::unique_ptr<blink::URLLoaderThrottle>> result;
   if (browser_main_parts_->malware_detection_service()) {

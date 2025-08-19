@@ -131,11 +131,6 @@ ContentVerifier* ShellExtensionSystem::content_verifier() {
   return nullptr;
 }
 
-std::unique_ptr<ExtensionSet> ShellExtensionSystem::GetDependentExtensions(
-    const Extension* extension) {
-  return std::make_unique<ExtensionSet>();
-}
-
 void ShellExtensionSystem::InstallUpdate(
     const std::string& extension_id,
     const std::string& public_key,
@@ -150,13 +145,6 @@ void ShellExtensionSystem::PerformActionBasedOnOmahaAttributes(
     const std::string& extension_id,
     const base::DictValue& attributes) {
   NOTREACHED();
-}
-
-bool ShellExtensionSystem::FinishDelayedInstallationIfReady(
-    const std::string& extension_id,
-    bool install_immediately) {
-  NOTREACHED();
-  return false;
 }
 
 }  // namespace extensions

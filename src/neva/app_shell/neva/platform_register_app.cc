@@ -24,6 +24,7 @@
 #include "neva/pal_service/pal_platform_factory.h"
 #include "neva/pal_service/public/application_registrator_delegate.h"
 #include "ui/aura/window.h"
+#include "ui/display/types/display_constants.h"
 #include "ui/aura/window_tree_host.h"
 
 namespace {

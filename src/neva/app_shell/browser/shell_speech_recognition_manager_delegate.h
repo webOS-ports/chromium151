@@ -6,6 +6,9 @@
 #define NEVA_APP_SHELL_BROWSER_SHELL_SPEECH_RECOGNITION_MANAGER_DELEGATE_H_
 
 #include "content/public/browser/speech_recognition_event_listener.h"
+#include "build/build_config.h"
+#include "media/mojo/mojom/speech_recognition.mojom.h"
+#include "media/mojo/mojom/speech_recognition_result.mojom.h"
 #include "content/public/browser/speech_recognition_manager_delegate.h"
 
 namespace extensions {
@@ -28,18 +31,17 @@ class ShellSpeechRecognitionManagerDelegate
   // SpeechRecognitionEventListener methods.
   void OnRecognitionStart(int session_id) override;
   void OnAudioStart(int session_id) override;
-  void OnEnvironmentEstimationComplete(int session_id) override;
   void OnSoundStart(int session_id) override;
   void OnSoundEnd(int session_id) override;
   void OnAudioEnd(int session_id) override;
   void OnRecognitionEnd(int session_id) override;
   void OnRecognitionResults(
       int session_id,
-      const std::vector<blink::mojom::SpeechRecognitionResultPtr>& result)
+      const std::vector<media::mojom::WebSpeechRecognitionResultPtr>& results)
       override;
   void OnRecognitionError(
       int session_id,
-      const blink::mojom::SpeechRecognitionError& error) override;
+      const media::mojom::SpeechRecognitionError& error) override;
   void OnAudioLevelsChange(int session_id,
                            float volume,
                            float noise_volume) override;
@@ -50,7 +52,12 @@ class ShellSpeechRecognitionManagerDelegate
       base::OnceCallback<void(bool ask_user, bool is_allowed)> callback)
       override;
   content::SpeechRecognitionEventListener* GetEventListener() override;
-  bool FilterProfanities(int render_process_id) override;
+#if !BUILDFLAG(IS_FUCHSIA) && !BUILDFLAG(IS_ANDROID)
+  // app_shell has no on-device speech service; leave the receiver unbound.
+  void BindSpeechRecognitionContext(
+      mojo::PendingReceiver<media::mojom::SpeechRecognitionContext> receiver,
+      const std::string& language) override {}
+#endif
 
   static void CheckRenderFrameType(
       base::OnceCallback<void(bool ask_user, bool is_allowed)> callback,

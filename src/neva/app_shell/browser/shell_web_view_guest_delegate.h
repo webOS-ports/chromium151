@@ -23,6 +23,15 @@ class ShellWebViewGuestDelegate : public WebViewGuestDelegate {
   bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
                          const content::ContextMenuParams& params) override;
   void OnShowContextMenu(int request_id) override;
+  // M151 additions. app_shell applies no extra scheme blocks, has no default
+  // user agent override or client hints brand, and does not forward
+  // renderer-initiated OpenUrlFromTab to the owner WebContents.
+  bool NavigateToURLShouldBlock(const GURL& url) override;
+  std::optional<blink::UserAgentOverride> GetDefaultUserAgentOverride()
+      override;
+  void SetClientHintsEnabled(bool enable) override;
+  bool ShouldForwardOpenUrlFromTabToOwnerWebContents(
+      const GURL& owner_url) override;
 };
 
 }  // namespace extensions

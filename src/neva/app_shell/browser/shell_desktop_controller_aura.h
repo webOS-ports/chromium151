@@ -20,7 +20,7 @@
 #include "ui/base/ime/ime_key_event_dispatcher.h"
 #include "ui/display/display.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "ui/display/manager/display_configurator.h"
 #endif
@@ -47,7 +47,7 @@ class Size;
 
 namespace ui {
 class InputMethod;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 class UserActivityDetector;
 class UserActivityPowerManagerNotifier;
 #endif
@@ -76,7 +76,7 @@ class AppWindowClient;
 class ShellDesktopControllerAura
     : public DesktopController,
       public RootWindowController::DesktopDelegate,
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
       public chromeos::PowerManagerClient::Observer,
       public display::DisplayConfigurator::Observer,
 #endif
@@ -106,7 +106,7 @@ class ShellDesktopControllerAura
   void CloseRootWindowController(
       RootWindowController* root_window_controller) override;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // chromeos::PowerManagerClient::Observer:
   void PowerButtonEventReceived(bool down, base::TimeTicks timestamp) override;
 
@@ -159,7 +159,7 @@ class ShellDesktopControllerAura
   // relaunch.
   void MaybeQuit();
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // Returns the desired dimensions of the RootWindowController from the command
   // line, or falls back to a default size.
   gfx::Size GetStartingWindowSize();
@@ -171,7 +171,7 @@ class ShellDesktopControllerAura
 
   const raw_ptr<content::BrowserContext> browser_context_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<display::DisplayConfigurator> display_configurator_;
 #endif
 
@@ -190,7 +190,7 @@ class ShellDesktopControllerAura
 
   std::unique_ptr<wm::CursorManager> cursor_manager_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<ui::UserActivityDetector> user_activity_detector_;
   std::unique_ptr<ui::UserActivityPowerManagerNotifier> user_activity_notifier_;
 #endif

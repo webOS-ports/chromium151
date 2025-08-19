@@ -5,6 +5,7 @@
 #include "neva/app_shell/browser/shell_speech_recognition_manager_delegate.h"
 
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_frame_host.h"
@@ -34,10 +35,6 @@ void ShellSpeechRecognitionManagerDelegate::OnRecognitionStart(int session_id) {
 void ShellSpeechRecognitionManagerDelegate::OnAudioStart(int session_id) {
 }
 
-void ShellSpeechRecognitionManagerDelegate::OnEnvironmentEstimationComplete(
-    int session_id) {
-}
-
 void ShellSpeechRecognitionManagerDelegate::OnSoundStart(int session_id) {
 }
 
@@ -52,11 +49,11 @@ void ShellSpeechRecognitionManagerDelegate::OnRecognitionEnd(int session_id) {
 
 void ShellSpeechRecognitionManagerDelegate::OnRecognitionResults(
     int session_id,
-    const std::vector<blink::mojom::SpeechRecognitionResultPtr>& result) {}
+    const std::vector<media::mojom::WebSpeechRecognitionResultPtr>& results) {}
 
 void ShellSpeechRecognitionManagerDelegate::OnRecognitionError(
     int session_id,
-    const blink::mojom::SpeechRecognitionError& error) {}
+    const media::mojom::SpeechRecognitionError& error) {}
 
 void ShellSpeechRecognitionManagerDelegate::OnAudioLevelsChange(
     int session_id,
@@ -74,23 +71,18 @@ void ShellSpeechRecognitionManagerDelegate::CheckRecognitionIsAllowed(
 
   // Make sure that initiators (extensions/web pages) properly set the
   // |render_process_id| field, which is needed later to retrieve the profile.
-  DCHECK_NE(context.render_process_id, 0);
+  DCHECK(context.global_id.child_id);
 
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE,
       base::BindOnce(&CheckRenderFrameType, std::move(callback),
-                     context.render_process_id, context.render_frame_id));
+                     context.global_id.child_id.GetUnsafeValue(),
+                     context.global_id.frame_routing_id));
 }
 
 content::SpeechRecognitionEventListener*
 ShellSpeechRecognitionManagerDelegate::GetEventListener() {
   return this;
-}
-
-bool ShellSpeechRecognitionManagerDelegate::FilterProfanities(
-    int render_process_id) {
-  // TODO(zork): Determine where this preference should come from.
-  return true;
 }
 
 // static

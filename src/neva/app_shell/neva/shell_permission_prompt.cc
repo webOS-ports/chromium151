@@ -27,6 +27,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/values.h"
 #include "components/permissions/permission_uma_util.h"
+#include "components/permissions/resolvers/permission_prompt_options.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
@@ -67,15 +68,15 @@ void ShellPermissionPrompt::OnPromptResponse(
 }
 
 void ShellPermissionPrompt::AcceptPermission() {
-  delegate_->Accept();
+  delegate_->Accept(PromptOptions(std::monostate()));
 }
 
 void ShellPermissionPrompt::DenyPermission() {
-  delegate_->Deny();
+  delegate_->Deny(PromptOptions(std::monostate()));
 }
 
 void ShellPermissionPrompt::ClosingPermission() {
-  delegate_->Dismiss();
+  delegate_->Dismiss(PromptOptions(std::monostate()));
 }
 
 NevaPermissionsClientDelegate::NevaPermissionsClientDelegate() = default;

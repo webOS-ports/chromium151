@@ -18,12 +18,14 @@
 
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "neva/app_runtime/browser/installable/webapp_installable_manager.h"
 
 namespace neva_app_runtime {
 
 InstallableManager::InstallableManager(content::WebContents* web_contents)
     : content::WebContentsUserData<InstallableManager>(*web_contents),
       web_contents_(web_contents),
+      installable_manager_(std::make_unique<WebAppInstallableManager>()),
       weak_factory_(this) {}
 
 InstallableManager::~InstallableManager() {}
@@ -44,7 +46,7 @@ void InstallableManager::BindInstallableManager(
 }
 
 void InstallableManager::GetInfo(GetInfoCallback callback) {
-  installable_manager_.CheckInstallability(
+  installable_manager_->CheckInstallability(
       web_contents_,
       base::BindOnce(&InstallableManager::OnGetInfo, weak_factory_.GetWeakPtr(),
                      std::move(callback)));
@@ -57,7 +59,7 @@ void InstallableManager::OnGetInfo(GetInfoCallback callback,
 }
 
 void InstallableManager::InstallApp(InstallAppCallback callback) {
-  installable_manager_.InstallWebApp(
+  installable_manager_->InstallWebApp(
       web_contents_,
       base::BindOnce(&InstallableManager::OnInstallApp,
                      weak_factory_.GetWeakPtr(), std::move(callback)));
