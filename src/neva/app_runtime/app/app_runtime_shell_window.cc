@@ -141,7 +141,26 @@ void ShellWindow::KeyboardEnter() {}
 
 void ShellWindow::KeyboardLeave() {}
 
-void ShellWindow::WindowHostClose() {}
+// The compositor asking the window to go away -- closing the card in the webOS card shell, which
+// reaches us as a webOS shell-surface close through WaylandWindowWebos::HandleWindowHostClose() and
+// DesktopWindowTreeHostPlatform::OnWindowHostClose().
+//
+// Doing nothing here left the window gone but the process alive: WindowClosing() was never reached,
+// so neither the ShellWindowDelegate nor Shell::OnWindowClosing() heard about it, and
+// Shell::Shutdown() stayed reachable only from a page calling window.close(). For a browsershell app
+// that means closing the card leaves a whole browser_shell running -- renderers, GPU process and all
+// -- with nothing on screen; and since SAM still counts the app as running, relaunching re-shows the
+// old process rather than starting a new one.
+//
+// Widget::Close() rather than CloseNow(): this runs inside the platform window's own event dispatch,
+// and CloseNow() would synchronously destroy the DesktopWindowTreeHostPlatform and the
+// WaylandWindowWebos still on the stack below us. Close() defers the teardown, which is exactly what
+// DesktopWindowTreeHostPlatform::OnCloseRequest() does with an ordinary close request. It still ends
+// in WindowClosing(), so the delegate and Shell::OnWindowClosing() run as they should.
+void ShellWindow::WindowHostClose() {
+  if (window_widget_)
+    window_widget_->Close();
+}
 
 void ShellWindow::WindowHostExposed() {}
 
