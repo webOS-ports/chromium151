@@ -27,11 +27,13 @@
 #include "gpu/config/gpu_info.h"
 #include "gpu/ipc/common/gpu_client_ids.h"
 #include "gpu/ipc/host/gpu_disk_cache.h"
-#include "gpu/webgpu/dawn_commit_hash.h"
 #include "mojo/public/cpp/bindings/sync_call_restrictions.h"
 #include "services/webnn/host/weights_file_provider.h"
 #include "skia/buildflags.h"
 #include "skia/ext/skia_commit_hash.h"
+#if BUILDFLAG(SKIA_USE_DAWN)
+#include "gpu/webgpu/dawn_commit_hash.h"
+#endif
 #include "ui/gfx/font_render_params.h"
 
 #if BUILDFLAG(IS_ANDROID)
