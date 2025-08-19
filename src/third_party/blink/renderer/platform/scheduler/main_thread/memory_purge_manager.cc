@@ -238,7 +238,11 @@ base::TimeDelta MinTimeToPurgeAfterBackgrounded() {
     return base::Seconds(delay);
   }
 
-  return blink::MemoryPurgeManager::kMinTimeToPurgeAfterBackgrounded;
+  // NEVA: M151 dropped kMinTimeToPurgeAfterBackgrounded and now exposes only
+  // kDefaultMaxTimeToPurgeAfterBackgrounded, so both switch overrides fall back
+  // to that. (The Max helper below already returned the Min constant in M120 -
+  // that looks like a copy/paste slip, and this makes both consistent.)
+  return blink::MemoryPurgeManager::kDefaultMaxTimeToPurgeAfterBackgrounded;
 }
 
 base::TimeDelta MaxTimeToPurgeAfterBackgrounded() {
@@ -252,7 +256,7 @@ base::TimeDelta MaxTimeToPurgeAfterBackgrounded() {
     return base::Seconds(delay);
   }
 
-  return blink::MemoryPurgeManager::kMinTimeToPurgeAfterBackgrounded;
+  return blink::MemoryPurgeManager::kDefaultMaxTimeToPurgeAfterBackgrounded;
 }
 
 }  // namespace

@@ -128,10 +128,14 @@ class CORE_EXPORT HTMLMediaElement
       public neva::HTMLMediaElement<HTMLMediaElement>,
       ///@}
 #if defined(USE_NEVA_MEDIA)
+      // The neva mixin derives from MediaPlayerClient itself, so naming
+      // MediaPlayerClient again here would give HTMLMediaElement two copies
+      // of it - and of WebMediaPlayerClient underneath.
       private neva::HTMLMediaElementExtendingWebMediaPlayerClient<
-          HTMLMediaElement>,
-#endif
+          HTMLMediaElement> {
+#else
       private MediaPlayerClient {
+#endif
   DEFINE_WRAPPERTYPEINFO();
   USING_PRE_FINALIZER(HTMLMediaElement, Dispose);
 

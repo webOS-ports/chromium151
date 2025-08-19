@@ -8842,6 +8842,9 @@
       property_methods: ["ParseSingleValue", "CSSValueFromComputedStyleInternal"],
       inherited: true,
       style_builder_template: "empty",
+      // M151 requires properties with no field_template to name the extra
+      // field holding their data, so diffing can skip them.
+      stored_on_extra_field: ["NavigationIndex"],
     },
     // CSS UI directional focus navigation properties
     // See https://www.w3.org/TR/2021/WD-css-ui-4-20210316/#nav-dir
@@ -8850,24 +8853,36 @@
       property_methods: ["ParseSingleValue", "CSSValueFromComputedStyleInternal"],
       inherited: true,
       style_builder_template: "empty",
+      // M151 requires properties with no field_template to name the extra
+      // field holding their data, so diffing can skip them.
+      stored_on_extra_field: ["NavigationDataUp"],
     },
     {
       name: "nav-down",
       property_methods: ["ParseSingleValue", "CSSValueFromComputedStyleInternal"],
       inherited: true,
       style_builder_template: "empty",
+      // M151 requires properties with no field_template to name the extra
+      // field holding their data, so diffing can skip them.
+      stored_on_extra_field: ["NavigationDataDown"],
     },
     {
       name: "nav-left",
       property_methods: ["ParseSingleValue", "CSSValueFromComputedStyleInternal"],
       inherited: true,
       style_builder_template: "empty",
+      // M151 requires properties with no field_template to name the extra
+      // field holding their data, so diffing can skip them.
+      stored_on_extra_field: ["NavigationDataLeft"],
     },
     {
       name: "nav-right",
       property_methods: ["ParseSingleValue", "CSSValueFromComputedStyleInternal"],
       inherited: true,
       style_builder_template: "empty",
+      // M151 requires properties with no field_template to name the extra
+      // field holding their data, so diffing can skip them.
+      stored_on_extra_field: ["NavigationDataRight"],
     },
     // Descriptor only names
     {

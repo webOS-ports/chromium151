@@ -609,7 +609,7 @@ static void ProduceCacheInternal(
         base::UmaHistogramMicrosecondsTimes("V8.ProduceCodeCacheMicroseconds",
                                             timer.Elapsed());
 #if defined(USE_FILESCHEME_CODECACHE)
-        LOG(INFO) << "V8CodeCache Produce " << url.GetString().Utf8().data()
+        LOG(INFO) << "V8CodeCache Produce " << source_url.GetString().Utf8().data()
                   << "(" << cached_data->length << ")";
 #endif
       }

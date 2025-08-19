@@ -9814,61 +9814,6 @@ CSSValue* ConsumeFontSizeAdjust(CSSParserTokenStream& stream,
                                 CSSParserLocalContext& local_context) {
   if (stream.Peek().Id() == CSSValueID::kNone) {
     return css_parsing_utils::ConsumeIdent(stream);
-CSSValue* ConsumeNavigationDirection(CSSParserTokenRange& range) {
-  if (range.Peek().Id() == CSSValueID::kAuto)
-    return css_parsing_utils::ConsumeIdent(range);
-
-  if (range.Peek().GetType() != kHashToken ||
-      range.Peek().GetHashTokenType() != kHashTokenId)
-    return nullptr;
-
-  CSSValue* parsed_value1 = MakeGarbageCollected<CSSCustomIdentValue>(
-      range.ConsumeIncludingWhitespace().Value().ToAtomicString());
-  if (range.Peek().GetType() != kIdentToken &&
-      range.Peek().GetType() != kStringToken)
-    return parsed_value1;
-
-  CSSValue* parsed_value2 =
-      css_parsing_utils::ConsumeIdent<CSSValueID::kNavCurrent,
-                                      CSSValueID::kNavRoot>(range);
-  if (!parsed_value2) {
-    parsed_value2 = MakeGarbageCollected<CSSCustomIdentValue>(
-        range.ConsumeIncludingWhitespace().Value().ToAtomicString());
-  }
-
-  if (!parsed_value2)
-    return parsed_value1;
-
-  CSSValueList* values = CSSValueList::CreateSpaceSeparated();
-  values->Append(*parsed_value1);
-  values->Append(*parsed_value2);
-
-  return values;
-}
-
-CSSValue* ConsumeNavigationIndex(CSSParserTokenRange& range,
-                                 const CSSParserContext& context) {
-  if (range.Peek().Id() == CSSValueID::kAuto)
-    return css_parsing_utils::ConsumeIdent(range);
-  return css_parsing_utils::ConsumeInteger(range, context);
-}
-
-CSSValue* ConsumeCaretWidth(CSSParserTokenRange& range,
-                            const CSSParserContext& context) {
-  if (range.Peek().Id() == CSSValueID::kAuto)
-    return css_parsing_utils::ConsumeIdent(range);
-  CSSParserContext::ParserModeOverridingScope scope(context, kHTMLStandardMode);
-  CSSPrimitiveValue* caret_width = css_parsing_utils::ConsumeLength(
-      range, context, CSSPrimitiveValue::ValueRange::kNonNegative);
-  if (!caret_width)
-    return nullptr;
-  return caret_width;
-}
-
-CSSValue* ConsumeFontSizeAdjust(CSSParserTokenRange& range,
-                                const CSSParserContext& context) {
-  if (range.Peek().Id() == CSSValueID::kNone) {
-    return css_parsing_utils::ConsumeIdent(range);
   }
 
   CSSIdentifierValue* font_metric =
@@ -9890,6 +9835,62 @@ CSSValue* ConsumeFontSizeAdjust(CSSParserTokenRange& range,
 
   return MakeGarbageCollected<CSSValuePair>(font_metric, value,
                                             CSSValuePair::kKeepIdenticalValues);
+}
+
+CSSValue* ConsumeNavigationDirection(CSSParserTokenStream& stream) {
+  if (stream.Peek().Id() == CSSValueID::kAuto)
+    return css_parsing_utils::ConsumeIdent(stream);
+
+  if (stream.Peek().GetType() != kHashToken ||
+      stream.Peek().GetHashTokenType() != kHashTokenId)
+    return nullptr;
+
+  CSSValue* parsed_value1 = MakeGarbageCollected<CSSCustomIdentValue>(
+      stream.ConsumeIncludingWhitespace().Value().ToAtomicString());
+  if (stream.Peek().GetType() != kIdentToken &&
+      stream.Peek().GetType() != kStringToken)
+    return parsed_value1;
+
+  CSSValue* parsed_value2 =
+      css_parsing_utils::ConsumeIdent<CSSValueID::kNavCurrent,
+                                      CSSValueID::kNavRoot>(stream);
+  if (!parsed_value2) {
+    parsed_value2 = MakeGarbageCollected<CSSCustomIdentValue>(
+        stream.ConsumeIncludingWhitespace().Value().ToAtomicString());
+  }
+
+  if (!parsed_value2)
+    return parsed_value1;
+
+  CSSValueList* values = CSSValueList::CreateSpaceSeparated();
+  values->Append(*parsed_value1);
+  values->Append(*parsed_value2);
+
+  return values;
+}
+
+CSSValue* ConsumeNavigationIndex(CSSParserTokenStream& stream,
+                                 const CSSParserContext& context,
+                                 CSSParserLocalContext& local_context) {
+  if (stream.Peek().Id() == CSSValueID::kAuto)
+    return css_parsing_utils::ConsumeIdent(stream);
+  // M151 added the local context to ConsumeInteger().
+  return css_parsing_utils::ConsumeInteger(stream, context, local_context);
+}
+
+CSSValue* ConsumeCaretWidth(CSSParserTokenStream& stream,
+                            const CSSParserContext& context,
+                            CSSParserLocalContext& local_context) {
+  if (stream.Peek().Id() == CSSValueID::kAuto)
+    return css_parsing_utils::ConsumeIdent(stream);
+  CSSParserContext::ParserModeOverridingScope scope(context, kHTMLStandardMode);
+  // M151 added the local context to ConsumeLength().
+  CSSPrimitiveValue* caret_width = css_parsing_utils::ConsumeLength(
+      stream, context, local_context,
+      CSSPrimitiveValue::ValueRange::kNonNegative);
+  if (!caret_width)
+    return nullptr;
+  return caret_width;
 }
 
 namespace {

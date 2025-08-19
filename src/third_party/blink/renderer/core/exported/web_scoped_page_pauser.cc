@@ -31,4 +31,14 @@ WebScopedPagePauser::WebScopedPagePauser(WebLocalFrameImpl& frame) {
 
 WebScopedPagePauser::~WebScopedPagePauser() = default;
 
+#if defined(USE_NEVA_APPRUNTIME)
+// static
+std::unique_ptr<WebScopedPagePauser> WebScopedPagePauser::Create(
+    WebLocalFrame& frame) {
+  // WebLocalFrameImpl is the only implementation of WebLocalFrame.
+  return std::make_unique<WebScopedPagePauser>(
+      static_cast<WebLocalFrameImpl&>(frame));
+}
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
 }  // namespace blink

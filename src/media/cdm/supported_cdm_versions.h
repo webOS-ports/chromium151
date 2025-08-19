@@ -37,6 +37,18 @@ struct SupportedVersion {
   bool enabled;
 };
 
+// NEVA: webOS's CDM implements ContentDecryptionModule_8 as well as _10 (see
+// media/cdm/neva/webos/content_decryption_module_webos.h), so version 8 is
+// added to the upstream set. The merge to M151 lost the opening #if and the
+// #else here, leaving a stray #endif that closed the include guard early.
+#if defined(USE_NEVA_CDM)
+constexpr std::array<SupportedVersion, 4> kSupportedCdmInterfaceVersions = {{
+    {8, true},
+    {10, true},
+    {11, true},
+    {12, false},
+}};
+#else
 constexpr std::array<SupportedVersion, 3> kSupportedCdmInterfaceVersions = {{
     {10, true},
     {11, true},
@@ -53,6 +65,7 @@ constexpr std::array<SupportedVersion, 3> kSupportedCdmInterfaceVersions = {{
 constexpr int kMinSupportedCdmHostVersion = 8;
 #else
 constexpr int kMinSupportedCdmHostVersion = 10;
+#endif
 constexpr int kMaxSupportedCdmHostVersion = 12;
 
 constexpr bool IsSupportedCdmModuleVersion(int version) {

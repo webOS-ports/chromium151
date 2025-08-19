@@ -24,28 +24,30 @@
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/notimplemented.h"
 #include "cc/layers/video_layer.h"
 #include "cc/trees/layer_tree_host.h"
 #include "gpu/GLES2/gl2extchromium.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
-#include "gpu/command_buffer/common/mailbox_holder.h"
 #include "gpu/command_buffer/common/sync_token.h"
 #include "media/audio/null_audio_sink.h"
 #include "media/base/media_content_type.h"
 #include "media/base/media_log.h"
 #include "media/base/media_switches.h"
 #include "media/base/media_switches_neva.h"
+#include "media/base/media_track.h"
 #include "media/base/timestamp_constants.h"
 #include "media/neva/media_constants.h"
 #include "net/base/mime_util.h"
 #include "neva/logging.h"
 #include "third_party/blink/public/platform/web_media_player_source.h"
 #include "third_party/blink/public/platform/web_url.h"
-#include "third_party/blink/public/platform/webaudiosourceprovider_impl.h"
-#include "third_party/blink/public/web/modules/media/webmediaplayer_util.h"
+#include "third_party/blink/public/platform/web_audio_source_provider_impl.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_settings.h"
 #include "third_party/blink/public/web/web_view.h"
+#include "third_party/blink/renderer/platform/media/media_player_client.h"
+#include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/media/neva/media_info_loader.h"
 
 using gpu::gles2::GLES2Interface;
@@ -157,9 +159,9 @@ bool MediaPositionNeedsUpdate(
 }  // namespace
 
 namespace blink {
-WebMediaPlayer* WebMediaPlayerNeva::Create(
+std::unique_ptr<WebMediaPlayer> WebMediaPlayerNeva::Create(
     WebLocalFrame* frame,
-    WebMediaPlayerClient* client,
+    MediaPlayerClient* client,
     WebMediaPlayerDelegate* delegate,
     std::unique_ptr<media::MediaLog> media_log,
     WebMediaPlayerBuilder::DeferLoadCB defer_load_cb,
@@ -175,12 +177,12 @@ WebMediaPlayer* WebMediaPlayerNeva::Create(
           client->ContentMIMEType().Latin1());
   if (load_type == WebMediaPlayer::kLoadTypeURL &&
       media_player_type != media::MediaPlayerType::kMediaPlayerTypeNone)
-    return new WebMediaPlayerNeva(
+    return std::unique_ptr<WebMediaPlayer>(new WebMediaPlayerNeva(
         frame, client, delegate, std::move(media_log), std::move(defer_load_cb),
         std::move(audio_renderer_sink), std::move(compositor_task_runner),
         media_player_type, std::move(create_video_window_callback),
         application_id, use_unlimited_media_policy,
-        std::move(create_media_player_neva_cb));
+        std::move(create_media_player_neva_cb)));
   return nullptr;
 }
 
@@ -194,7 +196,7 @@ bool WebMediaPlayerNeva::CanSupportMediaType(const std::string& mime) {
 
 WebMediaPlayerNeva::WebMediaPlayerNeva(
     WebLocalFrame* frame,
-    WebMediaPlayerClient* client,
+    MediaPlayerClient* client,
     WebMediaPlayerDelegate* delegate,
     std::unique_ptr<media::MediaLog> media_log,
     WebMediaPlayerBuilder::DeferLoadCB defer_load_cb,
@@ -210,6 +212,7 @@ WebMediaPlayerNeva::WebMediaPlayerNeva(
       client_(client),
       delegate_(delegate),
       delegate_id_(0),
+      player_id_(GetNextMediaPlayerId()),
       defer_load_cb_(std::move(defer_load_cb)),
       seeking_(false),
       did_loading_progress_(false),
@@ -375,7 +378,7 @@ void WebMediaPlayerNeva::DoLoad(LoadType load_type,
   // scheme handlers in WAM we use it only for file scheme for now.
   // By using MediaInfoLoader url gets passed to network delegate which
   // does proper whitelist filtering for local file access.
-  GURL mediaUrl(url);
+  GURL mediaUrl = static_cast<GURL>(KURL(url));
   if (mediaUrl.SchemeIsFile() || mediaUrl.SchemeIsFileSystem()) {
     info_loader_.reset(new MediaInfoLoader(
         mediaUrl, base::BindRepeating(&WebMediaPlayerNeva::DidLoadMediaInfo,
@@ -463,7 +466,7 @@ void WebMediaPlayerNeva::Play() {
     delegate_->DidPlay(delegate_id_);
 }
 
-void WebMediaPlayerNeva::Pause() {
+void WebMediaPlayerNeva::Pause(PauseReason pause_reason) {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
   NEVA_LOGTF(INFO);
 
@@ -579,8 +582,8 @@ void WebMediaPlayerNeva::SetPreservesPitch(bool preserves_pitch) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
 
-void WebMediaPlayerNeva::SetWasPlayedWithUserActivation(
-    bool was_played_with_user_activation) {
+void WebMediaPlayerNeva::SetWasPlayedWithUserActivationAndHighMediaEngagement(
+    bool was_played_with_user_activation_and_high_media_engagement) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
 
@@ -722,6 +725,22 @@ bool WebMediaPlayerNeva::WouldTaintOrigin() const {
   return false;
 }
 
+namespace {
+
+// M151 keeps this helper file-local to web_media_player_impl.cc, so it has to
+// be duplicated here.
+WebTimeRanges ConvertToWebTimeRanges(
+    const media::Ranges<base::TimeDelta>& ranges) {
+  WebTimeRanges result(ranges.size());
+  for (size_t i = 0; i < ranges.size(); ++i) {
+    result[i].start = ranges.start(i).InSecondsF();
+    result[i].end = ranges.end(i).InSecondsF();
+  }
+  return result;
+}
+
+}  // namespace
+
 WebTimeRanges WebMediaPlayerNeva::Buffered() const {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
   if (!player_api_)
@@ -740,8 +759,7 @@ WebTimeRanges WebMediaPlayerNeva::Seekable() const {
   // TODO(dalecurtis): Technically this allows seeking on media which return an
   // infinite duration.  While not expected, disabling this breaks semi-live
   // players, http://crbug.com/427412.
-  const WebTimeRange seekable_range(0.0, Duration());
-  return WebTimeRanges(&seekable_range, 1);
+  return WebTimeRanges(0.0, Duration());
 }
 
 bool WebMediaPlayerNeva::DidLoadingProgress() {
@@ -767,7 +785,8 @@ void WebMediaPlayerNeva::SetVolumeMultiplier(double multiplier) {
 
 void WebMediaPlayerNeva::Paint(cc::PaintCanvas* canvas,
                                const gfx::Rect& rect,
-                               cc::PaintFlags& flags) {
+                               const cc::PaintFlags& flags,
+                               bool force_pixel_readback) {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
   // TODO(wanchang): check android impl
   return;
@@ -1039,13 +1058,11 @@ void WebMediaPlayerNeva::OnAudioTracksUpdated(
 
     // TODO(neva): Use kind info. And as per comment in WebMediaPlayerImpl,
     // only the first audio track is enabled by default to match blink logic.
-    WebMediaPlayer::TrackId track_id = GetClient()->AddAudioTrack(
-        WebString::FromUTF8(audio_track.id),
-        WebMediaPlayerClient::kAudioTrackKindMain,
-        WebString::FromUTF8("Audio Track"),
-        WebString::FromUTF8(audio_track.language), false);
-    if (!track_id.IsNull() && !track_id.IsEmpty())
-      audio_track_ids_.push_back(MediaTrackId(track_id, audio_track.id));
+    GetClient()->AddTrack(media::MediaTrack::CreateAudioTrack(
+        audio_track.id, media::MediaTrack::AudioKind::kMain, "Audio Track",
+        audio_track.language, /*enabled=*/false));
+    audio_track_ids_.push_back(
+        MediaTrackId(WebString::FromUtf8(audio_track.id), audio_track.id));
   }
 
   // TODO(neva): Should we remove unavailable audio track?
@@ -1084,7 +1101,7 @@ void WebMediaPlayerNeva::OnMediaPlayerPlay() {
 void WebMediaPlayerNeva::OnMediaPlayerPause() {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
   UpdatePlayingState(false);
-  client_->PausePlayback(WebMediaPlayerClient::PauseReason::kUnknown);
+  client_->PausePlayback(WebMediaPlayer::PauseReason::kPauseRequestedInternally);
 }
 
 void WebMediaPlayerNeva::UpdateNetworkState(
@@ -1136,7 +1153,7 @@ void WebMediaPlayerNeva::Repaint() {
   GetClient()->Repaint();
 }
 
-WebMediaPlayerClient* WebMediaPlayerNeva::GetClient() {
+MediaPlayerClient* WebMediaPlayerNeva::GetClient() {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
   NEVA_DCHECK(client_);
   return client_;
@@ -1149,7 +1166,7 @@ bool WebMediaPlayerNeva::UsesIntrinsicSize() const {
 
 WebString WebMediaPlayerNeva::MediaId() const {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
-  return WebString::FromUTF8(player_api_->MediaId());
+  return WebString::FromUtf8(player_api_->MediaId());
 }
 
 bool WebMediaPlayerNeva::HasAudioFocus() const {
@@ -1188,7 +1205,7 @@ void WebMediaPlayerNeva::OnCustomMessage(
       break;
   }
 
-  client_->SendCustomMessage(converted_event_type, WebString::FromUTF8(detail));
+  client_->SendCustomMessage(converted_event_type, WebString::FromUtf8(detail));
 }
 
 void WebMediaPlayerNeva::SetRenderMode(WebMediaPlayer::RenderMode mode) {
@@ -1222,7 +1239,7 @@ void WebMediaPlayerNeva::Suspend() {
   has_activation_permit_ = false;
   status_on_suspended_ = Paused() ? PausedStatus : PlayingStatus;
   if (status_on_suspended_ == PlayingStatus) {
-    client_->PausePlayback(WebMediaPlayerClient::PauseReason::kUnknown);
+    client_->PausePlayback(WebMediaPlayer::PauseReason::kPauseRequestedInternally);
   }
   if (HasVideo()) {
     video_frame_provider_->SetFrameType(VideoFrameProviderImpl::kBlack);
@@ -1316,13 +1333,17 @@ void WebMediaPlayerNeva::OnLoadPermitted() {
 }
 
 void WebMediaPlayerNeva::EnabledAudioTracksChanged(
-    const WebVector<TrackId>& enabled_track_ids) {
+    std::optional<TrackId> enabled_track_id) {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
-  auto it = std::find_if(
-      audio_track_ids_.begin(), audio_track_ids_.end(),
-      [&enabled_track_ids](const MediaTrackId& id) {
-        return enabled_track_ids[enabled_track_ids.size() - 1] == id.first;
-      });
+  // M120 took the last id of a WebVector; M151 hands over the single enabled
+  // track directly, which is what this always wanted.
+  if (!enabled_track_id) {
+    return;
+  }
+  auto it = std::find_if(audio_track_ids_.begin(), audio_track_ids_.end(),
+                         [&enabled_track_id](const MediaTrackId& id) {
+                           return *enabled_track_id == id.first;
+                         });
   if (it != audio_track_ids_.end())
     player_api_->SelectTrack(media::MediaTrackType::kAudio, it->second);
 }
@@ -1336,7 +1357,8 @@ bool WebMediaPlayerNeva::IsHLSStream() const {
 
 void WebMediaPlayerNeva::OnMediaSourceOpened(WebMediaSource* web_media_source) {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
-  client_->MediaSourceOpened(web_media_source);
+  // M151 takes ownership of the WebMediaSource.
+  client_->MediaSourceOpened(std::unique_ptr<WebMediaSource>(web_media_source));
 }
 
 bool WebMediaPlayerNeva::HasUnmutedAudio() const {
@@ -1408,6 +1430,33 @@ void WebMediaPlayerNeva::ContinuePlayerWithWindowId() {
     SetPreload(pending_request_.pending_preload_.value());
   if (pending_request_.pending_load_)
     LoadMedia();
+}
+
+void WebMediaPlayerNeva::Shutdown() {
+  NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
+  // M151 calls this just before destruction so the player can drop its client
+  // references; neva keeps no other state that outlives the client.
+  client_ = nullptr;
+}
+
+void WebMediaPlayerNeva::SetShouldPauseWhenFrameIsHidden(
+    bool should_pause_when_frame_is_hidden) {
+  // Neva drives backgrounded suspend from IsBackgroundedSuspendEnabled(), not
+  // from this per-element hint.
+}
+
+void WebMediaPlayerNeva::RecordAutoPictureInPictureInfo(
+    const media::PictureInPictureEventsInfo::AutoPipInfo&
+        auto_picture_in_picture_info) {
+  // Auto picture-in-picture metrics are not collected on webOS.
+}
+
+void WebMediaPlayerNeva::OnPageHidden() {
+  OnFrameHidden();
+}
+
+void WebMediaPlayerNeva::OnPageShown() {
+  OnFrameShown();
 }
 
 void WebMediaPlayerNeva::OnFrameHidden() {

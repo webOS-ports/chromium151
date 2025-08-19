@@ -22,6 +22,7 @@
 #include "third_party/blink/public/platform/web_url_response.h"
 #include "third_party/blink/public/web/web_associated_url_loader.h"
 #include "third_party/blink/public/web/web_local_frame.h"
+#include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/url_loader.h"
 
 namespace blink {
@@ -35,7 +36,7 @@ MediaInfoLoader::MediaInfoLoader(const GURL& url, const ReadyCB& ready_cb)
 MediaInfoLoader::~MediaInfoLoader() {}
 
 void MediaInfoLoader::Start(WebLocalFrame* frame) {
-  WebURLRequest request(url_);
+  WebURLRequest request{WebURL(KURL(url_))};
   request.SetRequestContext(mojom::RequestContextType::VIDEO);
   frame->SetReferrerForRequest(request, WebURL());
 
@@ -62,7 +63,7 @@ bool MediaInfoLoader::WillFollowRedirect(
     return false;
   }
 
-  url_ = new_url;
+  url_ = GURL(KURL(new_url));
   return true;
 }
 

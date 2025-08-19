@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
+#include "base/command_line.h"
+#include "third_party/blink/public/common/switches.h"
 
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"

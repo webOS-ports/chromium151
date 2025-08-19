@@ -38,8 +38,9 @@ class StyleNavigationData : public RefCounted<StyleNavigationData> {
   bool operator==(const StyleNavigationData& o) const;
   bool operator!=(const StyleNavigationData& o) const;
 
-  WTF::String id;
-  WTF::String target;
+  // M151: blink's String is no longer reachable as WTF::String here.
+  String id;
+  String target;
   ENavigationTarget flag = ENavigationTarget::NAVIGATION_TARGET_NONE;
 
  private:

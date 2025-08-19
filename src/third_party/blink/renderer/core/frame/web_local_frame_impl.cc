@@ -2874,15 +2874,23 @@ void WebLocalFrameImpl::CommitNavigation(
 void WebLocalFrameImpl::UpdateForSameDocumentNavigation(
     const std::string& new_url) {
   DCHECK(GetFrame());
+  // M151 added four parameters and dropped soft_navigation_heuristics_task_id.
+  // FirePopstate::kNo keeps the M120 behaviour: that release skipped the
+  // popstate branch outright for kHistoryApi, so a replaceState-style update
+  // never fired one. This entry point is driven by the app runtime rather than
+  // by a gesture, hence no transient activation and kNone involvement.
   GetFrame()->GetDocument()->Loader()->UpdateForSameDocumentNavigation(
-      blink::KURL(blink::KURL(),
-                  WTF::String::FromUTF8(new_url.data(), new_url.length())),
-      nullptr, mojom::blink::SameDocumentNavigationType::kHistoryApi, nullptr,
-      blink::WebFrameLoadType::kReplaceCurrentItem,
-      frame_->DomWindow()->GetSecurityOrigin(),
+      blink::KURL(blink::KURL(), String::FromUtf8(new_url)),
+      /*history_item=*/nullptr,
+      mojom::blink::SameDocumentNavigationType::kHistoryApi,
+      /*data=*/nullptr, blink::WebFrameLoadType::kReplaceCurrentItem,
+      FirePopstate::kNo, frame_->DomWindow()->GetSecurityOrigin(),
       /*is_browser_initiated=*/true,
       /*is_synchronously_committed=*/true,
-      /*soft_navigation_heuristics_task_id*/std::nullopt);
+      /*has_transient_user_activation=*/false,
+      UserNavigationInvolvement::kNone,
+      /*has_ua_visual_transition=*/false,
+      /*should_skip_screenshot=*/false);
 }
 #endif  // defined(USE_NEVA_APPRUNTIME)
 

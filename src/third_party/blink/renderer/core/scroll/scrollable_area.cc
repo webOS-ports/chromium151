@@ -1537,12 +1537,12 @@ ScrollableAreaTraversal::Iterator::operator++() {
 
   current_scrollable_area_ = nullptr;
   return *this;
+}
 
 bool ScrollableArea::IsWebOSNativeScrollEnabled() const {
   auto* document = GetDocument();
   return document->GetSettings() &&
          document->GetSettings()->GetWebOSNativeScrollEnabled();
-}
 }
 
 }  // namespace blink

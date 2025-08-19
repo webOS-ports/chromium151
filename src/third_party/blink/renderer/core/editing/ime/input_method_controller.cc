@@ -1907,7 +1907,7 @@ int InputMethodController::TextInputFlags() const {
     const AtomicString& sensitive =
         element->getAttribute(html_names::kSensitiveAttr);
     if (sensitive) {
-      if (sensitive.empty() || EqualIgnoringASCIICase(sensitive, "true"))
+      if (sensitive.empty() || EqualIgnoringAsciiCase(sensitive, "true"))
         flags |= kWebTextInputFlagSensitiveOn;
       else
         flags |= kWebTextInputFlagSensitiveOff;
@@ -1915,7 +1915,7 @@ int InputMethodController::TextInputFlags() const {
     const AtomicString& use_system_keyboard =
         element->getAttribute(html_names::kSystemkeyboardAttr);
     if (use_system_keyboard &&
-        EqualIgnoringASCIICase(use_system_keyboard, "false"))
+        EqualIgnoringAsciiCase(use_system_keyboard, "false"))
       flags |= kWebTextInputFlagSystemKeyboardOff;
     else
       flags |= kWebTextInputFlagSystemKeyboardOn;

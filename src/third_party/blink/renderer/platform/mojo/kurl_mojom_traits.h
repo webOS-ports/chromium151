@@ -25,7 +25,8 @@ struct StructTraits<url::mojom::UrlDataView, ::blink::KURL> {
     return blinkUrl.GetString();
   }
 #if defined(USE_NEVA_APPRUNTIME)
-  static std::optional<WTF::String> webapp_id(const ::blink::KURL& blinkUrl) {
+  static std::optional<blink::String> webapp_id(
+      const ::blink::KURL& blinkUrl) {
     return std::nullopt;
   }
 #endif

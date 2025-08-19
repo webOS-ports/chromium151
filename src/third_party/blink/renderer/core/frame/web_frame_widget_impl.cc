@@ -4048,7 +4048,10 @@ void WebFrameWidgetImpl::NotifyPresentationTime(
   // presentation histograms, so synthesising FrameTimingDetails carrying just
   // the swap timestamp is enough here.
   NotifySwapAndPresentationTime(
-      {.swap_time_callback = WTF::BindOnce(
+      // base::BindOnce, not the unqualified name: M151 added blink::BindOnce
+      // and the two are ambiguous here. swap_time_callback is a
+      // base::OnceCallback.
+      {.swap_time_callback = base::BindOnce(
            [](base::OnceCallback<void(const viz::FrameTimingDetails&)> callback,
               base::TimeTicks swap_time) {
              viz::FrameTimingDetails details;

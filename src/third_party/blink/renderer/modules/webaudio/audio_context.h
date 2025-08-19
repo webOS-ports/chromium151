@@ -182,6 +182,14 @@ class MODULES_EXPORT AudioContext final
   void SetPowerExperimentState(bool enabled) override {}
   void SetAudioSinkId(const String&) override {}
   void SuspendForFrameClosed() override {}
+#if defined(USE_NEVA_MEDIA)
+  // The neva mojom adds these two methods to MediaPlayer. M151 is the first
+  // release in which AudioContext implements that interface, so they need
+  // bodies here. Both are no-ops: on HTMLMediaElement they drive the webOS
+  // media pipeline through WebMediaPlayer, which an AudioContext has none of.
+  void RequestActivation() override {}
+  void RequestSuspend() override {}
+#endif  // defined(USE_NEVA_MEDIA)
   void RequestMediaRemoting() override {}
   void RequestVisibility(
       RequestVisibilityCallback request_visibility_cb) override {}

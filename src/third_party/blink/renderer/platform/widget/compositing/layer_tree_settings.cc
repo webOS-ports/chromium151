@@ -506,7 +506,7 @@ cc::LayerTreeSettings GenerateLayerTreeSettings(
 #if defined(USE_NEVA_APPRUNTIME)
   settings.use_aggressive_release_policy =
       base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kEnableAggressiveReleasePolicy);
+          ::switches::kEnableAggressiveReleasePolicy);
 
   if (cmd.HasSwitch(::switches::kDecodedImageWorkingSetBudgetMB)) {
     int budget_bytes_mb = 0;

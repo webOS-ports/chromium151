@@ -23,9 +23,14 @@
 #include <type_traits>
 
 #include "base/time/time.h"
+#include "third_party/blink/renderer/bindings/core/v8/script_value.h"
+#include "third_party/blink/renderer/core/dom/events/event.h"
+#include "third_party/blink/renderer/platform/bindings/script_state.h"
+#include "third_party/blink/renderer/bindings/core/v8/to_v8_traits.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/web_media_player_client.h"
+#include "third_party/blink/renderer/platform/media/media_player_client.h"
 #include "third_party/blink/public/web/web_view_client.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/core/dom/document.h"
@@ -40,7 +45,6 @@
 #include "third_party/blink/renderer/core/loader/cookie_jar.h"
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/page.h"
-#include "third_party/blink/renderer/platform/bindings/to_v8.h"
 #include "third_party/blink/renderer/platform/network/mime/content_type.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/weborigin/security_policy.h"
@@ -54,7 +58,7 @@ class HTMLMediaElement {
  public:
   HTMLMediaElement();
 
-  ScriptValue getStartDate(ScriptState* script_state) const;
+  ScriptObject getStartDate(ScriptState* script_state) const;
   double GetStartDate() const;
   const String mediaId() const;
   bool IsPlayed() const;
@@ -105,7 +109,7 @@ HTMLMediaElement<original_t>::HTMLMediaElement()
           RuntimeEnabledFeatures::SupportPreloadNoneOnMSEEnabled()) {}
 
 template <typename original_t>
-ScriptValue HTMLMediaElement<original_t>::getStartDate(
+ScriptObject HTMLMediaElement<original_t>::getStartDate(
     ScriptState* script_state) const {
   double start_date = GetStartDate();
   // When start date is NaN, it returns current time.
@@ -113,10 +117,11 @@ ScriptValue HTMLMediaElement<original_t>::getStartDate(
     start_date = 0.;
   }
   // getStartDate() returns a Date instance.
-  return ScriptValue(
+  // M151 removed platform/bindings/to_v8.h. Build the Date directly, as
+  // upstream now does in v8_binding_for_core.h.
+  return ScriptObject(
       script_state->GetIsolate(),
-      ToV8(base::Time::FromMillisecondsSinceUnixEpoch(start_date),
-           script_state));
+      v8::Date::New(script_state->GetContext(), start_date).ToLocalChecked());
 }
 
 template <typename original_t>
@@ -216,8 +221,12 @@ void HTMLMediaElement<original_t>::ScheduleEvent(const AtomicString& event_name,
 
   blink::CustomEvent* event = CustomEvent::Create();
   ScriptState::Scope script_scope(script_state);
-  event->initCustomEvent(script_state, event_name, false, true,
-                         ScriptValue::From(script_state, detail));
+  // M151: ScriptValue::From only accepts pointer types now; a String goes
+  // through ToV8Traits<IDLString>.
+  event->initCustomEvent(
+      script_state, event_name, false, true,
+      ScriptValue(script_state->GetIsolate(),
+                  ToV8Traits<IDLString>::ToV8(script_state, detail)));
   event->SetTarget(self);
   self->async_event_queue_->EnqueueEvent(FROM_HERE, *event);
 }
@@ -230,17 +239,18 @@ void HTMLMediaElement<original_t>::ParseContentType(
   DEFINE_STATIC_LOCAL(const String, mediaOption, ("mediaOption"));
   DEFINE_STATIC_LOCAL(const String, cameraOption, ("cameraOption"));
 
-  m_contentMIMEType = contentType.GetType().LowerASCII();
+  // M151 renamed String::LowerASCII to DeprecatedLower().
+  m_contentMIMEType = contentType.GetType().DeprecatedLower();
   m_contentTypeCodecs = contentType.Parameter(codecs);
   m_contentTypeDecoder = contentType.Parameter(decoder);
 
-  m_contentMediaOption = DecodeURLEscapeSequences(
-      contentType.Parameter(mediaOption), DecodeURLMode::kUTF8OrIsomorphic);
+  m_contentMediaOption = DecodeUrlEscapeSequences(
+      contentType.Parameter(mediaOption), DecodeUrlMode::kUtf8OrIsomorphic);
   if (!m_contentMediaOption.empty())
     VLOG(1) << "mediaOption=[" << m_contentMediaOption.Utf8().data() << "]";
   if (m_contentMIMEType == "service/webos-camera")
-    m_contentCustomOption = DecodeURLEscapeSequences(
-        contentType.Parameter(cameraOption), DecodeURLMode::kUTF8OrIsomorphic);
+    m_contentCustomOption = DecodeUrlEscapeSequences(
+        contentType.Parameter(cameraOption), DecodeUrlMode::kUtf8OrIsomorphic);
 }
 
 template <typename original_t>
@@ -270,7 +280,7 @@ bool HTMLMediaElement<original_t>::send(const String& message) {
 
 template <typename original_t>
 class HTMLMediaElementExtendingWebMediaPlayerClient
-    : public blink::WebMediaPlayerClient {
+    : public blink::MediaPlayerClient {
  public:
   void SendCustomMessage(const blink::WebMediaPlayer::MediaEventType,
                          const blink::WebString&) override;
@@ -427,8 +437,13 @@ WebString HTMLMediaElementExtendingWebMediaPlayerClient<original_t>::Cookies()
   uint64_t version;
   backend->GetCookiesString(
       self->currentSrc(), doc->SiteForCookies(), doc->TopFrameOrigin(),
-      doc->GetExecutionContext()->HasStorageAccess(),
-      /*get_version_shared_memory=*/false, /*is_ad_tagged*/ false, &version,
+      // M151: HasStorageAccess() became GetStorageAccessApiStatus(), and
+      // GetCookiesString() gained the devtools-override and
+      // force-disable-third-party-cookies parameters.
+      doc->GetExecutionContext()->GetStorageAccessApiStatus(),
+      /*get_version_shared_memory=*/false, /*is_ad_tagged=*/false,
+      /*should_apply_devtools_overrides=*/false,
+      /*force_disable_third_party_cookies=*/false, &version,
       &new_mapped_region, &value);
 
   return value;
@@ -506,7 +521,10 @@ void HTMLMediaElementExtendingWebMediaPlayerClient<
   if (self->GetWebMediaPlayer())
     self->cached_audio_focus_ = self->GetWebMediaPlayer()->HasAudioFocus();
 
-  self->ScheduleEvent(event_type_names::kWebosmediafocuschange);
+  // M151 dropped the ScheduleEvent(const AtomicString&) overload; only
+  // ScheduleEvent(Event*) remains.
+  self->ScheduleEvent(
+      Event::Create(event_type_names::kWebosmediafocuschange));
 }
 
 template <typename original_t>

@@ -24,7 +24,7 @@
 #include "media/base/pipeline_metadata.h"
 #include "media/base/renderer_factory.h"
 #include "media/base/video_frame.h"
-#include "third_party/blink/public/platform/media/webmediaplayer_delegate.h"
+#include "third_party/blink/public/platform/media/web_media_player_delegate.h"
 #include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_media_player.h"
 
@@ -42,9 +42,12 @@ class WebMediaPlayerEncryptedMediaClient;
 //  kHole    : Support video hole based media player
 //  kBlack   : Alternative video frame when unavailable from media player
 class BLINK_PLATFORM_EXPORT VideoFrameProviderImpl
-    : public cc::VideoFrameProvider,
-      public base::SupportsWeakPtr<VideoFrameProviderImpl> {
+    : public cc::VideoFrameProvider {
  public:
+  base::WeakPtr<VideoFrameProviderImpl> AsWeakPtr() {
+    return weak_factory_.GetWeakPtr();
+  }
+
   enum FrameType { kUnknown = 0, kBlack, kHole };
 
   VideoFrameProviderImpl(const scoped_refptr<base::SingleThreadTaskRunner>&
@@ -111,6 +114,10 @@ class BLINK_PLATFORM_EXPORT VideoFrameProviderImpl
  private:
   base::UnguessableToken overlay_plane_id_;
   FrameType frame_type_ = FrameType::kUnknown;
+
+  // M151 removed base::SupportsWeakPtr. AsWeakPtr() is kept as a shim so the
+  // existing neva call sites (web_media_player_webrtc.cc) keep working.
+  base::WeakPtrFactory<VideoFrameProviderImpl> weak_factory_{this};
 };
 
 }  // namespace blink

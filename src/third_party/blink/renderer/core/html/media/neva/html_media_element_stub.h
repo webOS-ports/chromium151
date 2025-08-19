@@ -22,7 +22,6 @@
 #include <limits>
 #include <type_traits>
 
-#include "third_party/blink/renderer/platform/bindings/to_v8.h"
 
 namespace blink {
 namespace neva {
@@ -49,10 +48,13 @@ template <typename original_t>
 ScriptValue HTMLMediaElement<original_t>::getStartDate(
     ScriptState* script_state) const {
   // getStartDate() returns a Date instance.
-  return ScriptValue(script_state->GetIsolate(),
-                     ToV8(base::Time::FromMillisecondsSinceUnixEpoch(
-                              std::numeric_limits<double>::quiet_NaN()),
-                          script_state));
+  // M151 removed platform/bindings/to_v8.h. Build the Date directly, as
+  // upstream now does in v8_binding_for_core.h.
+  return ScriptValue(
+      script_state->GetIsolate(),
+      v8::Date::New(script_state->GetContext(),
+                    std::numeric_limits<double>::quiet_NaN())
+          .ToLocalChecked());
 }
 
 template <typename original_t>

@@ -220,7 +220,7 @@ bool AdvanceFocusCSSNavigation(SpatialNavigationDirection direction,
 
     auto* element =
         target_document->getElementById(AtomicString(navigation->id));
-    if (element && element->IsKeyboardFocusable() &&
+    if (element && element->IsKeyboardFocusableSlow() &&
         element != interest_element) {
       element->Focus(FocusParams(SelectionBehaviorOnFocus::kReset,
                                  mojom::blink::FocusType::kSpatialNavigation,

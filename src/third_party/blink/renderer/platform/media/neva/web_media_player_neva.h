@@ -37,17 +37,18 @@
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/media_session/public/cpp/media_position.h"
+#include "third_party/blink/renderer/platform/media/player_id_generator.h"
 #include "third_party/blink/public/platform/media/neva/create_video_window_callback.h"
 #include "third_party/blink/public/platform/media/neva/video_frame_provider_impl.h"
 #include "third_party/blink/public/platform/media/web_media_player_builder.h"
-#include "third_party/blink/public/platform/media/webmediaplayer_delegate.h"
+#include "third_party/blink/public/platform/media/web_media_player_delegate.h"
 #include "third_party/blink/public/platform/web_audio_source_provider.h"
 #include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_media_player.h"
 #include "third_party/blink/public/platform/web_media_player_client.h"
 #include "third_party/blink/public/platform/web_media_player_source.h"
 #include "third_party/blink/public/platform/web_string.h"
-#include "third_party/blink/public/platform/web_vector.h"
+#include "third_party/blink/renderer/platform/media/media_player_client.h"
 #include "ui/platform_window/neva/mojom/video_window.mojom.h"
 #include "url/gurl.h"
 
@@ -96,9 +97,9 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   using MediaTrackId = std::pair<WebMediaPlayer::TrackId, std::string>;
 
   static bool CanSupportMediaType(const std::string& mime);
-  static WebMediaPlayer* Create(
+  static std::unique_ptr<WebMediaPlayer> Create(
       WebLocalFrame* frame,
-      WebMediaPlayerClient* client,
+      MediaPlayerClient* client,
       WebMediaPlayerDelegate* delegate,
       std::unique_ptr<media::MediaLog> media_log,
       WebMediaPlayerBuilder::DeferLoadCB defer_load_cb,
@@ -113,7 +114,7 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   // player api which is supported by target platform
   WebMediaPlayerNeva(
       WebLocalFrame* frame,
-      WebMediaPlayerClient* client,
+      MediaPlayerClient* client,
       WebMediaPlayerDelegate* delegate,
       std::unique_ptr<media::MediaLog> media_log,
       WebMediaPlayerBuilder::DeferLoadCB defer_load_cb,
@@ -135,14 +136,14 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
 
   // Playback controls.
   void Play() override;
-  void Pause() override;
+  void Pause(PauseReason pause_reason) override;
   void Seek(double seconds) override;
   void SetRate(double rate) override;
   void SetVolume(double volume) override;
   void SetLatencyHint(double seconds) override;
   void SetPreservesPitch(bool preserves_pitch) override;
-  void SetWasPlayedWithUserActivation(
-      bool was_played_with_user_activation) override;
+  void SetWasPlayedWithUserActivationAndHighMediaEngagement(
+      bool was_played_with_user_activation_and_high_media_engagement) override;
   void OnRequestPictureInPicture() override {}
   void OnTimeUpdate() override;
 
@@ -170,7 +171,8 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   // https://code.google.com/p/skia/issues/detail?id=1189
   void Paint(cc::PaintCanvas* canvas,
              const gfx::Rect& rect,
-             cc::PaintFlags& flags) override;
+             const cc::PaintFlags& flags,
+             bool force_pixel_readback) override;
 
   scoped_refptr<media::VideoFrame> GetCurrentFrameThenUpdate() override;
 
@@ -181,7 +183,18 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   bool HasAudio() const override;
 
   bool SupportsFullscreen() const;
-  int GetDelegateId() override;
+  int GetDelegateId();
+
+  // M151: HTMLMediaElement registers each player with the browser using
+  // GetPlayerId(). WebMediaPlayer's default returns -1, so without an override
+  // every neva player registers as the same MediaPlayerId. The id must come
+  // from GetNextMediaPlayerId() -- the same allocator WebMediaPlayerImpl,
+  // WebMediaPlayerMS and AudioContext use -- because a page can hold both a
+  // neva player and an upstream one at once (YouTube: URL playback on neva,
+  // MSE on WebMediaPlayerImpl). Using the delegate id here collides with that
+  // separate id space and MediaWebContentsObserver::OnMediaPlayerAdded rejects
+  // the duplicate with "Bad MediaPlayer request.", killing the renderer.
+  int GetPlayerId() override { return player_id_; }
   void SetPreload(Preload) override;
 
   // Dimensions of the video.
@@ -211,7 +224,7 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   uint64_t AudioDecodedByteCount() const override;
   uint64_t VideoDecodedByteCount() const override;
 
-  bool PassedTimingAllowOriginCheck() const override;
+  bool PassedTimingAllowOriginCheck() const;
 
   void SuspendForFrameClosed() override;
 
@@ -255,9 +268,22 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   // WebMediaPlayerDelegate::Observer interface stubs
   void OnFrameHidden() override;
   void OnFrameShown() override;
+  // M151 split page visibility out of frame visibility. Neva's backgrounded
+  // suspend was driven by the frame signal, so page transitions map onto the
+  // same handling.
+  void OnPageHidden() override;
+  void OnPageShown() override;
   void OnIdleTimeout() override {}
 
   scoped_refptr<WebAudioSourceProviderImpl> GetAudioSourceProvider() override;
+
+  // M151 additions to WebMediaPlayer.
+  void Shutdown() override;
+  void SetShouldPauseWhenFrameIsHidden(
+      bool should_pause_when_frame_is_hidden) override;
+  void RecordAutoPictureInPictureInfo(
+      const media::PictureInPictureEventsInfo::AutoPipInfo&
+          auto_picture_in_picture_info) override;
 
   void OnActiveRegionChanged(const gfx::Rect&) override;
 
@@ -281,8 +307,10 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   void Resume();
   void OnLoadPermitted();
 
+  // M151: WebMediaPlayer now reports a single optional track id rather than a
+  // WebVector (which upstream removed).
   void EnabledAudioTracksChanged(
-      const WebVector<TrackId>& enabledTrackIds) override;
+      std::optional<TrackId> enabled_track_id) override;
   bool Send(const std::string& message) override;
 
  private:
@@ -309,7 +337,7 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   void NotifyDownloading(bool is_downloading);
 
   // Getter method to |client_|.
-  WebMediaPlayerClient* GetClient();
+  MediaPlayerClient* GetClient();
 
   // Notifies blink of the video size change.
   // void OnVideoSizeChange();
@@ -348,7 +376,7 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   // for DCHECKs so methods calls won't execute in the wrong thread.
   const scoped_refptr<base::SingleThreadTaskRunner> main_task_runner_;
 
-  WebMediaPlayerClient* client_;
+  MediaPlayerClient* client_;
 
   // WebMediaPlayer notifies the |delegate_| of playback state changes using
   // |delegate_id_|; an id provided after registering with the delegate.  The
@@ -356,6 +384,10 @@ class BLINK_PLATFORM_EXPORT WebMediaPlayerNeva
   // via the WebMediaPlayerDelegate::Observer interface after registration.
   WebMediaPlayerDelegate* delegate_;
   int delegate_id_;
+
+  // Unique across every WebMediaPlayer flavour in the renderer; see
+  // GetPlayerId() above.
+  const int player_id_;
 
   // Callback responsible for determining if loading of media should be deferred
   // for external reasons; called during load().

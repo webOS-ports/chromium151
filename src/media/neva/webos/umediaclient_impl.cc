@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "media/neva/webos/umediaclient_impl.h"
+#include "base/notimplemented.h"
 
 #include <algorithm>
 
@@ -73,18 +74,27 @@ UMediaClientImpl::UMediaClientImpl(
 #if defined(USE_GST_MEDIA)
       luna_service_client_(app_id),
 #endif
-      app_id_(app_id),
-      umediaclient_extension_(
-          UMediaClientExtension::Create(AsWeakPtr(), main_task_runner)) {
-  // NOTE: AsWeakPtr() will create new valid WeakPtr even after it is
+      app_id_(app_id) {
+  // NEVA: umediaclient_extension_ must be created in the constructor BODY, not
+  // the initializer list. M120 used AsWeakPtr() from base::SupportsWeakPtr - a
+  // base class, fully constructed before any member initializer ran. M151
+  // removed SupportsWeakPtr, so this uses a base::WeakPtrFactory member, and
+  // members are initialized in declaration order: umediaclient_extension_ is
+  // declared well before weak_factory_, so calling weak_factory_.GetWeakPtr()
+  // from its initializer touched an unconstructed factory and crashed in
+  // base::internal::WeakReferenceOwner::GetRef() as soon as any media player
+  // was created (e.g. opening YouTube).
+  umediaclient_extension_ =
+      UMediaClientExtension::Create(weak_factory_.GetWeakPtr(), main_task_runner);
+  // NOTE: weak_factory_.GetWeakPtr() will create new valid WeakPtr even after it is
   // invalidated.
   // On our case, UMediaClientImpl will invalidate weakptr on its dtor
   // then will cleanup umediaclient message loop. (~UMediaClientImpl ->
   // ~SupportsWeakPtr -> ~uMediaClient -> ~WebOSMediaClient)
-  // In this situation, calling AsWeakPtr() on umediaclient message loop will
+  // In this situation, calling weak_factory_.GetWeakPtr() on umediaclient message loop will
   // cause this problem. To prevent this problem, we store on |weak_ptr_| and
   // use it on umediaclient message loop.
-  weak_ptr_ = AsWeakPtr();
+  weak_ptr_ = weak_factory_.GetWeakPtr();
 }
 
 UMediaClientImpl::~UMediaClientImpl() noexcept {

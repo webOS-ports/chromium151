@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/loader/document_loader.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include <string_view>
 #include <utility>

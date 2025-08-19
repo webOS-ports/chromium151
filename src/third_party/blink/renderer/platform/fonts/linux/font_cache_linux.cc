@@ -102,10 +102,12 @@ const SimpleFontData* FontCache::PlatformFallbackFontForCharacter(
       tmp_description.SetLocale(LayoutLocale::Get(locale));
       FontFaceCreationParams creation_params(
           tmp_description.Family().FamilyName());
-      FontPlatformData* platform_data =
+      // M151: GetFontPlatformData returns a const pointer.
+      const FontPlatformData* platform_data =
           GetFontPlatformData(tmp_description, creation_params);
       if (platform_data && platform_data->FontContainsCharacter(c))
-        return FontDataFromFontPlatformData(platform_data, kDoNotRetain);
+        // M151 dropped the ShouldRetain parameter.
+        return FontDataFromFontPlatformData(platform_data);
 
       // Set correspondence between locale and character to font cache so it
       // will retrieve correct font further on by the code.

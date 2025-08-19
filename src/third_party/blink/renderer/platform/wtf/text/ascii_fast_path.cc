@@ -20,7 +20,7 @@ constexpr inline MachineWord FillCharsInWord(LChar ch) {
 
 // Note: This function is heavily optimized to operate at the word-level where
 // possible because it's a hotspot function. In particular, it's called as part
-// of `blink::String::FromUTF8` as part of mojo conversion. See
+// of `blink::String::FromUtf8` as part of mojo conversion. See
 // crbug.com/441107248.
 template <>
 WTF_EXPORT AsciiStringAttributes

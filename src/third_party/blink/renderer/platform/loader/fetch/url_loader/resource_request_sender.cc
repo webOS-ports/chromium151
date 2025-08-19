@@ -74,33 +74,6 @@
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #endif
 
-namespace WTF {
-
-template <>
-struct CrossThreadCopier<
-    blink::WebVector<std::unique_ptr<blink::URLLoaderThrottle>>> {
-  STATIC_ONLY(CrossThreadCopier);
-  using Type = blink::WebVector<std::unique_ptr<blink::URLLoaderThrottle>>;
-  static Type Copy(Type&& value) { return std::move(value); }
-};
-
-template <>
-struct CrossThreadCopier<net::NetworkTrafficAnnotationTag>
-    : public CrossThreadCopierPassThrough<net::NetworkTrafficAnnotationTag> {
-  STATIC_ONLY(CrossThreadCopier);
-  using Type = net::NetworkTrafficAnnotationTag;
-  static const Type& Copy(const Type& traffic_annotation) {
-    return traffic_annotation;
-  }
-};
-
-template <>
-struct CrossThreadCopier<blink::WebVector<blink::WebString>>
-    : public CrossThreadCopierPassThrough<blink::WebVector<blink::WebString>> {
-  STATIC_ONLY(CrossThreadCopier);
-};
-
-}  // namespace WTF
 
 namespace blink {
 

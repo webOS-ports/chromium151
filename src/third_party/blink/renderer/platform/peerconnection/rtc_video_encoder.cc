@@ -1425,6 +1425,8 @@ void RTCVideoEncoder::Impl::RequireBitstreamBuffers(
     return;
 
   input_frame_coded_size_ = input_coded_size;
+  wtf_size_t input_buffers_requested_count =
+      input_count + kInputBufferExtraCount;
 #if defined(OS_WEBOS)
   // Scaling of input buffers to input_visible_size_ is done in Encode function.
   // input_frame_coded_size_ is set by the driver and it expects that the input

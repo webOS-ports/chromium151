@@ -111,6 +111,12 @@ struct ScrollData {
   // Used for GestureScrollBegin type only. If this is true, we use the scroll
   // sequence to do cursor control rather than scroll.
   bool cursor_control;
+
+  // NEVA: M120 carried scroll velocity here and M151 dropped it from the
+  // mojom, but WebGestureEvent still has velocity_x/velocity_y and the neva
+  // pipeline needs generated_from_mouse_wheel_event alongside them. The
+  // ScrollUpdate struct above is a neva addition for the same reason.
+  ScrollUpdate? update_details;
 };
 
 struct PinchBeginData {

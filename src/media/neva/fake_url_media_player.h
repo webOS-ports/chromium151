@@ -21,6 +21,7 @@
 #include <string>
 
 #include "base/memory/ref_counted.h"
+#include "base/memory/weak_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/time.h"
@@ -36,8 +37,7 @@ class RectF;
 
 namespace media {
 
-class FakeURLMediaPlayer : public base::SupportsWeakPtr<FakeURLMediaPlayer>,
-                           public media::MediaPlayerNeva {
+class FakeURLMediaPlayer : public media::MediaPlayerNeva {
  public:
   explicit FakeURLMediaPlayer(
       MediaPlayerNevaClient*,
@@ -147,6 +147,10 @@ class FakeURLMediaPlayer : public base::SupportsWeakPtr<FakeURLMediaPlayer>,
 
   scoped_refptr<base::SingleThreadTaskRunner> main_task_runner_;
   std::string app_id_;
+
+  // M151 removed base::SupportsWeakPtr; a WeakPtrFactory replaces it.
+  // Must stay the last member so it is destroyed first.
+  base::WeakPtrFactory<FakeURLMediaPlayer> weak_factory_{this};
 };
 
 }  // namespace media

@@ -49,9 +49,6 @@ StyleFetchedImage::StyleFetchedImage(ImageResourceContent* image,
 
   image_ = image;
   image_->AddObserver(this);
-  // ResourceFetcher is not determined from StyleFetchedImage and it is
-  // impossible to send a request for refetching.
-  image_->SetNotRefetchableDataFromDiskCache();
 
 #if defined(OS_WEBOS)
   if (!image_->IsLoaded() && url_.ProtocolIs("file") &&

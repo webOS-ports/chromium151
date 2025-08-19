@@ -13,6 +13,7 @@ namespace blink {
 
 class ScopedBrowsingContextGroupPauser;
 class ScopedPagePauser;
+class WebLocalFrame;
 class WebLocalFrameImpl;
 
 // WebScopedPagePauser implements the concept of 'pause' in HTML standard.
@@ -29,6 +30,17 @@ class WebScopedPagePauser {
   BLINK_EXPORT
 #endif  // defined(USE_NEVA_APPRUNTIME)
   explicit WebScopedPagePauser(WebLocalFrameImpl&);
+
+#if defined(USE_NEVA_APPRUNTIME)
+  // The constructor above takes WebLocalFrameImpl, which lives under
+  // //third_party/blink/renderer and may only be included from inside blink -
+  // M151 made that a hard error, and the -blink mojom variants it pulls in
+  // trip it. Both neva callers sit outside blink (content::RenderThreadImpl
+  // and neva_app_runtime::AppRuntimeRenderFrameObserver), so they go through
+  // this factory instead and the downcast happens on the blink side.
+  BLINK_EXPORT static std::unique_ptr<WebScopedPagePauser> Create(
+      WebLocalFrame&);
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
   WebScopedPagePauser(const WebScopedPagePauser&) = delete;
   WebScopedPagePauser& operator=(const WebScopedPagePauser&) = delete;

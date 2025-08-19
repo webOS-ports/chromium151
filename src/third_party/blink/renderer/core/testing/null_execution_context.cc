@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/testing/null_execution_context.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include "base/task/single_thread_task_runner.h"
 #include "third_party/blink/public/platform/browser_interface_broker_proxy.h"

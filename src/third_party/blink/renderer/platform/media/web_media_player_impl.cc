@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/media/web_media_player_impl.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include <algorithm>
 #include <cmath>
@@ -3606,7 +3607,7 @@ void WebMediaPlayerImpl::ScheduleIdlePauseTimer() {
 #if defined(USE_NEVA_MEDIA)
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kDisableWebMediaPlayerNeva) &&
-      IsHidden()) {
+      IsPageHidden()) {
     // In webOS resumeing playback whiile in background is not allowed
     return;
   }

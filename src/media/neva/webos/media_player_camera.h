@@ -33,8 +33,7 @@ class GURL;
 
 namespace media {
 
-class MediaPlayerCamera : public base::SupportsWeakPtr<MediaPlayerCamera>,
-                          public WebOSMediaClient::EventListener,
+class MediaPlayerCamera : public WebOSMediaClient::EventListener,
                           public media::MediaPlayerNeva {
  public:
   explicit MediaPlayerCamera(
@@ -116,6 +115,10 @@ class MediaPlayerCamera : public base::SupportsWeakPtr<MediaPlayerCamera>,
   double playback_rate_ = 1.0f;
 
   scoped_refptr<base::SingleThreadTaskRunner> main_task_runner_;
+
+  // M151 removed base::SupportsWeakPtr; a WeakPtrFactory replaces it.
+  // Must stay the last member so it is destroyed first.
+  base::WeakPtrFactory<MediaPlayerCamera> weak_factory_{this};
 };
 
 }  // namespace media

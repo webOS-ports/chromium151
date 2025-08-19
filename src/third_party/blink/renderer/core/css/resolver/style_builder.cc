@@ -97,7 +97,8 @@ void ApplyCSSNavigationProperty(CSSPropertyID id,
     navigation_index->is_auto = false;
     navigation_index->index =
         std::max(static_cast<int>(std::numeric_limits<short>::min()),
-                 std::min(To<CSSPrimitiveValue>(value).GetIntValue(),
+                 std::min(To<CSSPrimitiveValue>(value).ComputeInteger(
+                              state.CssToLengthConversionData()),
                           static_cast<int>(std::numeric_limits<short>::max())));
 
     state.GetElement().setTabIndex(navigation_index->index);

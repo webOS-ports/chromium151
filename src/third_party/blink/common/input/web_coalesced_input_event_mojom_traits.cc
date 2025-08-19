@@ -495,7 +495,10 @@ StructTraits<blink::mojom::EventDataView,
           gesture_event->data.scroll_begin.inertial_phase,
           gesture_event->data.scroll_begin.synthetic,
           gesture_event->data.scroll_begin.pointer_count,
-          gesture_event->data.scroll_begin.cursor_control);
+          gesture_event->data.scroll_begin.cursor_control,
+          // NEVA: update_details carries scroll velocity; only ScrollUpdate
+          // events have it.
+          nullptr);
       break;
     case blink::WebInputEvent::Type::kGestureScrollEnd:
       gesture_data->scroll_data = blink::mojom::ScrollData::New(
@@ -503,7 +506,7 @@ StructTraits<blink::mojom::EventDataView,
           gesture_event->data.scroll_end.delta_y_compensated,
           gesture_event->data.scroll_end.delta_units, false,
           gesture_event->data.scroll_end.inertial_phase,
-          gesture_event->data.scroll_end.synthetic, 0, false);
+          gesture_event->data.scroll_end.synthetic, 0, false, nullptr);
       break;
     case blink::WebInputEvent::Type::kGestureScrollUpdate:
       gesture_data->scroll_data = blink::mojom::ScrollData::New(

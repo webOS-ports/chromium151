@@ -101,6 +101,14 @@ source_set("cdm") {
       "supported_cdm_versions.h",
     ]
 
+    # NEVA: cdm_adapter.cc includes "widevine_cdm_version.h" unqualified.
+    # Upstream generates it into SHARED_INTERMEDIATE_DIR from the Widevine
+    # DEPS checkout, which is not present here; LG ships a webOS variant
+    # instead, so put its directory on the include path.
+    if (use_neva_cdm) {
+      include_dirs = [ "//third_party/widevine/cdm/webos" ]
+    }
+
     if (enable_cdm_host_verification) {
       sources += [
         "cdm_host_file.cc",

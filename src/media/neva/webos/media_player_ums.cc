@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "media/neva/webos/media_player_ums.h"
+#include "base/notimplemented.h"
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
@@ -53,7 +54,7 @@ const char* WebOSClientBufferingStateToString(
 namespace media {
 
 #define BIND_POST_TASK_TO_RENDER_LOOP(function) \
-  base::BindPostTaskToCurrentDefault(base::BindRepeating(function, AsWeakPtr()))
+  base::BindPostTaskToCurrentDefault(base::BindRepeating(function, weak_factory_.GetWeakPtr()))
 
 MediaPlayerUMS::MediaPlayerUMS(
     MediaPlayerNevaClient* client,
@@ -62,7 +63,7 @@ MediaPlayerUMS::MediaPlayerUMS(
     : client_(client), main_task_runner_(main_task_runner), app_id_(app_id) {
   NEVA_VLOGTF(1);
   umedia_client_ =
-      WebOSMediaClient::Create(main_task_runner_, AsWeakPtr(), app_id_);
+      WebOSMediaClient::Create(main_task_runner_, weak_factory_.GetWeakPtr(), app_id_);
 }
 
 MediaPlayerUMS::~MediaPlayerUMS() {

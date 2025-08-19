@@ -40,8 +40,7 @@ class LunaServiceClient;
 class UMediaClientExtension;
 
 class UMediaClientImpl : public WebOSMediaClient,
-                         public uMediaServer::uMediaClient,
-                         public base::SupportsWeakPtr<UMediaClientImpl> {
+                         public uMediaServer::uMediaClient {
  public:
   UMediaClientImpl(
       const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
@@ -263,6 +262,10 @@ class UMediaClientImpl : public WebOSMediaClient,
   base::WeakPtr<UMediaClientImpl> weak_ptr_;
   bool audio_disabled_ = false;
   std::string media_layer_id_;
+
+  // M151 removed base::SupportsWeakPtr; a WeakPtrFactory replaces it.
+  // Must stay the last member so it is destroyed first.
+  base::WeakPtrFactory<UMediaClientImpl> weak_factory_{this};
 };
 
 }  // namespace media

@@ -594,8 +594,7 @@ void PaintTiming::
                WrapWeakPersistent(this), index));
 }
 
-void PaintTiming::RegisterNotifyPresentationTime(PaintEvent event,
-                                                 ReportTimeCallback callback) {
+void PaintTiming::RegisterNotifyPresentationTime(ReportTimeCallback callback) {
   // ReportPresentationTime will queue a presentation-promise, the callback is
   // called when the compositor submission of the current render frame completes
   // or fails to happen.

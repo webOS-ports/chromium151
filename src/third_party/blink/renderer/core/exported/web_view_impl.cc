@@ -392,7 +392,7 @@ void ApplyCommandLineToSettings(WebSettings* settings) {
   // on blink side. In initial phase of this feature, all related changes
   // are blocked inside this condition.
   settings->SetWebOSNativeScrollEnabled(
-      command_line.HasSwitch(switches::kEnableWebOSNativeScroll));
+      command_line.HasSwitch(::switches::kEnableWebOSNativeScroll));
 #endif  // defined(USE_NEVA_APPRUNTIME)
 }
 

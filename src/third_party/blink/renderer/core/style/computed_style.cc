@@ -3200,6 +3200,11 @@ void ComputedStyleBuilder::SetUsedColorScheme(
 
   SetColorSchemeForced(forced_scheme);
 
+  const bool is_normal =
+      flags == static_cast<ColorSchemeFlags>(ColorSchemeFlag::kNormal);
+  SetColorSchemeFlagsIsNormal(is_normal);
+}
+
 scoped_refptr<StyleNavigationData> ComputedStyleBuilder::AccessNavigation(
     CSSPropertyID property) {
   switch (property) {
@@ -3273,12 +3278,6 @@ void ComputedStyleBuilder::InheritNavigation(
     default:
       break;
   }
-}
-
-CSSVariableData* ComputedStyleBuilder::GetVariableData(
-    const AtomicString& name,
-    bool is_inherited_property) const {
-  return blink::GetVariableData(*this, name, is_inherited_property);
 }
 
 StyleInheritedVariables& ComputedStyleBuilder::MutableInheritedVariables() {

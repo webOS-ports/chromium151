@@ -1036,8 +1036,8 @@ void LayoutText::UpdateTextIfNeeded() {
   // again set text
   Node* node = GetNode();
   if (node && node->IsEditingText()) {
-    if (previous_text_.length() == 0 && GetText().Impl()->length() == 1)
-      ForceSetText(GetText().Impl());
+    if (previous_text_.length() == 0 && TransformedText().length() == 1)
+      ForceSetText(TransformedText());
   }
 }
 

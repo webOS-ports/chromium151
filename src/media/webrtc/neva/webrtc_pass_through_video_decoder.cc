@@ -14,11 +14,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include <algorithm>
+
 #include "media/webrtc/neva/webrtc_pass_through_video_decoder.h"
 
 #include <mutex>
 
-#include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/aligned_memory.h"
@@ -286,7 +287,7 @@ void WebRtcPassThroughVideoDecoder::ReturnEncodedFrame(
           .set_rotation(webrtc::kVideoRotation_0)
           .build();
 
-  if (!base::Contains(decode_timestamps_, timestamp)) {
+  if (!std::ranges::contains(decode_timestamps_, timestamp)) {
     LOG(INFO) << __func__ << " Discarding frame with timestamp: " << timestamp;
     return;
   }

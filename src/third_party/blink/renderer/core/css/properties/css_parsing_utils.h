@@ -1094,8 +1094,12 @@ bool ContainsSafeAreaInsetBottom(StringView string);
 bool IsSimpleSum(StringView string);
 
 CSSValue* ConsumeNavigationDirection(CSSParserTokenStream&);
-CSSValue* ConsumeNavigationIndex(CSSParserTokenStream&, const CSSParserContext&);
-CSSValue* ConsumeCaretWidth(CSSParserTokenStream&, const CSSParserContext&);
+CSSValue* ConsumeNavigationIndex(CSSParserTokenStream&,
+                                 const CSSParserContext&,
+                                 CSSParserLocalContext&);
+CSSValue* ConsumeCaretWidth(CSSParserTokenStream&,
+                            const CSSParserContext&,
+                            CSSParserLocalContext&);
 
 }  // namespace css_parsing_utils
 }  // namespace blink

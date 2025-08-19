@@ -269,11 +269,9 @@ void FirstMeaningfulPaintDetector::ResetStateToMarkNextPaint() {
   defer_first_meaningful_paint_ = kDoNotDefer;
 
   paint_timing_->RegisterNotifyPresentationTime(
-      PaintEvent::kFirstContainerResetPaint,
-      CrossThreadBindOnce(
-          &FirstMeaningfulPaintDetector::ReportFirstContainerResetPaint,
-          WrapCrossThreadWeakPersistent(this),
-          PaintEvent::kFirstContainerResetPaint));
+      BindOnce(&FirstMeaningfulPaintDetector::ReportFirstContainerResetPaint,
+               WrapCrossThreadWeakPersistent(this),
+               PaintEvent::kFirstContainerResetPaint));
 
   if (GetDocument() && GetDocument()->GetFrame() &&
       GetDocument()->GetFrame()->GetIdlenessDetector())
@@ -289,7 +287,7 @@ void FirstMeaningfulPaintDetector::NotifyNonFirstMeaningfulPaint() {
 
 void FirstMeaningfulPaintDetector::ReportFirstContainerResetPaint(
     PaintEvent event,
-    base::TimeTicks timestamp) {}
+    const viz::FrameTimingDetails& presentation_details) {}
 #endif
 
 // static

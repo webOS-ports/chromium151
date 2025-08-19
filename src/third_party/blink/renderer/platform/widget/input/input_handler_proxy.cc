@@ -930,10 +930,14 @@ InputHandlerProxy::RouteToTypeSpecificHandler(
 
     case WebInputEvent::Type::kGestureScrollUpdate:
 #if defined(USE_NEVA_APPRUNTIME)
+      // NEVA: the only difference from upstream is the
+      // MaybeAdjustGestureScrollUpdate() wrapper. M151's
+      // HandleGestureScrollUpdate takes (event, metrics, trace_id) - the
+      // original_attribution parameter is an M120 leftover.
       return HandleGestureScrollUpdate(
           MaybeAdjustGestureScrollUpdate(
               static_cast<const WebGestureEvent&>(event)),
-          original_attribution, event_with_callback->metrics(),
+          event_with_callback->metrics(),
           event_with_callback->latency_info().trace_id());
 #else
       return HandleGestureScrollUpdate(

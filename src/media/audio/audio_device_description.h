@@ -138,6 +138,14 @@ struct MEDIA_EXPORT AudioDeviceDescription {
   std::string device_name;         // Friendly name of the device.
   std::string unique_id;           // Unique identifier for the device.
   std::string group_id;            // Group identifier.
+
+  ///@name USE_WEBOS_AUDIO
+  ///@{
+  // NEVA: the 120->151 merge dropped this member while keeping the mojom field
+  // and the StructTraits accessor that reads it. Unguarded, as in M120 - the
+  // mojom struct always carries display_id.
+  std::string display_id;  // Display Id (0 or 1) associated with the device
+  ///@}
   bool is_system_default = false;  // True if the device represented by this
                                    // description is the system default.
   bool is_communications_device =  // True if the device represented by this

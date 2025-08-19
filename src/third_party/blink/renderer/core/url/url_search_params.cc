@@ -134,7 +134,7 @@ void URLSearchParams::RunUpdateSteps() {
 }
 
 static String DecodeString(String input) {
-  // |DecodeURLMode::kUTF8| is used because "UTF-8 decode without BOM" should
+  // |DecodeUrlMode::kUTF8| is used because "UTF-8 decode without BOM" should
   // be performed (see https://url.spec.whatwg.org/#concept-urlencoded-parser).
   return DecodeUrlEscapeSequences(input.Replace('+', ' '),
                                   DecodeUrlMode::kUtf8);

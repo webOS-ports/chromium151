@@ -17,11 +17,14 @@
 #include "third_party/blink/public/platform/media/neva/video_frame_provider_impl.h"
 
 #include "base/command_line.h"
+#include "base/logging.h"
+#include "base/notimplemented.h"
 #include "media/base/media_log.h"
 #include "neva/logging.h"
 #include "third_party/blink/public/platform/web_media_player_client.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_settings.h"
+#include "third_party/blink/renderer/platform/media/media_player_client.h"
 #include "third_party/blink/public/web/web_view.h"
 
 namespace blink {
@@ -110,8 +113,8 @@ void VideoFrameProviderImpl::OnContextLost() {
   // current_frame_'s resource in the context has been lost, so current_frame_
   // is not valid any more. current_frame_ should be reset. Now the compositor
   // has no concept of resetting current_frame_, so a black frame is set.
-  if (!current_frame_ || (!current_frame_->HasTextures() &&
-                          !current_frame_->HasGpuMemoryBuffer())) {
+  // M151 folded HasTextures()/HasGpuMemoryBuffer() into HasSharedImage().
+  if (!current_frame_ || !current_frame_->HasSharedImage()) {
     return;
   }
   scoped_refptr<media::VideoFrame> black_frame =
@@ -137,7 +140,9 @@ void VideoFrameProviderImpl::Repaint() {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
 
   CHECK(GetClient());
-  GetClient()->Repaint();
+  // MediaPlayerClient is the only implementation of WebMediaPlayerClient, and
+  // it is where Repaint() lives as of M151.
+  static_cast<MediaPlayerClient*>(GetClient())->Repaint();
 }
 
 void VideoFrameProviderImpl::SetNaturalVideoSize(gfx::Size natural_video_size) {

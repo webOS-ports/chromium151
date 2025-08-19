@@ -3,7 +3,10 @@
 // found in the LICENSE file.
 //
 
+#include <algorithm>
+
 #include "media/gpu/v4l2/generic_v4l2_device.h"
+#include "base/logging.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -17,7 +20,6 @@
 
 #include <memory>
 
-#include "base/containers/contains.h"
 #include "base/files/scoped_file.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/strings/stringprintf.h"
@@ -226,7 +228,7 @@ bool GenericV4L2Device::CanCreateEGLImageFrom(const Fourcc fourcc) const {
 #endif
   };
 
-  return base::Contains(kEGLImageDrmFmtsSupported,
+  return std::ranges::contains(kEGLImageDrmFmtsSupported,
                         V4L2PixFmtToDrmFormat(fourcc.ToV4L2PixFmt()));
 }
 
@@ -553,7 +555,7 @@ std::string GenericV4L2Device::GetDevicePathFor(Type type, uint32_t pixfmt) {
   const Devices& devices = GetDevicesForType(type);
 
   for (const auto& device : devices) {
-    if (base::Contains(device.second, pixfmt))
+    if (std::ranges::contains(device.second, pixfmt))
       return device.first;
   }
 

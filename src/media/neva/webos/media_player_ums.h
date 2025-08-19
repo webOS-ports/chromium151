@@ -21,6 +21,7 @@
 #include <string>
 
 #include "base/memory/ref_counted.h"
+#include "base/memory/weak_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -38,8 +39,7 @@ class RectF;
 
 namespace media {
 
-class MediaPlayerUMS : public base::SupportsWeakPtr<MediaPlayerUMS>,
-                       public WebOSMediaClient::EventListener,
+class MediaPlayerUMS : public WebOSMediaClient::EventListener,
                        public media::MediaPlayerNeva {
  public:
   // Constructs a RendererMediaPlayerManager object for the |render_frame|.
@@ -134,6 +134,10 @@ class MediaPlayerUMS : public base::SupportsWeakPtr<MediaPlayerUMS>,
 
   scoped_refptr<base::SingleThreadTaskRunner> main_task_runner_;
   std::string app_id_;
+
+  // M151 removed base::SupportsWeakPtr; a WeakPtrFactory replaces it.
+  // Must stay the last member so it is destroyed first.
+  base::WeakPtrFactory<MediaPlayerUMS> weak_factory_{this};
 };
 
 }  // namespace media

@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "media/neva/webos/media_player_camera.h"
+#include "base/notimplemented.h"
 
 #include <algorithm>
 
@@ -33,7 +34,7 @@ MediaPlayerCamera::MediaPlayerCamera(
     : client_(client), app_id_(app_id), main_task_runner_(main_task_runner) {
   NEVA_VLOGTF(1);
   umedia_client_ =
-      WebOSMediaClient::Create(main_task_runner_, AsWeakPtr(), app_id_);
+      WebOSMediaClient::Create(main_task_runner_, weak_factory_.GetWeakPtr(), app_id_);
 }
 
 MediaPlayerCamera::~MediaPlayerCamera() {

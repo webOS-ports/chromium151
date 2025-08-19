@@ -82,8 +82,9 @@ class CORE_EXPORT FirstMeaningfulPaintDetector
 
 #if defined(USE_NEVA_APPRUNTIME)
   void NotifyNonFirstMeaningfulPaint();
-  void ReportFirstContainerResetPaint(PaintEvent event,
-                                      base::TimeTicks timestamp);
+  void ReportFirstContainerResetPaint(
+      PaintEvent event,
+      const viz::FrameTimingDetails& presentation_details);
 #endif
 
   bool next_paint_is_meaningful_ = false;

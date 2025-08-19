@@ -195,8 +195,8 @@ void WorkerMainScriptLoader::OnComplete(
 
 #if defined(USE_FILESCHEME_CODECACHE)
 bool WorkerMainScriptLoader::CanCreateCachedMetadataHandler() {
-  if (initial_request_url_.ProtocolIsInHTTPFamily() &&
-      resource_response_.CurrentRequestUrl().ProtocolIsInHTTPFamily()) {
+  if (initial_request_url_.ProtocolIsInHttpFamily() &&
+      resource_response_.CurrentRequestUrl().ProtocolIsInHttpFamily()) {
     return true;
   }
   // In the case of cache busting, codecache will be created but not used

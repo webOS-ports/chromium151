@@ -360,6 +360,7 @@ WebInputEventResult KeyboardEventManager::KeyEvent(
         if (!is_back_history_key_disabled) {
           frame_->Client()->NavigateBackForward(
               event->shiftKey() ? 1 : -1,
+              /*actual_navigation_start=*/base::TimeTicks::Now(),
               /*soft_navigation_heuristics_task_id=*/std::nullopt);
           event->SetDefaultHandled();
           return WebInputEventResult::kHandledSystem;

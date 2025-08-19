@@ -29,6 +29,7 @@
  */
 
 #include "third_party/blink/public/web/web_frame.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include <algorithm>
 #include <array>

@@ -109,7 +109,7 @@ CharacterAttributes(base::span<const CharacterType> chars) {
 }
 
 // Fast-path specialization for LChar as it's called very frequently by
-// String::FromUTF8.
+// String::FromUtf8.
 template <>
 WTF_EXPORT AsciiStringAttributes
 CharacterAttributes(base::span<const LChar> chars);
