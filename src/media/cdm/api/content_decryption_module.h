@@ -684,6 +684,12 @@ class CDM_CLASS_API Host_10;
 class CDM_CLASS_API Host_11;
 class CDM_CLASS_API Host_12;
 
+// NEVA: LG replaces this class with their webOS one. The replacement is
+// included on USE_NEVA_CDM (see media/cdm/cdm_wrapper.h et al), so the guard
+// has to key off the same macro - LG used USE_NEVA_MEDIA, which is identical
+// only while use_neva_cdm defaults to use_neva_media. With neva media on and
+// neva cdm off, that combination left the class defined nowhere.
+#if !defined(USE_NEVA_CDM)
 // ContentDecryptionModule interface that all CDMs need to implement.
 // The interface is versioned for backward compatibility.
 // Note: ContentDecryptionModule implementations must use the allocator
@@ -903,6 +909,7 @@ class CDM_CLASS_API ContentDecryptionModule_10 {
   ContentDecryptionModule_10() {}
   virtual ~ContentDecryptionModule_10() {}
 };
+#endif  // !defined(USE_NEVA_CDM)
 
 // ContentDecryptionModule interface that all CDMs need to implement.
 // The interface is versioned for backward compatibility.

@@ -450,7 +450,14 @@ DEFINE_EXPERIMENTAL_FEATURE(
     "ship a native queueMicrotask implementation on the global object")
 
 #ifdef V8_INTL_SUPPORT
+#if defined(OS_WEBOS)
+DEFINE_BOOL(icu_timezone_data, false, "get information about timezones from ICU")
+#else
 DEFINE_BOOL(icu_timezone_data, true, "get information about timezones from ICU")
+#endif
+// NEVA: only icu_timezone_data differs on webOS. icu_datetime_compat_lang is a
+// M151 addition that landed inside the #else during the rebase, which dropped
+// it on webOS while js-date-time-format.cc uses it unconditionally.
 DEFINE_STRING(icu_datetime_compat_lang, "*",
               "limits ICU date time compat changes to the given language")
 #endif
@@ -2874,6 +2881,20 @@ DEFINE_BOOL(
     "reclaim otherwise unreachable unmodified wrapper objects when possible")
 DEFINE_BOOL(parallel_reclaim_unmodified_wrappers, true,
             "reclaim wrapper objects in parallel")
+
+#if defined(USE_NEVA_APPRUNTIME)
+DEFINE_BOOL(configure_heap_details, false, "heap configurable values in detail")
+DEFINE_BOOL(trace_configure_heap_details, false, "trace configure_heap_details")
+DEFINE_UINT(minimum_allocation_limit_growing_step_size, 0,
+            "minimum allocation limit growing step size for old generation")
+DEFINE_UINT(high_fragmentation_slack, 0,
+            "high fragmentation slack to trigger mark compact")
+DEFINE_UINT(external_allocation_hard_limit, 0,
+            "external allocation hard limit for external memory to trigger GC")
+DEFINE_UINT(external_allocation_soft_limit, 0,
+            "external allocation soft limit to set external memory limit after "
+            "MarkCompact")
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
 DEFINE_BOOL(concurrent_marking_high_priority_threads, false,
             "use high priority threads for concurrent Marking")

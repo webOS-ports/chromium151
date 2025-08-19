@@ -384,6 +384,18 @@ declare_args() {
   # another shared library.
   v8_monolithic_for_shared_library = false
 
+  # NEVA: set this when V8's static libraries are linked into a shared library
+  # in a non-component build. webOS builds everything into libcbe.so, so V8's
+  # thread_locals must not use a static TLS model: g_current_isolate_ and
+  # LocalHeap's current_local_heap_ are declared
+  # __attribute__((tls_model(V8_TLS_MODEL))), which resolves to "local-exec"
+  # off-component and emits R_X86_64_TPOFF32 relocations that cannot appear in
+  # a .so. Defining V8_TLS_USED_IN_LIBRARY selects "local-dynamic" and routes
+  # the accessors through out-of-line getters, which is what COMPONENT_BUILD
+  # does. New in M151 (v8/src/common/thread-local-storage.h); M120 had no such
+  # thread_local, so the CBE build never hit this.
+  v8_tls_used_in_library = false
+
   # Experimental feature that uses SwissNameDictionary instead of NameDictionary
   # as the backing store for all dictionary mode objects.
   v8_enable_swiss_name_dictionary = false
@@ -1266,7 +1278,8 @@ config("features") {
     defines += [ "CPPGC_ALLOW_ALLOCATIONS_IN_PREFINALIZERS" ]
   }
 
-  if (v8_monolithic && v8_monolithic_for_shared_library) {
+  if ((v8_monolithic && v8_monolithic_for_shared_library) ||
+      v8_tls_used_in_library) {
     defines += [ "V8_TLS_USED_IN_LIBRARY" ]
   }
 
@@ -8040,6 +8053,7 @@ if (current_toolchain == v8_snapshot_toolchain) {
       ":v8_tracing",
       "//build/win:default_exe_manifest",
     ]
+
   }
 
   # This config disables a link time optimization "ICF", which may merge

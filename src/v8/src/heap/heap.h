@@ -725,6 +725,13 @@ class Heap final {
                      v8::CppHeap& cpp_heap);
   void ConfigureHeapDefault();
 
+#if defined(USE_NEVA_APPRUNTIME)
+  void ConfigureHeapDetails(size_t min_allocation_limit_growing_step_size,
+                            size_t high_fragmentation_slack,
+                            int external_allocation_hard_limit,
+                            int external_allocation_soft_limit);
+#endif
+
   // Prepares the heap, setting up for deserialization.
   void SetUp(LocalHeap* main_thread_local_heap);
 
@@ -1668,6 +1675,12 @@ class Heap final {
   V8_EXPORT_PRIVATE void Unmark();
   V8_EXPORT_PRIVATE void DeactivateMajorGCInProgressFlag();
 
+#if defined(USE_NEVA_APPRUNTIME)
+  size_t min_allocation_limit_growing_step_size() const {
+    return min_allocation_limit_growing_step_size_;
+  }
+#endif
+
   // Free all LABs in the heap.
   V8_EXPORT_PRIVATE void FreeLinearAllocationAreas();
 
@@ -2128,6 +2141,15 @@ class Heap final {
 
   size_t old_generation_capacity_after_bootstrap_ = 0;
 
+#if defined(USE_NEVA_APPRUNTIME)
+  // Configurable heap details, set through Heap::ConfigureHeapDetails() and
+  // v8::Isolate::CreateParams::ConfigureDetails().
+  size_t min_allocation_limit_growing_step_size_ = 0;
+  size_t high_fragmentation_slack_ = 0;
+  int external_allocation_hard_limit_ = 0;
+  int external_allocation_soft_limit_ = 0;
+#endif
+
   // For keeping track of how much data has survived
   // scavenge since last new space expansion.
   size_t survived_since_last_expansion_ = 0;
@@ -2350,6 +2372,10 @@ class Heap final {
   // Flag is set when the heap has been configured.  The heap can be repeatedly
   // configured through the API until it is set up.
   bool configured_ = false;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  bool configured_details_ = false;
+#endif
 
   // Currently set GC flags that are respected by all GC components.
   GCFlags current_gc_flags_ = GCFlag::kNoFlags;
