@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/app/app_runtime_js_dialog_manager.h"
+#include "base/notimplemented.h"
 
 #include "base/logging.h"
 #include "base/notreached.h"

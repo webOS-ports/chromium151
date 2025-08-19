@@ -40,10 +40,10 @@ class NevaExtensionsRendererClient
   // extensions::ExtensionsRendererClient implementation.
   bool IsIncognitoProcess() const override;
   int GetLowestIsolatedWorldId() const override;
-  extensions::Dispatcher* GetDispatcher() override;
+  extensions::Dispatcher* GetDispatcher();
   bool ExtensionAPIEnabledForServiceWorkerScript(
       const GURL& scope,
-      const GURL& script_url) const override;
+      const GURL& script_url) const;
 
   void WebViewCreated(blink::WebView* web_view,
                       const url::Origin* outermost_origin);

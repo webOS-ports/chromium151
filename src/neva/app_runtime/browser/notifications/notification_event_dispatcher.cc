@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/browser/notifications/notification_event_dispatcher.h"
+#include "base/notimplemented.h"
 
 #include "base/logging.h"
 #include "base/memory/singleton.h"

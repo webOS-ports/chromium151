@@ -15,8 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/webapp_window.h"
+#include "base/logging.h"
+#include "base/notimplemented.h"
 
 #include <climits>
+#include <utility>
 #include <cstdint>
 
 #include "base/strings/utf_string_conversions.h"
@@ -32,6 +35,7 @@
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/ime/input_method.h"
 #include "ui/base/ime/text_input_client.h"
+#include "ui/base/mojom/window_show_state.mojom-shared.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
@@ -124,7 +128,8 @@ class WebAppScrollObserver
           ->RemoveInputEventObserver(this);
   }
 
-  void OnInputEventAck(blink::mojom::InputEventResultSource source,
+  void OnInputEventAck(const content::RenderWidgetHost&,
+                       blink::mojom::InputEventResultSource source,
                        blink::mojom::InputEventResultState state,
                        const blink::WebInputEvent& event) override {
     if (event.GetType() == blink::WebInputEvent::Type::kMouseWheel &&
@@ -250,7 +255,7 @@ void WebAppWindow::SetupWebContents(content::WebContents* web_contents) {
     webview_->SetWebContents(web_contents);
     // Do layout after web contents has been attached so that correct bounds
     // will be propagated to content layer and render widget host.
-    Layout();
+    DeprecatedLayoutImmediately();
   }
 
   web_contents_ = web_contents;
@@ -769,15 +774,18 @@ void WebAppWindow::OnKeyEvent(ui::KeyEvent* event) {
       }
       break;
     default:
-      LOG(WARNING) << __func__ << "(): unknown key event type: " <<
-          event->type();
+      LOG(WARNING) << __func__ << "(): unknown key event type: "
+                   << std::to_underlying(event->type());
       break;
   }
 }
 
 void WebAppWindow::InitWindow() {
   widget_ = new views::Widget();
-  views::Widget::InitParams init_params(params_.type);
+  // M151 requires the ownership mode up front. WebAppWindow owns its own
+  // lifetime (see HandleDeleteDelegate), which is CLIENT_OWNS_WIDGET.
+  views::Widget::InitParams init_params(
+      views::Widget::InitParams::CLIENT_OWNS_WIDGET, params_.type);
   // Update params width and and height with current window rect because bounds
   // might have changed due to resize or orientation change. This is needed
   // for keep alive apps.when WebAppWindow is not getting destroyed but
@@ -813,7 +821,7 @@ void WebAppWindow::InitWindow() {
     aura::client::SetCursorClient(wth->window(), cursor_manager_.get());
   }
 
-  if (params_.show_state == ui::SHOW_STATE_FULLSCREEN)
+  if (params_.show_state == ui::mojom::WindowShowState::kFullscreen)
     widget_->SetFullscreen(true, display::kInvalidDisplayId);
 
   SetLocationHint(params_.location_hint);
@@ -967,9 +975,10 @@ void WebAppWindow::DidCompleteSwap() {
 }
 
 void WebAppWindow::HandleDeleteDelegate() {
-  SetOwnedByWidget(false);
-  set_owned_by_client();
-  RegisterDeleteDelegateCallback(base::BindOnce(
+  set_owned_by_client(views::View::OwnedByClientPassKey());
+  RegisterDeleteDelegateCallback(
+      views::WidgetDelegate::RegisterDeleteCallbackPassKey(),
+      base::BindOnce(
       [](WebAppWindow* window) {
         // In case of deferred_deleting_, WebAppWindow will be deleted by owner
         if (!window->deferred_deleting_ || window->widget_closed_) {

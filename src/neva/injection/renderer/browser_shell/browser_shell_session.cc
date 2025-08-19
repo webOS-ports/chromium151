@@ -14,6 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/browser_shell/browser_shell_session.h"
 
 #include "gin/handle.h"
@@ -46,8 +47,8 @@ v8::Local<v8::Object> BrowserShellSession::GetWebRequest(
   (*shell_service_)->CreateWebRequest(std::move(pending_receiver), partition_);
   gin::Handle<injections::BrowserShellWebRequest> handle =
       gin::CreateHandle(isolate,
-                        new BrowserShellWebRequest(
-                            isolate, std::move(remote_webrequest)));
+                        cppgc::MakeGarbageCollected<BrowserShellWebRequest>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, std::move(remote_webrequest)));
 
   auto local_webrequest = handle->GetWrapper(isolate).ToLocalChecked();
   webrequest_object_.Reset(isolate, local_webrequest);

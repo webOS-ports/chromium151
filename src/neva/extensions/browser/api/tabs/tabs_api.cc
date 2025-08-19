@@ -17,10 +17,13 @@
 #include "neva/extensions/browser/api/tabs/tabs_api.h"
 
 #include "base/strings/pattern.h"
+#include "content/public/browser/browser_context.h"
+#include "extensions/browser/extension_api_frame_id_map.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest_constants.h"
 #include "extensions/common/permissions/api_permission.h"
 #include "extensions/common/permissions/permissions_data.h"
+#include "net/http/http_response_headers.h"
 #include "neva/extensions/browser/api/tabs/tabs_constants.h"
 #include "neva/extensions/browser/extension_tab_util.h"
 #include "neva/extensions/browser/neva_extensions_service_factory.h"
@@ -124,7 +127,7 @@ ExtensionFunction::ResponseAction WindowsCreateFunction::Run() {
     return RespondNow(Error("We don't support missing url yet."));
   }
 
-  if (params->create_data->type != windows::CREATE_TYPE_POPUP) {
+  if (params->create_data->type != windows::CreateType::kPopup) {
     return RespondNow(Error("Only popup type window are supported now."));
   }
 
@@ -360,7 +363,7 @@ extensions::ExecuteCodeFunction::InitResult ExecuteCodeInTabFunction::Init() {
   }
 
   execute_tab_id_ = tab_id;
-  details_ = std::make_unique<InjectDetails>(std::move(*details));
+  details_ = std::move(details);
   set_host_id(extensions::mojom::HostID(
       extensions::mojom::HostID::HostType::kExtensions, extension()->id()));
   return set_init_result(SUCCESS);
@@ -451,6 +454,10 @@ extensions::ScriptExecutor* ExecuteCodeInTabFunction::GetScriptExecutor(
 
 bool ExecuteCodeInTabFunction::IsWebView() const {
   return false;
+}
+
+int ExecuteCodeInTabFunction::GetRootFrameId() const {
+  return extensions::ExtensionApiFrameIdMap::kTopFrameId;
 }
 
 const GURL& ExecuteCodeInTabFunction::GetWebViewSrc() const {

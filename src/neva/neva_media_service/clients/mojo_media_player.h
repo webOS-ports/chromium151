@@ -21,6 +21,7 @@
 #include <string>
 
 #include "base/component_export.h"
+#include "base/memory/weak_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
@@ -41,8 +42,7 @@ class RectF;
 namespace neva_media {
 
 class COMPONENT_EXPORT(NEVA_MEDIA_SERVICE) MojoMediaPlayer
-    : public base::SupportsWeakPtr<MojoMediaPlayer>,
-      public neva_media::mojom::MediaPlayerListener,
+    : public neva_media::mojom::MediaPlayerListener,
       public media::MediaPlayerNeva {
  public:
   explicit MojoMediaPlayer(
@@ -140,6 +140,10 @@ class COMPONENT_EXPORT(NEVA_MEDIA_SERVICE) MojoMediaPlayer
 
   MojoMediaPlayer(const MojoMediaPlayer&) = delete;
   MojoMediaPlayer& operator=(const MojoMediaPlayer&) = delete;
+
+  // M151 removed base::SupportsWeakPtr; a WeakPtrFactory replaces it.
+  // Must stay the last member so it is destroyed first.
+  base::WeakPtrFactory<MojoMediaPlayer> weak_factory_{this};
 };
 
 }  // namespace neva_media

@@ -37,7 +37,7 @@ void UserPermissionServiceImpl::ShowPrompt(
     request_types.push_back(static_cast<int32_t>(type));
 
   for (auto& listener : listeners_)
-    listener->ShowPrompt(requesting_url.host(), request_types);
+    listener->ShowPrompt(std::string(requesting_url.host()), request_types);
 }
 
 void UserPermissionServiceImpl::AddBinding(

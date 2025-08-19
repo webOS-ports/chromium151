@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/app/app_runtime_page_contents.h"
+#include "base/notimplemented.h"
 
 #include <vector>
 
@@ -23,7 +24,7 @@
 #include "base/json/json_reader.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/json/json_writer.h"
-#include "base/strings/string_piece.h"
+#include <string_view>
 #include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/uuid.h"
@@ -40,8 +41,9 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/color_parser.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "content/public/common/url_constants.h"
-#include "content/public/common/user_agent.h"
+#include "components/embedder_support/user_agent_utils.h"
 #include "net/base/auth.h"
 #include "net/base/net_errors.h"
 #include "net/base/url_util.h"
@@ -411,7 +413,8 @@ void PageContents::ExecuteJavaScriptInMainFrame(
   content::RenderFrameHost* rfh = web_contents_->GetPrimaryMainFrame();
   if (rfh && rfh->IsRenderFrameLive()) {
     rfh->ExecuteJavaScriptForTests(base::UTF8ToUTF16(code_string),
-                                   base::NullCallback());
+                                   base::NullCallback(),
+                                   content::ISOLATED_WORLD_ID_GLOBAL);
   }
 }
 
@@ -431,7 +434,7 @@ std::string PageContents::GetUserAgent() const {
 }
 
 double PageContents::GetZoomFactor() const {
-  return blink::PageZoomLevelToZoomFactor(
+  return blink::ZoomLevelToZoomFactor(
       content::HostZoomMap::GetZoomLevel(web_contents_.get()));
 }
 
@@ -594,7 +597,7 @@ void PageContents::SetZoomFactor(double factor) {
     return;
   zoom_factor_ = factor;
   content::HostZoomMap::SetZoomLevel(
-      web_contents_.get(), blink::PageZoomFactorToZoomLevel(zoom_factor_));
+      web_contents_.get(), blink::ZoomFactorToZoomLevel(zoom_factor_));
 }
 
 void PageContents::Stop() {
@@ -743,7 +746,8 @@ void PageContents::DidFinishNavigation(
   sending_challenge_info.port = auth_challenge_.value().challenger.port();
   sending_challenge_info.url = auth_challenge_.value().challenger.GetURL().spec();
   sending_challenge_info.scheme = auth_challenge_.value().scheme;
-  sending_challenge_info.host = auth_challenge_.value().challenger.host();
+  sending_challenge_info.host =
+      std::string(auth_challenge_.value().challenger.host());
   sending_challenge_info.realm = auth_challenge_.value().realm;
 
   delegate_->OnAuthChallenge(sending_challenge_info);
@@ -769,7 +773,8 @@ void PageContents::DidStopLoading() {
 
 void PageContents::DidUpdateFaviconURL(
     content::RenderFrameHost*,
-    const std::vector<blink::mojom::FaviconURLPtr>& candidates) {
+    const std::vector<blink::mojom::FaviconURLPtr>& candidates,
+    blink::mojom::FaviconUpdateReason) {
   std::vector<FaviconInfo> sending_info;
   sending_info.reserve(candidates.size());
   for (const auto& candidate : candidates) {
@@ -802,7 +807,8 @@ void PageContents::DidGetUserInteraction(const blink::WebInputEvent& event) {
       if (key_codes_filter_.find(keyboard_event.dom_key) !=
           key_codes_filter_.end()) {
         delegate_->OnKeyEvent(
-            ui::KeycodeConverter::DomKeyToKeyString(keyboard_event.dom_key),
+            ui::KeycodeConverter::DomKeyToKeyString(
+                ui::DomKey(keyboard_event.dom_key)),
             keyboard_event.dom_key);
       }
 
@@ -968,10 +974,11 @@ std::string PageContents::GetMediaPermissionName(
 
 bool PageContents::CheckMediaAccessPermission(
     content::RenderFrameHost* render_frame_host,
-    const GURL& security_origin,
+    const url::Origin& security_origin,
     blink::mojom::MediaStreamType type) {
   return MediaCaptureDevicesDispatcher::GetInstance()
-      ->CheckMediaAccessPermission(render_frame_host, security_origin, type);
+      ->CheckMediaAccessPermission(render_frame_host,
+                                   security_origin.GetURL(), type);
 }
 
 void PageContents::OverrideWebkitPrefs(
@@ -1085,7 +1092,7 @@ void PageContents::RenderFrameHostChanged(content::RenderFrameHost* old_host,
           &PageContents::OnZoomLevelChanged, base::Unretained(this)));
 }
 
-void PageContents::AddNewContents(
+content::WebContents* PageContents::AddNewContents(
     content::WebContents* source,
     std::unique_ptr<content::WebContents> new_contents,
     const GURL& target_url,
@@ -1093,6 +1100,9 @@ void PageContents::AddNewContents(
     const blink::mojom::WindowFeatures& window_features,
     bool user_gesture,
     bool* was_blocked) {
+  // M151 returns the contents that was added. Take the raw pointer before the
+  // unique_ptr is moved into the new PageContents below.
+  content::WebContents* added_contents = new_contents.get();
   NewWindowInfo window_info;
   window_info.target_url = target_url.spec();
   window_info.initial_width = window_features.bounds.width();
@@ -1132,6 +1142,7 @@ void PageContents::AddNewContents(
       std::unique_ptr<PageContents>(
           new PageContents(std::move(new_contents), params)),
       window_info);
+  return added_contents;
 }
 
 void PageContents::CloseContents(content::WebContents* source) {
@@ -1265,13 +1276,14 @@ void PageContents::OnZoomLevelChanged(
   if (net::GetHostOrSpecFromURL(web_contents_->GetLastCommittedURL()) ==
       change.host) {
     delegate_->OnZoomFactorChanged(
-        blink::PageZoomLevelToZoomFactor(change.zoom_level));
+        blink::ZoomLevelToZoomFactor(change.zoom_level));
   }
 }
 
 content::WebContents* PageContents::OpenURLFromTab(
     content::WebContents*,
-    const content::OpenURLParams& params) {
+    const content::OpenURLParams& params,
+    base::OnceCallback<void(content::NavigationHandle&)>) {
   if (ui::PageTransitionCoreTypeIs(
         params.transition, ui::PAGE_TRANSITION_LINK)) {
     OpenURLInfo open_info;

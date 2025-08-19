@@ -6,6 +6,7 @@
 // chrome/browser/permissions/origin_keyed_permission_action_service_factory.cc
 
 #include "neva/app_runtime/browser/permissions/origin_keyed_permission_action_service_factory.h"
+#include <memory>
 
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/permissions/origin_keyed_permission_action_service.h"
@@ -33,8 +34,8 @@ OriginKeyedPermissionActionServiceFactory::
 OriginKeyedPermissionActionServiceFactory::
     ~OriginKeyedPermissionActionServiceFactory() = default;
 
-KeyedService*
-OriginKeyedPermissionActionServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+OriginKeyedPermissionActionServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return new permissions::OriginKeyedPermissionActionService();
+  return std::make_unique<permissions::OriginKeyedPermissionActionService>();
 }

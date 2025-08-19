@@ -5,6 +5,7 @@
 // Copied from chrome/browser/permissions/chrome_permissions_client.cc
 
 #include "neva/app_runtime/browser/permissions/neva_permissions_client.h"
+#include "base/notimplemented.h"
 
 #include "base/notreached.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
@@ -37,13 +38,6 @@ NevaPermissionsClient::GetCookieSettings(
     content::BrowserContext* browser_context) {
   NOTIMPLEMENTED();
   return scoped_refptr<content_settings::CookieSettings>(nullptr);
-}
-
-privacy_sandbox::TrackingProtectionSettings*
-NevaPermissionsClient::GetTrackingProtectionSettings(
-    content::BrowserContext* browser_context) {
-  NOTIMPLEMENTED();
-  return nullptr;
 }
 
 bool NevaPermissionsClient::IsSubresourceFilterActivated(

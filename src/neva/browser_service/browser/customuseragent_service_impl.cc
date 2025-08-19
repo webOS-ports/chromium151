@@ -19,6 +19,8 @@
 #include <utility>
 
 #include "base/base64.h"
+#include "base/strings/string_view_util.h"
+#include "base/containers/span.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
@@ -27,8 +29,7 @@
 #include "base/values.h"
 #include "components/url_formatter/url_fixer.h"
 #include "content/shell/common/shell_neva_switches.h"
-#include "crypto/encryptor.h"
-#include "crypto/symmetric_key.h"
+#include "crypto/aes_ctr.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "neva/browser_service/browser/customuseragent_service_impl.h"
 
@@ -95,33 +96,22 @@ const std::string CustomUserAgentServiceImpl::ReadDataFromFile(
 std::string CustomUserAgentServiceImpl::GetEncryptedDataByKey(
     const std::string& cipher_key,
     const std::string& data) {
-  std::string encrypted_auth_key;
-  std::unique_ptr<crypto::SymmetricKey> key =
-      crypto::SymmetricKey::Import(crypto::SymmetricKey::AES, cipher_key);
-  if (!key) {
-    LOG(ERROR) << __func__ << " Failed to import key for AES encryption.";
-    return encrypted_auth_key;
-  }
-
-  crypto::Encryptor encryptor;
-  if (!encryptor.Init(key.get(), crypto::Encryptor::CTR, "")) {
-    LOG(ERROR) << __func__ << " Failed to initialize AES-CTR Encryptor.";
-    return encrypted_auth_key;
-  }
-
-  if (!encryptor.SetCounter(kInitializationVector)) {
-    LOG(ERROR) << __func__ << " Could not set counter block.";
-    return encrypted_auth_key;
-  }
-
-  if (!encryptor.Encrypt(data, &encrypted_auth_key)) {
-    LOG(ERROR) << __func__ << " Encryption Failed, Invalid key !!";
+  // M151 replaced crypto::SymmetricKey + crypto::Encryptor with the
+  // crypto::aes_ctr free functions operating on spans.
+  auto counter = base::as_byte_span(std::string_view(kInitializationVector));
+  if (counter.size() != crypto::aes_ctr::kCounterSize) {
+    LOG(ERROR) << __func__ << " Counter block must be "
+               << crypto::aes_ctr::kCounterSize << " bytes.";
     return std::string();
   }
 
-  std::string b64_decrypted_key;
-  base::Base64Encode(encrypted_auth_key, &b64_decrypted_key);
-  return b64_decrypted_key;
+  std::vector<uint8_t> encrypted = crypto::aes_ctr::Encrypt(
+      base::as_byte_span(cipher_key),
+      counter.first<crypto::aes_ctr::kCounterSize>(),
+      base::as_byte_span(data));
+
+  // M151: Base64Encode returns the string rather than writing an out-param.
+  return base::Base64Encode(encrypted);
 }
 
 const std::string CustomUserAgentServiceImpl::GetServerInfoFromDisk() {
@@ -140,33 +130,27 @@ const std::string CustomUserAgentServiceImpl::GetServerInfoFromDisk() {
     LOG(ERROR) << __func__ << " Empty User Agent authentication Data !";
     return decrypted_auth_data;
   }
-  std::unique_ptr<crypto::SymmetricKey> key =
-      crypto::SymmetricKey::Import(crypto::SymmetricKey::AES, cipher_key);
-  if (!key) {
-    LOG(ERROR) << __func__ << " Failed to import key for AES encryption.";
-    return decrypted_auth_data;
-  }
-
-  crypto::Encryptor encryptor;
-  if (!encryptor.Init(key.get(), crypto::Encryptor::CTR, "")) {
-    LOG(ERROR) << __func__ << " Failed to initialize AES-CTR Encryptor.";
-    return decrypted_auth_data;
-  }
-
-  if (!encryptor.SetCounter(kInitializationVector)) {
-    LOG(ERROR) << __func__ << " Could not set counter block.";
-    return decrypted_auth_data;
-  }
-
-  std::string b64_encrypted_data;
-  base::Base64Decode(encrypted_data, &b64_encrypted_data);
-
-  if (!encryptor.Decrypt(b64_encrypted_data, &decrypted_auth_data)) {
-    LOG(ERROR) << __func__ << " Decryption Failed, Invalid key !!";
+  // M151 replaced crypto::SymmetricKey + crypto::Encryptor with the
+  // crypto::aes_ctr free functions operating on spans.
+  auto counter = base::as_byte_span(std::string_view(kInitializationVector));
+  if (counter.size() != crypto::aes_ctr::kCounterSize) {
+    LOG(ERROR) << __func__ << " Counter block must be "
+               << crypto::aes_ctr::kCounterSize << " bytes.";
     return std::string();
   }
 
-  return decrypted_auth_data;
+  std::string raw_encrypted_data;
+  if (!base::Base64Decode(encrypted_data, &raw_encrypted_data)) {
+    LOG(ERROR) << __func__ << " Could not base64-decode the data.";
+    return std::string();
+  }
+
+  std::vector<uint8_t> decrypted = crypto::aes_ctr::Decrypt(
+      base::as_byte_span(cipher_key),
+      counter.first<crypto::aes_ctr::kCounterSize>(),
+      base::as_byte_span(raw_encrypted_data));
+
+  return std::string(base::as_string_view(decrypted));
 }
 
 }  // namespace browser

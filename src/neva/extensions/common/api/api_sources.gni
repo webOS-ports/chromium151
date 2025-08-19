@@ -17,7 +17,11 @@
 import("//build/config/features.gni")
 
 schema_sources_ = [
-  "scripting.idl",
+  # NOTE: no scripting.idl here. M151 moved the scripting API into
+  # //extensions/common/api, which app_shell already links; compiling a second
+  # copy into the same extensions::api::scripting namespace gave duplicate
+  # symbols at link time. Upstream also ships the browser-side implementation
+  # and registration for all seven scripting functions, so nothing is lost.
   "tabs.json",
   "windows.json",
 ]

@@ -16,12 +16,16 @@
 
 #include "neva/extensions/browser/neva_extension_loader.h"
 
+#include "base/command_line.h"
 #include "base/auto_reset.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
+#include "content/public/browser/browser_context.h"
+#include "extensions/common/constants.h"
 #include "extensions/browser/extension_file_task_runner.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registry.h"
@@ -31,8 +35,6 @@
 #include "extensions/common/url_pattern_set.h"
 
 namespace neva {
-
-using LoadErrorBehavior = extensions::ExtensionRegistrar::LoadErrorBehavior;
 
 namespace {
 
@@ -48,14 +50,14 @@ scoped_refptr<const extensions::Extension> LoadUnpacked(
   }
 
   int load_flags = extensions::Extension::FOLLOW_SYMLINKS_ANYWHERE;
-  std::string load_error;
+  std::u16string load_error;
   scoped_refptr<extensions::Extension> extension =
       extensions::file_util::LoadExtension(
           extension_dir, extensions::mojom::ManifestLocation::kCommandLine,
           load_flags, &load_error);
   if (!extension.get()) {
     LOG(ERROR) << "Loading extension at " << extension_dir.value()
-               << " failed with: " << load_error;
+               << " failed with: " << base::UTF16ToUTF8(load_error);
     return nullptr;
   }
 
@@ -75,7 +77,19 @@ scoped_refptr<const extensions::Extension> LoadUnpacked(
 NevaExtensionLoader::NevaExtensionLoader(
     content::BrowserContext* browser_context)
     : browser_context_(browser_context),
-      extension_registrar_(browser_context, this) {}
+      extension_registrar_(
+          extensions::ExtensionRegistrar::Get(browser_context)) {
+  // M151: ExtensionRegistrar became a KeyedService that the embedder has to
+  // initialise; without this its delegate_ is null and AddExtension() aborts
+  // on CHECK(delegate_). Chrome does this from ExtensionService's ctor.
+  if (!extension_registrar_->IsInitialized()) {
+    extension_registrar_->Init(
+        this, /*extensions_enabled=*/true, base::CommandLine::ForCurrentProcess(),
+        browser_context->GetPath().AppendASCII(extensions::kInstallDirectoryName),
+        browser_context->GetPath().AppendASCII(
+            extensions::kUnpackedInstallDirectoryName));
+  }
+}
 
 NevaExtensionLoader::~NevaExtensionLoader() = default;
 
@@ -107,7 +121,7 @@ const extensions::Extension* NevaExtensionLoader::LoadExtension(
     extension->permissions_data()->SetPermissions(std::move(new_active),
                                                   std::move(withheld));
 
-    extension_registrar_.AddExtension(extension);
+    extension_registrar_->AddExtension(extension);
   }
 
   return extension.get();
@@ -126,8 +140,7 @@ void NevaExtensionLoader::ReloadExtension(
   DCHECK_EQ(false, did_schedule_reload_);
   base::AutoReset<bool> reset_did_schedule_reload(&did_schedule_reload_, false);
 
-  extension_registrar_.ReloadExtension(std::move(extension_id),
-                                       LoadErrorBehavior::kQuiet);
+  extension_registrar_->ReloadExtensionWithQuietFailure(extension_id);
   // if (did_schedule_reload_)
   //   return;
 }
@@ -136,7 +149,7 @@ void NevaExtensionLoader::FinishExtensionReload(
     const extensions::ExtensionId old_extension_id,
     scoped_refptr<const extensions::Extension> extension) {
   if (extension) {
-    extension_registrar_.AddExtension(std::move(extension));
+    extension_registrar_->AddExtension(std::move(extension));
   }
 }
 
@@ -153,13 +166,11 @@ void NevaExtensionLoader::PreAddExtension(
   if (extension_prefs->IsExtensionDisabled(extension->id()) &&
       extension_prefs->HasDisableReason(
           extension->id(), extensions::disable_reason::DISABLE_RELOAD)) {
-    extension_prefs->RemoveDisableReason(
+    // M151: the registrar does remove-reason-and-re-enable-if-clear in one
+    // step; ExtensionPrefs::SetExtensionEnabled is gone and GetDisableReasons
+    // now returns a DisableReasonSet rather than a bitmask.
+    extension_registrar_->RemoveDisableReasonAndMaybeEnable(
         extension->id(), extensions::disable_reason::DISABLE_RELOAD);
-    // Only re-enable the extension if there are no other disable reasons.
-    if (extension_prefs->GetDisableReasons(extension->id()) ==
-        extensions::disable_reason::DISABLE_NONE) {
-      extension_prefs->SetExtensionEnabled(extension->id());
-    }
   }
 }
 
@@ -171,8 +182,7 @@ void NevaExtensionLoader::PostDeactivateExtension(
 
 void NevaExtensionLoader::LoadExtensionForReload(
     const extensions::ExtensionId& extension_id,
-    const base::FilePath& path,
-    LoadErrorBehavior load_error_behavior) {
+    const base::FilePath& path) {
   CHECK(!path.empty());
 
   extensions::GetExtensionFileTaskRunner()->PostTaskAndReplyWithResult(
@@ -182,20 +192,49 @@ void NevaExtensionLoader::LoadExtensionForReload(
   did_schedule_reload_ = true;
 }
 
-bool NevaExtensionLoader::CanEnableExtension(
-    const extensions::Extension* extension) {
+// M151: the quiet-failure variant exists so the registrar can reload without
+// surfacing an error to the user. Nothing here surfaces load errors anyway.
+void NevaExtensionLoader::LoadExtensionForReloadWithQuietFailure(
+    const extensions::ExtensionId& extension_id,
+    const base::FilePath& path) {
+  LoadExtensionForReload(extension_id, path);
+}
+
+bool NevaExtensionLoader::CanEnableExtension(const extensions::Extension* extension) {
   return true;
 }
 
-bool NevaExtensionLoader::CanDisableExtension(
-    const extensions::Extension* extension) {
+bool NevaExtensionLoader::CanDisableExtension(const extensions::Extension* extension) {
   // Extensions cannot be disabled by the user.
   return false;
 }
 
-bool NevaExtensionLoader::ShouldBlockExtension(
-    const extensions::Extension* extension) {
-  return false;
+// The remaining Delegate hooks below became pure virtual in M151. They belong
+// to the packed-install and enterprise-policy paths that this loader does not
+// have: extensions are loaded unpacked from the command line, never installed
+// through CrxInstaller, uninstalled, or disabled by policy. ExtensionRegistrar
+// only reaches them from paths this embedder never enters.
+void NevaExtensionLoader::OnAddNewOrUpdatedExtension(const extensions::Extension* extension) {}
+
+void NevaExtensionLoader::PreUninstallExtension(
+    scoped_refptr<const extensions::Extension> extension) {}
+
+void NevaExtensionLoader::PostUninstallExtension(
+    scoped_refptr<const extensions::Extension> extension,
+    base::OnceClosure done_callback) {
+  std::move(done_callback).Run();
 }
+
+void NevaExtensionLoader::ShowExtensionDisabledError(const extensions::Extension* extension,
+                                       bool is_remote_install) {}
+
+void NevaExtensionLoader::GrantActivePermissions(const extensions::Extension* extension) {}
+
+void NevaExtensionLoader::UpdateExternalExtensionAlert() {}
+
+void NevaExtensionLoader::OnExtensionInstalled(const extensions::Extension* extension,
+                                 const syncer::StringOrdinal& page_ordinal,
+                                 int install_flags,
+                                 base::DictValue ruleset_install_prefs) {}
 
 }  // namespace neva

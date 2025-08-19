@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/webview.h"
+#include "base/notimplemented.h"
 
 #include "base/command_line.h"
 #include "base/files/file_path.h"
@@ -24,9 +25,10 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/trace_event/trace_event.h"
 #include "cc/base/switches.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "components/media_control/browser/neva/media_suspender.h"
 #include "components/permissions/permission_request_manager.h"
-#include "content/browser/child_process_security_policy_impl.h"
+#include "content/browser/security/cpsp/child_process_security_policy_impl.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_aura.h"
 #include "content/browser/web_contents/web_contents_impl.h"
@@ -43,12 +45,12 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host_view.h"
-#include "content/public/browser/resource_context.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_switches.h"
-#include "content/public/common/user_agent.h"
+#include "components/embedder_support/user_agent_utils.h"
 #include "net/base/net_errors.h"
+#include "net/http/http_response_headers.h"
 #include "net/http/http_util.h"
 #include "neva/app_drm/appdrm_common.h"
 #include "neva/app_runtime/app/app_runtime_main_delegate.h"
@@ -75,6 +77,7 @@
 #include "ui/events/event_constants.h"
 #include "ui/events/event_utils.h"
 #include "ui/events/keycodes/dom/dom_code.h"
+#include "ui/events/keycodes/dom/dom_key.h"
 #include "ui/gfx/font_render_params.h"
 
 #if defined(USE_NEVA_MEDIA)
@@ -181,10 +184,10 @@ WebView::~WebView() {
     installable_manager_.UpdateApp();
 
   GetAppRuntimeContentBrowserClient()->RemovePwaAppOrigin(
-      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetID());
+      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID());
 
   GetAppRuntimeContentBrowserClient()->RemoveExternalLinkPermitList(
-      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetID());
+      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID());
 #endif  // ENABLE_PWA_MANAGER_WEBAPI
   web_contents_->SetDelegate(nullptr);
 }
@@ -202,7 +205,7 @@ void WebView::CreateRenderView() {
           static_cast<content::WebContentsImpl*>(web_contents_.get());
       content::RenderViewHost* rnd_view_host = rnd_frame_host->GetRenderViewHost();
       webcontents_impl->CreateRenderViewForRenderManager(
-          rnd_view_host, std::nullopt, nullptr);
+          rnd_view_host, std::nullopt, nullptr, std::nullopt);
     }
   }
 }
@@ -274,7 +277,7 @@ void WebView::LoadUrl(const GURL& url) {
 #if defined(ENABLE_PWA_MANAGER_WEBAPI)
   if (is_pwa_)
     GetAppRuntimeContentBrowserClient()->SetPwaAppOrigin(
-        web_contents_->GetPrimaryMainFrame()->GetProcess()->GetID(), url);
+        web_contents_->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(), url);
 #endif  // ENABLE_PWA_MANAGER_WEBAPI
   content::NavigationController::LoadURLParams params(url);
   params.transition_type = ui::PageTransitionFromInt(
@@ -396,7 +399,7 @@ void WebView::ResumePaintingAndSetVisibilityVisible() {
       static_cast<content::RenderWidgetHostViewAura*>(
           web_contents_->GetRenderViewHost()->GetWidget()->GetView());
   if (host_view) {
-    host_view->Show();
+    host_view->ShowWithVisibility(content::PageVisibilityState::kVisible);
     if (use_aggressive_release_policy_)
       host_view->ResumeDrawing();
   }
@@ -538,7 +541,8 @@ content::WebContents *WebView::CreateWindowForContents(std::unique_ptr<content::
 // If "should_fork == true" then we come here
 content::WebContents* WebView::OpenURLFromTab(
     content::WebContents* source,
-    const content::OpenURLParams& params) {
+    const content::OpenURLParams& params,
+    base::OnceCallback<void(content::NavigationHandle&)>) {
   TRACE_EVENT0("neva", "WebView::OpenURLFromTab");
 
   if (!source) {
@@ -561,11 +565,21 @@ content::WebContents* WebView::OpenURLFromTab(
   return target;
 }
 
-void WebView::AddNewContents(content::WebContents* source, std::unique_ptr<content::WebContents> new_contents, const GURL& target_url, WindowOpenDisposition disposition, const blink::mojom::WindowFeatures& window_features, bool user_gesture, bool* was_blocked)
-{
-    content::WebContents* newContent = CreateWindowForContents(std::move(new_contents), target_url, disposition, window_features, user_gesture);
-    if (was_blocked)
-        *was_blocked = !newContent;
+content::WebContents* WebView::AddNewContents(
+    content::WebContents* source,
+    std::unique_ptr<content::WebContents> new_contents,
+    const GURL& target_url,
+    WindowOpenDisposition disposition,
+    const blink::mojom::WindowFeatures& window_features,
+    bool user_gesture,
+    bool* was_blocked) {
+  content::WebContents* newContent = CreateWindowForContents(
+      std::move(new_contents), target_url, disposition, window_features,
+      user_gesture);
+  if (was_blocked)
+    *was_blocked = !newContent;
+  // M151 returns the newly added contents (null when the open was blocked).
+  return newContent;
 }
 
 void WebView::NavigationStateChanged(content::WebContents* source,
@@ -673,7 +687,7 @@ void WebView::SetSecurityOrigin(const std::string& identifier) {
   if (rvh) {
     GURL url = url::SchemeHostPort(url::kFileScheme, identifier, 0).GetURL();
     content::ChildProcessSecurityPolicyImpl::GetInstance()->GrantCommitURL(
-        rvh->GetProcess()->GetID(), url);
+        rvh->GetProcess()->GetDeprecatedID(), url);
   }
 
   web_contents_->SyncRendererPrefs();
@@ -903,7 +917,7 @@ void WebView::SetCorsCorbDisabled(bool disabled) {
   if (web_contents_->GetPrimaryMainFrame() &&
       web_contents_->GetPrimaryMainFrame()->GetProcess()) {
     GetAppRuntimeContentBrowserClient()->SetCorsCorbDisabled(
-        web_contents_->GetPrimaryMainFrame()->GetProcess()->GetID(), disabled);
+        web_contents_->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(), disabled);
   }
 }
 
@@ -1043,7 +1057,7 @@ void WebView::SetFocus(bool focus) {
 }
 
 double WebView::GetZoomFactor() {
-  return blink::PageZoomLevelToZoomFactor(
+  return blink::ZoomLevelToZoomFactor(
       content::HostZoomMap::GetZoomLevel(web_contents_.get()));
 }
 
@@ -1051,7 +1065,7 @@ void WebView::SetZoomFactor(double factor) {
   TRACE_EVENT1("neva", "WebView::SetZoomFactor", "factor", factor);
 
   content::HostZoomMap::SetZoomLevel(web_contents_.get(),
-                                     blink::PageZoomFactorToZoomLevel(factor));
+                                     blink::ZoomFactorToZoomLevel(factor));
 }
 
 void WebView::SetDoNotTrack(bool dnt) {
@@ -1112,12 +1126,14 @@ void WebView::ForwardAppRuntimeEvent(AppRuntimeEvent* event) {
       AppRuntimeKeyEvent* key_event = static_cast<AppRuntimeKeyEvent*>(event);
       int keycode = key_event->GetCode();
 
-      content::NativeWebKeyboardEvent native_event(
+      input::NativeWebKeyboardEvent native_event(
           ui::KeyEvent(event->GetType() == AppRuntimeKeyEvent::KeyPress
                            ? ui::EventType::kKeyPressed
                            : ui::EventType::kKeyReleased,
                        ui::KeyboardCode(keycode), ui::DomCode::NONE,
-                       key_event->GetFlags(), key_event->GetDomKey(),
+                       key_event->GetFlags(),
+                       ui::DomKey(static_cast<ui::DomKey::Base>(
+                           key_event->GetDomKey())),
                        base::TimeTicks()),
           wchar_t(keycode));
 
@@ -1151,7 +1167,7 @@ void WebView::GoBack() {
   if (!rwh)
     return;
 
-  content::NativeWebKeyboardEvent native_event(
+  input::NativeWebKeyboardEvent native_event(
       ui::KeyEvent(ui::EventType::kKeyPressed, ui::VKEY_BROWSER_BACK,
                    ui::DomCode::NONE, 0, ui::DomKey::GO_BACK,
                    base::TimeTicks()));
@@ -1279,10 +1295,10 @@ void WebView::DidFinishLoad(content::RenderFrameHost* render_frame_host,
 
     if (render_frame_host) {
       const net::HttpResponseHeaders* headers =
-          render_frame_host->GetLastResponseHeaders();
+          last_main_frame_response_headers_.get();
       if (headers) {
         GetAppRuntimeContentBrowserClient()->SetPwaExternalLinkPermitList(
-            web_contents_->GetPrimaryMainFrame()->GetProcess()->GetID(),
+            web_contents_->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(),
             headers);
       }
     }
@@ -1311,7 +1327,8 @@ void WebView::FinishLoadCallback(const std::string& url) {
 
 void WebView::DidUpdateFaviconURL(
     content::RenderFrameHost* rfh,
-    const std::vector<blink::mojom::FaviconURLPtr>& candidates) {
+    const std::vector<blink::mojom::FaviconURLPtr>& candidates,
+    blink::mojom::FaviconUpdateReason) {
   TRACE_EVENT0("neva", "WebView::DidUpdateFaviconURL");
 
   for (auto& candidate : candidates) {
@@ -1350,6 +1367,22 @@ void WebView::DidFinishNavigation(
   NEVA_DCHECK(navigation_handle);
   if (!navigation_handle)
     return;
+
+#if defined(ENABLE_PWA_MANAGER_WEBAPI)
+  // M151 removed RenderFrameHost::GetLastResponseHeaders(); the navigation
+  // handle is now the only place the committed document's headers are exposed,
+  // so keep them for DidFinishLoad, which is where the PWA external-link
+  // permit list is built.
+  if (navigation_handle->IsInPrimaryMainFrame() &&
+      navigation_handle->HasCommitted()) {
+    const net::HttpResponseHeaders* headers =
+        navigation_handle->GetResponseHeaders();
+    last_main_frame_response_headers_ =
+        headers ? base::MakeRefCounted<net::HttpResponseHeaders>(
+                      headers->raw_headers())
+                : nullptr;
+  }
+#endif
 
   if (navigation_handle->GetNetErrorCode() != net::OK) {
     // Handle main frame error only.
@@ -1535,12 +1568,13 @@ bool WebView::VideoCaptureAllowed() {
 
 bool WebView::CheckMediaAccessPermission(
     content::RenderFrameHost* render_frame_host,
-    const GURL& security_origin,
+    const url::Origin& security_origin,
     blink::mojom::MediaStreamType type) {
   TRACE_EVENT0("neva", "WebView::CheckMediaAccessPermission");
 
   return MediaCaptureDevicesDispatcher::GetInstance()
-      ->CheckMediaAccessPermission(render_frame_host, security_origin, type);
+      ->CheckMediaAccessPermission(render_frame_host,
+                                   security_origin.GetURL(), type);
 }
 
 void WebView::RequestMediaAccessPermission(
@@ -1632,7 +1666,7 @@ void WebView::SetV8SnapshotPath(const std::string& v8_snapshot_path) {
                v8_snapshot_path);
 
   GetAppRuntimeContentBrowserClient()->SetV8SnapshotPath(
-      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetID(), v8_snapshot_path);
+      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(), v8_snapshot_path);
 }
 
 void WebView::SetV8ExtraFlags(const std::string& v8_extra_flags) {
@@ -1640,12 +1674,12 @@ void WebView::SetV8ExtraFlags(const std::string& v8_extra_flags) {
                v8_extra_flags);
 
   GetAppRuntimeContentBrowserClient()->SetV8ExtraFlags(
-      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetID(), v8_extra_flags);
+      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(), v8_extra_flags);
 }
 
 void WebView::SetUseNativeScroll(bool use_native_scroll) {
   GetAppRuntimeContentBrowserClient()->SetUseNativeScroll(
-      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetID(),
+      web_contents_->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(),
       use_native_scroll);
 }
 

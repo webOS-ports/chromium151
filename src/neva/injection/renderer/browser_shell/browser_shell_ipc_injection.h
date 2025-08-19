@@ -42,6 +42,11 @@ class BrowserShellIpcInjection
       public browser_shell::mojom::ShellIpcEndpointClient {
  public:
   static gin::WrapperInfo kWrapperInfo;
+  // M151: gin::WrappableBase requires this virtual getter so an
+  // unwrap can type-check against the static kWrapperInfo.
+  const gin::WrapperInfo* wrapper_info() const override {
+    return &kWrapperInfo;
+  }
 
   static const char kChannelPropertyName[];
   static const char kPostMethodName[];

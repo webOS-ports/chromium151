@@ -22,8 +22,6 @@ source_set("extensions") {
     "browser/api/extension_action/extension_action_api.h",
     "browser/api/messaging/neva_messaging_delegate.cc",
     "browser/api/messaging/neva_messaging_delegate.h",
-    "browser/api/scripting/scripting_api.cc",
-    "browser/api/scripting/scripting_api.h",
     "browser/api/tabs/tabs_api.cc",
     "browser/api/tabs/tabs_api.h",
     "browser/api/tabs/tabs_constants.cc",

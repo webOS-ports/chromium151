@@ -17,6 +17,7 @@
 #include "neva/extensions/browser/extension_tab_util.h"
 
 #include "base/json/json_reader.h"
+#include "base/logging.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/event_router.h"
@@ -51,19 +52,19 @@ base::DictValue ExtensionTabUtil::CreateWindowValueForExtension(
 
   std::string type_str;
   switch (type) {
-    case windows::WINDOW_TYPE_POPUP:
+    case windows::WindowType::kPopup:
       type_str = "popup";
       break;
-    case windows::WINDOW_TYPE_PANEL:
+    case windows::WindowType::kPanel:
       type_str = "panel";
       break;
-    case windows::WINDOW_TYPE_APP:
+    case windows::WindowType::kApp:
       type_str = "app";
       break;
-    case windows::WINDOW_TYPE_DEVTOOLS:
+    case windows::WindowType::kDevtools:
       type_str = "devtools";
       break;
-    case windows::WINDOW_TYPE_NORMAL:
+    case windows::WindowType::kNormal:
     default:
       type_str = "normal";
       break;
@@ -103,16 +104,17 @@ void ExtensionTabUtil::DispatchTabsOnUpdated(content::BrowserContext* context,
 
   tabs::OnUpdated::ChangeInfo details;
   std::optional<base::DictValue> dict =
-      base::JSONReader::ReadDict(change_info);
+      base::JSONReader::ReadDict(change_info,
+                                base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!dict) {
     LOG(ERROR) << __func__ << " parsing change_info JSON has failed.";
     return;
   }
   const std::string* status = dict->FindString(tabs_constants::kStatusKey);
   if (status && *status == tabs_constants::kStatusLoading) {
-    details.status = tabs::TabStatus::TAB_STATUS_LOADING;
+    details.status = tabs::TabStatus::kLoading;
   } else {
-    details.status = tabs::TabStatus::TAB_STATUS_COMPLETE;
+    details.status = tabs::TabStatus::kComplete;
   }
 
   content::WebContents* web_contents =

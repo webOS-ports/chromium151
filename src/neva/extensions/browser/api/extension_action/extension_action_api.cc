@@ -72,7 +72,7 @@ void ExtensionActionAPI::DispatchExtensionActionClicked(
       extensions::events::UNKNOWN;
   auto event = std::make_unique<extensions::Event>(
       histogram_value, "action.onClicked", std::move(args), browser_context_);
-  event->user_gesture = extensions::EventRouter::USER_GESTURE_ENABLED;
+  event->user_gesture = extensions::EventRouter::UserGestureState::kEnabled;
   extensions::EventRouter::Get(browser_context_)
       ->DispatchEventToExtension(extension_id, std::move(event));
 }
@@ -116,7 +116,7 @@ ExtensionFunction::ResponseAction ExtensionActionFunction::Run() {
   } else {
     // Page actions do not have a default tabId.
     EXTENSION_FUNCTION_VALIDATE(extension_action_->action_type() !=
-                                extensions::ActionInfo::TYPE_PAGE);
+                                extensions::ActionInfo::Type::kPage);
   }
   return RunExtensionAction();
 }
@@ -130,7 +130,7 @@ bool ExtensionActionFunction::ExtractDataFromArguments() {
     return true;
   }
 
-  base::Value& first_arg = mutable_args()[0];
+  const base::Value& first_arg = args()[0];
 
   switch (first_arg.type()) {
     case base::Value::Type::INTEGER:
@@ -141,7 +141,7 @@ bool ExtensionActionFunction::ExtractDataFromArguments() {
       // Found the details argument.
       details_ = &first_arg.GetDict();
       // Still need to check for the tabId within details.
-      if (base::Value* tab_id_value = details_->Find("tabId")) {
+      if (const base::Value* tab_id_value = details_->Find("tabId")) {
         switch (tab_id_value->type()) {
           case base::Value::Type::NONE:
             // OK; tabId is optional, leave it default.
@@ -185,7 +185,7 @@ ExtensionActionShowFunction::RunExtensionAction() {
 ExtensionFunction::ResponseAction
 ExtensionActionSetPopupFunction::RunExtensionAction() {
   EXTENSION_FUNCTION_VALIDATE(details_);
-  std::string* popup_string = details_->FindString("popup");
+  const std::string* popup_string = details_->FindString("popup");
   EXTENSION_FUNCTION_VALIDATE(popup_string);
   GURL popup_url;
 
@@ -193,14 +193,10 @@ ExtensionActionSetPopupFunction::RunExtensionAction() {
   // back to an empty string (URL) will cause it to fall back to the default set
   // in the manifest.
   if (!popup_string->empty()) {
-    popup_url = extension()->GetResourceURL(*popup_string);
-    // Validate popup is same-origin (only for this extension). We do not
-    // validate the file exists (like we do in manifest validation) because an
-    // extension could potentially intercept the request with a service worker
-    // and dynamically provide content.
-    if (!extension()->origin().IsSameOriginWith(popup_url)) {
+    popup_url = extension()->ResolveExtensionURL(*popup_string);
+    if (!popup_url.is_valid()) {
       return RespondNow(
-          Error(extensions::manifest_errors::kInvalidExtensionOriginPopup));
+          Error(extensions::manifest_errors::kInvalidExtensionPopupPath));
     }
   }
 

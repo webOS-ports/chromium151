@@ -37,13 +37,6 @@ class NevaMessagingDelegate : public extensions::MessagingDelegate {
   content::WebContents* GetWebContentsByTabId(
       content::BrowserContext* browser_context,
       int tab_id) override;
-  std::unique_ptr<extensions::MessagePort> CreateReceiverForTab(
-      base::WeakPtr<extensions::MessagePort::ChannelDelegate> channel_delegate,
-      const std::string& extension_id,
-      const extensions::PortId& receiver_port_id,
-      content::WebContents* receiver_contents,
-      int receiver_frame_id,
-      const std::string& receiver_document_id) override;
 };
 
 }  // namespace neva

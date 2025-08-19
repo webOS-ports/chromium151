@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/browser_shell/service/browser_shell_webrequest_impl.h"
+#include "base/notimplemented.h"
 
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"

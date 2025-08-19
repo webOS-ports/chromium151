@@ -45,6 +45,36 @@ class NevaWebappsClient : public webapps::WebappsClient {
   webapps::AppBannerManager* GetAppBannerManager(
       content::WebContents* web_contents) override;
   bool IsOriginConsideredSecure(const url::Origin& url) override;
+  void DoesNewWebAppConflictWithExistingInstallation(
+      content::BrowserContext* browser_context,
+      const GURL& start_url,
+      const webapps::ManifestId& manifest_id,
+      WebAppInstallationConflictCallback callback) const override;
+  bool IsInAppBrowsingContext(
+      content::WebContents* web_contents) const override;
+  bool IsAppPartiallyInstalledForSiteUrl(
+      content::BrowserContext* browsing_context,
+      const GURL& site_url) const override;
+  bool IsAppFullyInstalledForSiteUrl(content::BrowserContext* browsing_context,
+                                     const GURL& site_url) const override;
+  bool IsUrlControlledBySeenManifest(content::BrowserContext* browsing_context,
+                                     const GURL& site_url) const override;
+  void OnManifestSeen(content::BrowserContext* browsing_context,
+                      const blink::mojom::Manifest& manifest) const override;
+  void SaveInstallationIgnoredForMl(content::BrowserContext* browsing_context,
+                                    const GURL& manifest_id) const override;
+  void SaveInstallationDismissedForMl(content::BrowserContext* browsing_context,
+                                      const GURL& manifest_id) const override;
+  void SaveInstallationAcceptedForMl(content::BrowserContext* browsing_context,
+                                     const GURL& manifest_id) const override;
+  bool IsMlPromotionBlockedByHistoryGuardrail(
+      content::BrowserContext* browsing_context,
+      const GURL& manifest_id) const override;
+  segmentation_platform::SegmentationPlatformService*
+  GetSegmentationPlatformService(
+      content::BrowserContext* browsing_context) const override;
+  std::optional<webapps::AppId> GetAppIdForWebContents(
+      content::WebContents* web_contents) override;
 
  private:
   friend base::NoDestructor<NevaWebappsClient>;

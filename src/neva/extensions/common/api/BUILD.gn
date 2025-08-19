@@ -93,13 +93,15 @@ function_registration("api_registration") {
 
   # M151 added custom_impl_schemas. The template now derives a default
   # {schema}/{schema}_api.h input under impl_dir for every source, and GN fails
-  # if it does not exist. These schemas either declare "implemented_in" (windows
-  # and the *_action trio share tabs_api.h / extension_action_api.h) or have no
-  # C++ implementation at all (app is a stub for `isChrome` checks), so they are
-  # excluded here and their real headers listed in inputs below.
+  # if it does not exist. These four declare "implemented_in" instead - windows
+  # and the *_action trio share tabs_api.h / extension_action_api.h - so they
+  # are excluded here and their real headers listed in inputs below.
+  #
+  # "app" is deliberately NOT excluded: it is a stub namespace with no
+  # functions, but M151's cpp_bundle_generator.py requires a header for every
+  # namespace, so it has a stub one at the default path.
   custom_impl_schemas = [
     "action",
-    "app",
     "browser_action",
     "page_action",
     "windows",

@@ -22,6 +22,7 @@
 #include "base/timer/timer.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "neva/app_runtime/public/app_runtime_constants.h"
+#include "ui/base/mojom/window_show_state.mojom-shared.h"
 #include "ui/display/display_observer.h"
 #include "ui/gfx/location_hint.h"
 #include "ui/views/widget/desktop_aura/neva/native_event_delegate.h"
@@ -67,7 +68,7 @@ class WebAppWindow : public views::NativeEventDelegate,
     gfx::Rect bounds;
     views::Widget::InitParams::Type type =
         views::Widget::InitParams::TYPE_WINDOW;
-    ui::WindowShowState show_state = ui::SHOW_STATE_DEFAULT;
+    ui::mojom::WindowShowState show_state = ui::mojom::WindowShowState::kDefault;
     content::WebContents* web_contents = nullptr;
     gfx::LocationHint location_hint = gfx::LocationHint::kUnknown;
   };

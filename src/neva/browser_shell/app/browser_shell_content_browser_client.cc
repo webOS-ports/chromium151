@@ -102,7 +102,7 @@ void BrowserShellContentBrowserClient::ExposeInterfacesToRenderer(
                            content::GetUIThreadTaskRunner({}));
 }
 
-void BrowserShellContentBrowserClient::SiteInstanceGotProcess(
+void BrowserShellContentBrowserClient::SiteInstanceGotProcessAndSite(
     content::SiteInstance* site_instance) {
   content::BrowserContext* browser_context = site_instance->GetBrowserContext();
   // We need to set the new cookie manager instance as it is changed
@@ -112,7 +112,7 @@ void BrowserShellContentBrowserClient::SiteInstanceGotProcess(
           ->GetCookieManagerForBrowserProcess();
   browser::CookieManagerServiceImpl::Get()->SetNetworkCookieManager(
       cookie_manager);
-  AppRuntimeContentBrowserClient::SiteInstanceGotProcess(site_instance);
+  AppRuntimeContentBrowserClient::SiteInstanceGotProcessAndSite(site_instance);
 }
 
 bool BrowserShellContentBrowserClient::IsNevaDynamicProxyEnabled() {
@@ -126,7 +126,8 @@ BrowserShellContentBrowserClient::CreateURLLoaderThrottles(
     content::BrowserContext* browser_context,
     const base::RepeatingCallback<content::WebContents*()>& wc_getter,
     content::NavigationUIData* navigation_ui_data,
-    int frame_tree_node_id) {
+    content::FrameTreeNodeId frame_tree_node_id,
+    std::optional<int64_t> navigation_id) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   std::vector<std::unique_ptr<blink::URLLoaderThrottle>> result;
   BrowserShellBrowserMainParts* main_parts =
@@ -138,8 +139,9 @@ BrowserShellContentBrowserClient::CreateURLLoaderThrottles(
   return result;
 }
 
-void BrowserShellContentBrowserClient::OverrideWebkitPrefs(
+void BrowserShellContentBrowserClient::OverrideWebPreferences(
     content::WebContents* web_contents,
+    content::SiteInstance& main_frame_site,
     blink::web_pref::WebPreferences* prefs) {
   prefs->cookie_enabled =
       browser::CookieManagerServiceImpl::Get()->IsCookieEnabled();

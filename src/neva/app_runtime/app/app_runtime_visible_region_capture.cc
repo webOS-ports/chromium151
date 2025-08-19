@@ -16,12 +16,14 @@
 
 #include "neva/app_runtime/app/app_runtime_visible_region_capture.h"
 
+#include <optional>
 #include <vector>
 
 #include "base/base64.h"
 #include "base/functional/bind.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/thread_pool.h"
+#include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_widget_host.h"
@@ -46,7 +48,7 @@ VisibleRegionCapture::VisibleRegionCapture(ReplyCallback callback,
       web_contents ? web_contents->GetRenderWidgetHostView() : nullptr;
   if (view && image_format_ != ImageFormat::kNone) {
     view->CopyFromSurface(
-        gfx::Rect(), gfx::Size(),
+        gfx::Rect(), gfx::Size(), base::TimeDelta(),
         base::BindOnce(&VisibleRegionCapture::OnBitmapCaptured,
                        weak_ptr_factory_.GetWeakPtr()));
     return;
@@ -58,24 +60,20 @@ VisibleRegionCapture::~VisibleRegionCapture() = default;
 
 bool VisibleRegionCapture::EncodeBitmap(const SkBitmap& bitmap,
                                         std::string& base64_data) {
-  std::vector<unsigned char> data;
-  bool encoded = false;
+  std::optional<std::vector<uint8_t>> data;
   std::string mime_type;
   if (image_format_ == ImageFormat::kJpeg) {
-    encoded = gfx::JPEGCodec::Encode(bitmap, image_quality_, &data);
+    data = gfx::JPEGCodec::Encode(bitmap, image_quality_);
     mime_type = "image/jpeg";
   } else if (image_format_ == ImageFormat::kPng) {
-    encoded =
-        gfx::PNGCodec::EncodeBGRASkBitmap(bitmap, !is_transparent_, &data);
+    data = gfx::PNGCodec::EncodeBGRASkBitmap(bitmap, !is_transparent_);
     mime_type = "image/png";
   } else {
     NOTREACHED() << "Invalid image format.";
   }
 
-  if (encoded) {
-    std::string_view stream_as_string(
-        reinterpret_cast<const char*>(data.data()), data.size());
-    base::Base64Encode(stream_as_string, &base64_data);
+  if (data) {
+    base64_data = base::Base64Encode(*data);
     base64_data.insert(
         0, base::StringPrintf("data:%s;base64,", mime_type.c_str()));
     return true;
@@ -94,7 +92,14 @@ void VisibleRegionCapture::EncodeBitmapOnWorkerThread(
                      weak_ptr_factory_.GetWeakPtr(), success, std::move(base64_data)));
 }
 
-void VisibleRegionCapture::OnBitmapCaptured(const SkBitmap& bitmap) {
+void VisibleRegionCapture::OnBitmapCaptured(
+    const content::CopyFromSurfaceResult& result) {
+  // M151 reports capture failure explicitly; M120 signalled it with an empty
+  // bitmap, which EncodeBitmap already treats as a failed encode.
+  SkBitmap bitmap;
+  if (result.has_value()) {
+    bitmap = result.value().bitmap;
+  }
   base::ThreadPool::PostTask(
       FROM_HERE, {base::TaskPriority::USER_VISIBLE},
       base::BindOnce(&VisibleRegionCapture::EncodeBitmapOnWorkerThread,

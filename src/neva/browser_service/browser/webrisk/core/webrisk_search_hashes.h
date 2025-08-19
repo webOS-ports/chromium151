@@ -17,6 +17,7 @@
 #ifndef NEVA_BROWSER_SERVICE_BROWSER_WEBRISK_CORE_WEBRISK_SEARCH_HASHES_H_
 #define NEVA_BROWSER_SERVICE_BROWSER_WEBRISK_CORE_WEBRISK_SEARCH_HASHES_H_
 
+#include <optional>
 #include <set>
 
 #include "base/functional/callback.h"
@@ -44,7 +45,7 @@ class WebRiskSearchHashes {
 
   void OnSearchHashResponse(const std::string& url,
                             SearchHashesCallback callback,
-                            std::unique_ptr<std::string> response_body);
+                            std::optional<std::string> response_body);
 
   std::string webrisk_key_;
   std::unique_ptr<network::SimpleURLLoader> url_loader_;

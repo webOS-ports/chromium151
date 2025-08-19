@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/browser/notifications/notification_platform_bridge_webos.h"
+#include "base/logging.h"
+#include "base/notimplemented.h"
 
 #include "base/json/json_writer.h"
 #include "base/strings/utf_string_conversions.h"

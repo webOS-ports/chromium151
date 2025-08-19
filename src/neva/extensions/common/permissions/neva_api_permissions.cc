@@ -61,7 +61,7 @@ constexpr extensions::APIPermissionInfo::InitInfo permissions_to_register[] = {
 }  // namespace
 
 base::span<const extensions::APIPermissionInfo::InitInfo> GetPermissionInfos() {
-  return base::make_span(permissions_to_register);
+  return base::span(permissions_to_register);
 }
 
 base::span<const extensions::Alias> GetPermissionAliases() {
@@ -71,7 +71,7 @@ base::span<const extensions::Alias> GetPermissionAliases() {
       extensions::Alias("windows", "tabs")};
   // static constexpr extensions::Alias aliases[] = {};
 
-  return base::make_span(aliases);
+  return base::span(aliases);
 }
 
 }  // namespace api_permissions

@@ -22,8 +22,8 @@
 namespace neva {
 
 SiteFilterNavigationThrottle::SiteFilterNavigationThrottle(
-    content::NavigationHandle* navigation_handle)
-    : content::NavigationThrottle(navigation_handle) {}
+    content::NavigationThrottleRegistry& registry)
+    : content::NavigationThrottle(registry) {}
 
 SiteFilterNavigationThrottle::~SiteFilterNavigationThrottle() = default;
 

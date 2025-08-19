@@ -27,7 +27,7 @@
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_frame_host.h"
-#include "content/public/common/user_agent.h"
+#include "components/embedder_support/user_agent_utils.h"
 #include "extensions/browser/api/core_extensions_browser_api_provider.h"
 #include "extensions/browser/api/extensions_api_client.h"
 #include "extensions/browser/event_router.h"
@@ -35,9 +35,12 @@
 #include "extensions/browser/null_app_sorting.h"
 #include "extensions/browser/updater/null_extension_cache.h"
 #include "extensions/browser/url_request_util.h"
+#include "extensions/common/extension.h"
 #include "extensions/common/features/feature_channel.h"
+#include "net/http/http_response_headers.h"
 #include "neva/extensions/browser/neva_extension_api_client.h"
 #include "neva/extensions/browser/neva_extension_host_delegate.h"
+#include "neva/app_runtime/browser/custom_handlers/app_runtime_protocol_handler_registry_factory.h"
 #include "neva/extensions/browser/neva_extension_system_factory.h"
 #include "neva/extensions/browser/neva_extensions_browser_api_provider.h"
 #include "neva/extensions/browser/neva_extensions_kiosk_delegate.h"
@@ -101,20 +104,23 @@ BrowserContext* NevaExtensionsBrowserClient::GetOriginalContext(
 
 content::BrowserContext*
 NevaExtensionsBrowserClient::GetContextRedirectedToOriginal(
-    content::BrowserContext* context,
-    bool force_guest_profile) {
+    content::BrowserContext* context) {
+  return context;
+}
+
+content::BrowserContext*
+NevaExtensionsBrowserClient::GetContextRedirectedToOriginalWithoutAshInternals(
+    content::BrowserContext* context) {
   return context;
 }
 
 content::BrowserContext* NevaExtensionsBrowserClient::GetContextOwnInstance(
-    content::BrowserContext* context,
-    bool force_guest_profile) {
+    content::BrowserContext* context) {
   return context;
 }
 
 content::BrowserContext* NevaExtensionsBrowserClient::GetContextForOriginalOnly(
-    content::BrowserContext* context,
-    bool force_guest_profile) {
+    content::BrowserContext* context) {
   return context;
 }
 
@@ -162,15 +168,16 @@ bool NevaExtensionsBrowserClient::AllowCrossRendererResourceLoad(
     const network::ResourceRequest& request,
     network::mojom::RequestDestination destination,
     ui::PageTransition page_transition,
-    int child_id,
+    content::ChildProcessId child_id,
     bool is_incognito,
     const extensions::Extension* extension,
     const extensions::ExtensionSet& extensions,
-    const extensions::ProcessMap& process_map) {
+    const extensions::ProcessMap& process_map,
+    const GURL& upstream_url) {
   bool allowed = false;
   if (extensions::url_request_util::AllowCrossRendererResourceLoad(
           request, destination, page_transition, child_id, is_incognito,
-          extension, extensions, process_map, &allowed)) {
+          extension, extensions, process_map, upstream_url, &allowed)) {
     return allowed;
   }
 
@@ -294,16 +301,39 @@ NevaExtensionsBrowserClient::GetExtensionWebContentsObserver(
   return WebContentsMap::GetInstance()->GetObserver(web_contents);
 }
 
+bool NevaExtensionsBrowserClient::IsExtensionIncognitoEnabled(
+    const extensions::Extension* extension,
+    content::BrowserContext* context) const {
+  return extension &&
+         IsExtensionIncognitoEnabled(extension->id(), context);
+}
+
+mojo::PendingRemote<network::mojom::URLLoaderFactory>
+NevaExtensionsBrowserClient::GetControlledFrameEmbedderURLLoader(
+    const url::Origin& app_origin,
+    content::FrameTreeNodeId frame_tree_node_id,
+    content::BrowserContext* browser_context) {
+  // Controlled Frame is not supported on webOS.
+  return mojo::NullRemote();
+}
+
+void NevaExtensionsBrowserClient::CreateExtensionWebContentsObserver(
+    content::WebContents* web_contents) {
+  // The observer is created and owned by WebContentsMap, which is driven by
+  // the neva tab helper rather than by this hook.
+}
+
+extensions::SafeBrowsingDelegate*
+NevaExtensionsBrowserClient::GetSafeBrowsingDelegate() {
+  // No safe browsing integration in the neva extensions host.
+  return nullptr;
+}
+
 extensions::KioskDelegate* NevaExtensionsBrowserClient::GetKioskDelegate() {
   if (!kiosk_delegate_) {
     kiosk_delegate_ = std::make_unique<NevaExtensionsKioskDelegate>();
   }
   return kiosk_delegate_.get();
-}
-
-bool NevaExtensionsBrowserClient::IsLockScreenContext(
-    content::BrowserContext* context) {
-  return false;
 }
 
 std::string NevaExtensionsBrowserClient::GetApplicationLocale() {
@@ -313,7 +343,7 @@ std::string NevaExtensionsBrowserClient::GetApplicationLocale() {
 
 std::string NevaExtensionsBrowserClient::GetUserAgent() const {
   // TODO(neva): Return using //neva/user_agent.
-  return content::BuildUserAgentFromProduct(
+  return embedder_support::BuildUserAgentFromProduct(
       std::string(version_info::GetProductNameAndVersionForUserAgent()));
 }
 
@@ -323,6 +353,13 @@ void NevaExtensionsBrowserClient::AssociateWithBrowserContext(
   if (context_prefs_map_.find(context) == context_prefs_map_.end()) {
     context_prefs_map_.emplace(context, pref_service);
   }
+}
+
+custom_handlers::ProtocolHandlerRegistry*
+NevaExtensionsBrowserClient::GetProtocolHandlerRegistry(
+    content::BrowserContext* context) {
+  return neva_app_runtime::AppRuntimeProtocolHandlerRegistryFactory::
+      GetForBrowserContext(context);
 }
 
 }  // namespace neva

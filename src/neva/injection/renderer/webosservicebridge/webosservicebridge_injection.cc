@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/webosservicebridge/webosservicebridge_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include <optional>
 #include <set>
@@ -98,7 +100,20 @@ WebOSServiceBridgeInjection::WebOSServiceBridgeInjection(std::string appid)
 }
 
 WebOSServiceBridgeInjection::~WebOSServiceBridgeInjection() {
-  Cancel();
+  // Since the cppgc migration this destructor runs from inside the garbage
+  // collector (Sweeper::SweepInForegroundTaskImpl -> SweepFinalizer::
+  // FinalizePage), where touching the V8 heap is illegal. Cancel() used to end
+  // up in PreserveReferenceToInjectionObject(), which calls GetWrapper(),
+  // GetCreationContext() and Set::Delete() on an object that is already being
+  // finalized - that faulted in v8::ObjectSetAccessor and took every renderer
+  // down. Under gin::Wrappable in M120 the destructor ran outside GC, so the
+  // same code was safe.
+  //
+  // Dropping the pool reference here is not just unsafe, it is unnecessary:
+  // __WebOSServiceBridgePool holds a strong JS reference, so an object still in
+  // the pool is reachable and would never be collected. Reaching this
+  // destructor already proves the object is not in the pool.
+  CancelInternal(/*release_pool_reference=*/false);
 }
 
 void WebOSServiceBridgeInjection::Call(gin::Arguments* args) {
@@ -126,13 +141,18 @@ void WebOSServiceBridgeInjection::DoCall(std::string uri, std::string payload) {
 }
 
 void WebOSServiceBridgeInjection::Cancel() {
+  CancelInternal(/*release_pool_reference=*/true);
+}
+
+void WebOSServiceBridgeInjection::CancelInternal(bool release_pool_reference) {
   if (identifier_.empty())
     return;
 
   remote_system_bridge_->Cancel();
   waiting_responses_.erase(this);
 
-  PreserveReferenceToInjectionObject(false);
+  if (release_pool_reference)
+    PreserveReferenceToInjectionObject(false);
   subscribed_ = false;
 }
 
@@ -205,7 +225,9 @@ WebOSServiceBridgeInjection::GetObjectTemplateBuilder(v8::Isolate* isolate) {
 }
 
 bool WebOSServiceBridgeInjection::IsWebOSSystemLoaded() {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  // M151 removed blink::MainThreadIsolate(). No frame is available here (this
+  // runs from the gin wrapper), so use the current isolate.
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::HandleScope handle_scope(isolate);
   v8::MaybeLocal<v8::Object> maybe_wrapper = GetWrapper(isolate);
 
@@ -278,7 +300,7 @@ void WebOSServiceBridgeInjection::PreserveReferenceToInjectionObject(
 }
 
 void WebOSServiceBridgeInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -320,7 +342,7 @@ void WebOSServiceBridgeInjection::Uninstall(blink::WebLocalFrame* frame) {
       ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
           IDR_WEBOSSERVICEBRIDGE_ROLLBACK_JS);
 
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -376,7 +398,8 @@ void WebOSServiceBridgeInjection::WebOSServiceBridgeConstructorCallback(
   gin::Handle<injections::WebOSServiceBridgeInjection> wrapper =
       gin::CreateHandle(
           isolate,
-          new injections::WebOSServiceBridgeInjection(std::move(appid)));
+          cppgc::MakeGarbageCollected<injections::WebOSServiceBridgeInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), std::move(appid)));
   if (!wrapper.IsEmpty())
     args->Return(wrapper.ToV8());
 }

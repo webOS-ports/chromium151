@@ -6,6 +6,7 @@
 // //chrome/browser/notifications/notification_platform_bridge_delegator.cc.
 
 #include "neva/app_runtime/browser/notifications/notification_platform_bridge_delegator.h"
+#include "base/notimplemented.h"
 
 #include "base/notreached.h"
 #include "neva/app_runtime/browser/notifications/notification_platform_bridge_webos.h"

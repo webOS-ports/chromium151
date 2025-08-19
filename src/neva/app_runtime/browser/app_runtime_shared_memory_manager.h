@@ -26,7 +26,7 @@ class DiscardableSharedMemoryManager;
 
 namespace neva_app_runtime {
 
-class AppRuntimeSharedMemoryManager {
+class AppRuntimeSharedMemoryManager : public base::MemoryPressureListener {
  public:
   AppRuntimeSharedMemoryManager();
   AppRuntimeSharedMemoryManager(const AppRuntimeSharedMemoryManager&) = delete;
@@ -34,14 +34,20 @@ class AppRuntimeSharedMemoryManager {
       const AppRuntimeSharedMemoryManager&) = delete;
   ~AppRuntimeSharedMemoryManager();
 
- private:
+  // base::MemoryPressureListener:
   void OnMemoryPressure(
-      base::MemoryPressureLevel memory_pressure_level);
+      base::MemoryPressureLevel memory_pressure_level) override;
+
+ private:
 
   size_t memory_pressure_divider_ = 4;
   size_t minimal_limit_ = 8 * 1024 * 1024;
   size_t memory_limit_;
-  std::unique_ptr<base::MemoryPressureListener> memory_pressure_listener_;
+  // Registers this listener for the lifetime of the object. The tag is an
+  // upstream allowlist with no neva entry; kDiscardableSharedMemoryManager is
+  // what this class actually drives.
+  base::MemoryPressureListenerRegistration
+      memory_pressure_listener_registration_;
   discardable_memory::DiscardableSharedMemoryManager*
       discardable_shared_memory_manager_ = nullptr;
 };

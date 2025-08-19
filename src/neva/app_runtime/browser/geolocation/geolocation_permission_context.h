@@ -35,10 +35,10 @@ class GeolocationPermissionContext
   ~GeolocationPermissionContext() override;
 
   void DecidePermission(
-      permissions::PermissionRequestData request_data,
+      std::unique_ptr<permissions::PermissionRequestData> request_data,
       permissions::BrowserPermissionCallback callback) override;
 
-  ContentSetting GetPermissionStatusInternal(
+  PermissionSetting GetPermissionStatusInternal(
       content::RenderFrameHost* render_frame_host,
       const GURL& requesting_origin,
       const GURL& embedding_origin) const override;

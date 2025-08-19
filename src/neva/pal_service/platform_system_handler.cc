@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/pal_service/platform_system_handler.h"
+#include "base/notimplemented.h"
 
 #include <set>
 
@@ -145,11 +146,13 @@ PlatformSystemHandler::~PlatformSystemHandler() = default;
 std::string PlatformSystemHandler::GetSettingsJSON() const {
   base::DictValue dict;
   auto launch_params(
-      base::JSONReader::Read(application_delegate_->GetLaunchParams()));
+      base::JSONReader::Read(application_delegate_->GetLaunchParams(),
+                             base::JSON_PARSE_CHROMIUM_EXTENSIONS));
   if (launch_params)
     dict.Set(messages::kLaunchParams, std::move(launch_params).value());
 
-  auto country(base::JSONReader::Read(system_delegate_->GetCountry()));
+  auto country(base::JSONReader::Read(system_delegate_->GetCountry(),
+                                    base::JSON_PARSE_CHROMIUM_EXTENSIONS));
   if (country)
     dict.Set(messages::kCountry, std::move(country).value());
 

@@ -67,19 +67,19 @@ void BrowserShellPermissionPromptDelegate::OnPromptResponse(
 
 void BrowserShellPermissionPromptDelegate::AcceptPermission() {
   if (delegate_) {
-    delegate_->Accept();
+    delegate_->Accept(std::monostate());
   }
 }
 
 void BrowserShellPermissionPromptDelegate::DenyPermission() {
   if (delegate_) {
-    delegate_->Deny();
+    delegate_->Deny(std::monostate());
   }
 }
 
 void BrowserShellPermissionPromptDelegate::ClosingPermission() {
   if (delegate_) {
-    delegate_->Dismiss();
+    delegate_->Dismiss(std::monostate());
   }
 }
 

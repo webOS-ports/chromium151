@@ -6,6 +6,7 @@
 // chrome/browser/ui/views/permission_bubble/permission_prompt_impl.cc
 
 #include "neva/app_runtime/browser/permissions/permission_prompt_webos.h"
+#include "base/notimplemented.h"
 
 #include <iterator>
 #include <memory>
@@ -13,6 +14,7 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/values.h"
+#include "components/permissions/permission_request.h"
 #include "components/permissions/permission_uma_util.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/web_contents.h"
@@ -40,7 +42,10 @@ PermissionPromptWebOS::PermissionPromptWebOS(
   content::WebContentsImpl* web_contents_impl =
       static_cast<content::WebContentsImpl*>(web_contents);
   std::string application_id =
-      web_contents_impl->GetRendererPrefs().application_id;
+      web_contents_impl
+          ->GetRendererPrefs(
+              web_contents_impl->GetPrimaryMainFrame()->render_view_host())
+          .application_id;
   if (!application_id.empty())
     app_id_ = std::move(application_id);
 
@@ -106,26 +111,28 @@ void PermissionPromptWebOS::ShowBubble() {
 }
 
 void PermissionPromptWebOS::AcceptPermission() {
-  delegate_->Accept();
+  delegate_->Accept(std::monostate());
 }
 
 void PermissionPromptWebOS::DenyPermission() {
-  delegate_->Deny();
+  delegate_->Deny(std::monostate());
 }
 
 void PermissionPromptWebOS::ClosingPermission() {
-  delegate_->Dismiss();
+  delegate_->Dismiss(std::monostate());
 }
 
 bool PermissionPromptWebOS::ShouldShowRequest(
     permissions::RequestType type) const {
   if (type == permissions::RequestType::kCameraStream) {
     // Hide camera request if camera PTZ request is present as well.
-    auto requests = delegate_->Requests();
-    return std::find_if(requests.begin(), requests.end(), [](auto* request) {
-             return request->request_type() ==
-                    permissions::RequestType::kCameraPanTiltZoom;
-           }) == requests.end();
+    const auto& requests = delegate_->Requests();
+    return std::find_if(requests.begin(), requests.end(),
+                        [](const std::unique_ptr<
+                            permissions::PermissionRequest>& request) {
+                          return request->request_type() ==
+                                 permissions::RequestType::kCameraPanTiltZoom;
+                        }) == requests.end();
   }
   return true;
 }
@@ -133,9 +140,10 @@ bool PermissionPromptWebOS::ShouldShowRequest(
 std::vector<permissions::PermissionRequest*>
 PermissionPromptWebOS::GetVisibleRequests() const {
   std::vector<permissions::PermissionRequest*> visible_requests;
-  for (permissions::PermissionRequest* request : delegate_->Requests()) {
+  for (const std::unique_ptr<permissions::PermissionRequest>& request :
+       delegate_->Requests()) {
     if (ShouldShowRequest(request->request_type()))
-      visible_requests.push_back(request);
+      visible_requests.push_back(request.get());
   }
   return visible_requests;
 }

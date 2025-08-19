@@ -27,7 +27,7 @@ class NevaExtensionHost : public extensions::ExtensionHost {
       base::RepeatingCallback<void(ExtensionHost*, int, int)>;
 
   NevaExtensionHost(const extensions::Extension* extension,
-                    content::SiteInstance* site_instance,
+                    content::BrowserContext* browser_context,
                     const GURL& url,
                     extensions::mojom::ViewType host_type);
 

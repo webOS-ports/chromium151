@@ -35,7 +35,7 @@ class PermissionManagerFactory : public BrowserContextKeyedServiceFactory {
   PermissionManagerFactory& operator=(const PermissionManagerFactory&) = delete;
 
   // BrowserContextKeyedServiceFactory methods:
-  KeyedService* BuildServiceInstanceFor(
+  std::unique_ptr<KeyedService> BuildServiceInstanceForBrowserContext(
       content::BrowserContext* context) const override;
 };
 

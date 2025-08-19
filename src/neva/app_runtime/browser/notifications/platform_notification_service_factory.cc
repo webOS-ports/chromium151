@@ -6,6 +6,7 @@
 // //chrome/browser/notifications/platform_notification_service_factory.cc.
 
 #include "neva/app_runtime/browser/notifications/platform_notification_service_factory.h"
+#include <memory>
 
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "neva/app_runtime/browser/notifications/notification_display_service_factory.h"
@@ -34,9 +35,9 @@ PlatformNotificationServiceFactory::PlatformNotificationServiceFactory()
   DependsOn(NotificationDisplayServiceFactory::GetInstance());
 }
 
-KeyedService* PlatformNotificationServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService> PlatformNotificationServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return new PlatformNotificationServiceImpl(context);
+  return std::make_unique<PlatformNotificationServiceImpl>(context);
 }
 
 }  // namespace neva_app_runtime

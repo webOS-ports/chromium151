@@ -9,6 +9,7 @@
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
+#include "components/webrtc/media_stream_devices_util.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -115,41 +116,48 @@ MediaCaptureDevicesDispatcher::GetVideoCaptureDevices() const {
   return content::MediaCaptureDevices::GetInstance()->GetVideoCaptureDevices();
 }
 
-void MediaCaptureDevicesDispatcher::GetDefaultDevicesForBrowserContext(
+namespace {
+
+// Picks the device named by `pref_name`, falling back to the first entry.
+// Replaces the GetRequestedAudio/VideoDevice() helpers M151 removed along with
+// the old MediaStreamDeviceEnumerator interface.
+const std::optional<blink::MediaStreamDevice> PreferredDevice(
     content::BrowserContext* context,
-    bool audio,
-    bool video,
-    blink::mojom::StreamDevices& devices) {
+    const char* pref_name,
+    blink::MediaStreamDevices devices,
+    const std::vector<std::string>& eligible_device_ids) {
+  if (!eligible_device_ids.empty())
+    devices = webrtc::FilterMediaDevices(devices, eligible_device_ids);
+  if (devices.empty())
+    return std::nullopt;
+
+  const std::string default_device =
+      user_prefs::UserPrefs::Get(context)->GetString(pref_name);
+  for (const blink::MediaStreamDevice& device : devices) {
+    if (device.id == default_device)
+      return device;
+  }
+  return devices.front();
+}
+
+}  // namespace
+
+const std::optional<blink::MediaStreamDevice>
+MediaCaptureDevicesDispatcher::GetPreferredAudioDeviceForBrowserContext(
+    content::BrowserContext* context,
+    const std::vector<std::string>& eligible_device_ids) const {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  DCHECK(audio || video);
+  return PreferredDevice(context, kDefaultAudioCaptureDevice,
+                         GetAudioCaptureDevices(), eligible_device_ids);
+}
 
-  PrefService* prefs = user_prefs::UserPrefs::Get(context);
-  std::string default_device;
-  if (audio) {
-    default_device = prefs->GetString(kDefaultAudioCaptureDevice);
-    const blink::MediaStreamDevice* device =
-        GetRequestedAudioDevice(default_device);
-    if (device) {
-      devices.audio_device = *device;
-    } else {
-      const blink::MediaStreamDevices& audio_devices = GetAudioCaptureDevices();
-      if (!audio_devices.empty())
-        devices.audio_device = audio_devices.front();
-    }
-  }
-
-  if (video) {
-    default_device = prefs->GetString(kDefaultVideoCaptureDevice);
-    const blink::MediaStreamDevice* device =
-        GetRequestedVideoDevice(default_device);
-    if (device) {
-      devices.video_device = *device;
-    } else {
-      const blink::MediaStreamDevices& video_devices = GetVideoCaptureDevices();
-      if (!video_devices.empty())
-        devices.video_device = video_devices.front();
-    }
-  }
+const std::optional<blink::MediaStreamDevice>
+MediaCaptureDevicesDispatcher::GetPreferredVideoDeviceForBrowserContext(
+    content::BrowserContext* context,
+    const std::vector<std::string>& eligible_device_ids) const {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  return PreferredDevice(context, kDefaultVideoCaptureDevice,
+                         GetVideoCaptureDevices(), eligible_device_ids);
 }
 
 scoped_refptr<MediaStreamCaptureIndicator>

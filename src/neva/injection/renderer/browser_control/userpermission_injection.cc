@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/browser_control/userpermission_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include "base/functional/bind.h"
 #include "gin/arguments.h"
@@ -46,7 +48,7 @@ gin::WrapperInfo UserPermissionInjection::kWrapperInfo = {
 
 // static
 void UserPermissionInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -78,7 +80,7 @@ void UserPermissionInjection::Install(blink::WebLocalFrame* frame) {
 
 // static
 void UserPermissionInjection::Uninstall(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -176,7 +178,8 @@ v8::MaybeLocal<v8::Object> UserPermissionInjection::CreateObject(
     v8::Isolate* isolate,
     v8::Local<v8::Object> parent) {
   gin::Handle<UserPermissionInjection> userpermission =
-      gin::CreateHandle(isolate, new UserPermissionInjection());
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<UserPermissionInjection>(
+isolate->GetCppHeap()->GetAllocationHandle()));
   parent
       ->Set(isolate->GetCurrentContext(),
             gin::StringToV8(isolate, kUserPermissionObjectName),

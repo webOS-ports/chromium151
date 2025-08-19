@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/injection/renderer/webosgavplugin/videowindow_impl.h"
+#include "base/logging.h"
 
 namespace injections {
 

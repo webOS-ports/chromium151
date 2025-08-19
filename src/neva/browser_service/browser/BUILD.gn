@@ -68,4 +68,13 @@ source_set("browser_service_browser") {
       ]
     }
   }
+  # The neva changes to this target include generated headers whose
+  # producing targets were not reachable from here. Nothing ordered them
+  # against this compile, so a clean build could reach these objects
+  # before the generators ran; an incremental build never notices because
+  # the headers are left over from an earlier pass.
+  deps += [
+    "//components/services/storage/privileged/mojom:mojom",
+    "//components/services/storage/public/mojom:mojom",
+  ]
 }

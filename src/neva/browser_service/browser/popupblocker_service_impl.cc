@@ -203,7 +203,7 @@ std::string PopupBlockerServiceImpl::GetDomain(const std::string& url) const {
   GURL decoded_url = url_formatter::FixupURL(url, std::string());
   if (!(decoded_url.is_valid() && decoded_url.IsStandard()))
     return {};
-  std::string domain = decoded_url.host();
+  std::string domain(decoded_url.host());
   if (domain.starts_with(kWwwPrefix)) {
     domain = domain.substr(kWwwPrefix.length());
   }

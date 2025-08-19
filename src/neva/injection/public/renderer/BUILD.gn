@@ -113,4 +113,12 @@ source_set("renderer") {
       "chrome_extensions_manager_webapi.h",
     ]
   }
+  # The neva changes to this target include generated headers whose
+  # producing targets were not reachable from here. Nothing ordered them
+  # against this compile, so a clean build could reach these objects
+  # before the generators ran; an incremental build never notices because
+  # the headers are left over from an earlier pass.
+  deps += [
+    "//neva/browser_service/public/mojom:mojom",
+  ]
 }

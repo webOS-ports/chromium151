@@ -18,12 +18,16 @@
 #define NEVA_APP_RUNTIME_BROWSER_APP_RUNTIME_CONTENT_BROWSER_CLIENT_H_
 
 #include "content/public/browser/content_browser_client.h"
+#include "content/public/browser/login_delegate.h"
+#include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/web_contents.h"
 #include "mojo/public/cpp/bindings/remote_set.h"
+#include "net/base/isolation_info.h"
 #include "neva/app_runtime/browser/app_runtime_browser_main_parts.h"
 #include "neva/app_runtime/browser/net/app_runtime_proxying_url_loader_factory.h"
 #include "neva/app_runtime/browser/net/app_runtime_web_request_handler.h"
 #include "neva/pal_service/public/proxy_setting_delegate.h"
+#include "services/network/public/cpp/url_loader_factory_builder.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/service_manager/public/cpp/binder_registry.h"
 #include "storage/browser/quota/quota_settings.h"
@@ -100,8 +104,9 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
   void AppendExtraCommandLineSwitches(base::CommandLine* command_line,
                                       int child_process_id) override;
 
-  void OverrideWebkitPrefs(content::WebContents* web_contents,
-                           blink::web_pref::WebPreferences* prefs) override;
+  void OverrideWebPreferences(content::WebContents* web_contents,
+                              content::SiteInstance& main_frame_site,
+                              blink::web_pref::WebPreferences* prefs) override;
 
   bool HasQuotaSettings() const override;
   void GetQuotaSettings(
@@ -125,7 +130,8 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
 #if defined(USE_NEVA_CHROME_EXTENSIONS)
   void RenderProcessWillLaunch(content::RenderProcessHost* host) override;
 
-  void SiteInstanceGotProcess(content::SiteInstance* site_instance) override;
+  void SiteInstanceGotProcessAndSite(
+      content::SiteInstance* site_instance) override;
 
   void OnWebContentsCreated(content::WebContents* web_contents) override;
 
@@ -138,15 +144,13 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
       content::BrowserContext* browser_context,
       const url::Origin& origin,
       bool is_for_isolated_world,
+      bool is_for_service_worker,
       network::mojom::URLLoaderFactoryParams* factory_params) override;
-
-  void RegisterNonNetworkNavigationURLLoaderFactories(
-      int frame_tree_node_id,
-      ukm::SourceIdObj ukm_source_id,
-      NonNetworkURLLoaderFactoryMap* factories) override;
 
   void RegisterNonNetworkWorkerMainResourceURLLoaderFactories(
       content::BrowserContext* browser_context,
+      const std::optional<url::Origin>& request_initiator,
+      network::mojom::RequestDestination request_destination,
       NonNetworkURLLoaderFactoryMap* factories) override;
 
   bool ShouldSendOutermostOriginToRenderer(
@@ -161,15 +165,16 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
       const GURL& destination_effective_url) override;
 #endif  // defined(USE_NEVA_CHROME_EXTENSIONS)
 
-  bool WillCreateURLLoaderFactory(
+  void WillCreateURLLoaderFactory(
       content::BrowserContext* browser_context,
       content::RenderFrameHost* frame,
       int render_process_id,
       URLLoaderFactoryType type,
       const url::Origin& request_initiator,
+      const net::IsolationInfo& isolation_info,
       std::optional<int64_t> navigation_id,
       ukm::SourceIdObj ukm_source_id,
-      mojo::PendingReceiver<network::mojom::URLLoaderFactory>* factory_receiver,
+      network::URLLoaderFactoryBuilder& factory_builder,
       mojo::PendingRemote<network::mojom::TrustedURLLoaderHeaderClient>*
           header_client,
       bool* bypass_redirect_checks,
@@ -184,17 +189,21 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
   std::unique_ptr<content::LoginDelegate> CreateLoginDelegate(
       const net::AuthChallengeInfo& auth_info,
       content::WebContents* web_contents,
+      content::BrowserContext* browser_context,
       const content::GlobalRequestID& request_id,
-      bool is_main_frame,
+      bool is_request_for_primary_main_frame_navigation,
+      bool is_request_for_navigation,
       const GURL& url,
       scoped_refptr<net::HttpResponseHeaders> response_headers,
       bool first_auth_attempt,
-      LoginAuthRequiredCallback auth_required_callback) override;
+      content::GuestPageHolder* guest_page_holder,
+      content::LoginDelegate::LoginAuthRequiredCallback auth_required_callback)
+      override;
 
   bool HandleExternalProtocol(
       const GURL& url,
       content::WebContents::Getter web_contents_getter,
-      int frame_tree_node_id,
+      content::FrameTreeNodeId frame_tree_node_id,
       content::NavigationUIData* navigation_data,
       bool is_primary_main_frame,
       bool is_in_fenced_frame_tree,
@@ -203,11 +212,13 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
       bool has_user_gesture,
       const std::optional<url::Origin>& initiating_origin,
       content::RenderFrameHost* initiator_document,
+      const net::IsolationInfo& isolation_info,
       mojo::PendingRemote<network::mojom::URLLoaderFactory>* out_factory)
       override;
 
   base::OnceClosure SelectClientCertificate(
       content::BrowserContext* browser_context,
+      int process_id,
       content::WebContents* web_contents,
       net::SSLCertRequestInfo* cert_request_info,
       net::ClientCertIdentityList client_certs,
@@ -232,9 +243,8 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
           cert_verifier_creation_params) override;
 ///@name USE_NEVA_CHROME_EXTENSIONS | ENABLE_PWA_MANAGER_WEBAPI
 ///@{
-  std::vector<std::unique_ptr<content::NavigationThrottle>>
-  CreateThrottlesForNavigation(
-      content::NavigationHandle* navigation_handle) override;
+  void CreateThrottlesForNavigation(
+      content::NavigationThrottleRegistry& registry) override;
 ///@}
   AppRuntimeBrowserMainParts* GetMainParts() { return main_parts_; }
 
@@ -271,7 +281,8 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
       content::BrowserContext* browser_context,
       const base::RepeatingCallback<content::WebContents*()>& wc_getter,
       content::NavigationUIData* navigation_ui_data,
-      int frame_tree_node_id) override;
+      content::FrameTreeNodeId frame_tree_node_id,
+      std::optional<int64_t> navigation_id) override;
 
 #if defined(ENABLE_PWA_MANAGER_WEBAPI)
   void GetPwaExternalLinkPermitList(int child_process_id, std::string &list) const;
@@ -281,6 +292,11 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
   void RemovePwaAppOrigin(int child_process_id);
   void OpenUrlInBrowser(const std::string& url);
 #endif  // ENABLE_PWA_MANAGER_WEBAPI
+
+  // The single OSCryptAsync instance for this process. Both the network
+  // service's cookie encryption provider and the GCM store key off it, so it
+  // has to be shared rather than constructed per-caller.
+  os_crypt_async::OSCryptAsync* GetOSCryptAsync();
 
  protected:
   AppRuntimeBrowserMainExtraParts* browser_extra_parts_ = nullptr;

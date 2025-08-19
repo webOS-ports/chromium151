@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/extensions/browser/neva_extension_system_factory.h"
+#include <memory>
 
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "extensions/browser/extension_prefs_factory.h"
@@ -45,9 +46,9 @@ NevaExtensionSystemFactory::NevaExtensionSystemFactory()
 
 NevaExtensionSystemFactory::~NevaExtensionSystemFactory() {}
 
-KeyedService* NevaExtensionSystemFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService> NevaExtensionSystemFactory::BuildServiceInstanceForBrowserContext(
     BrowserContext* context) const {
-  return new NevaExtensionSystem(context);
+  return std::make_unique<NevaExtensionSystem>(context);
 }
 
 BrowserContext* NevaExtensionSystemFactory::GetBrowserContextToUse(

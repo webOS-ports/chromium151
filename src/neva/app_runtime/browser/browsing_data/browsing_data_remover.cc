@@ -93,7 +93,7 @@ void BrowsingDataRemover::Remove(const TimeRange& time_range,
   }
   if (remove_mask & REMOVE_WEBSQL) {
     storage_partition_remove_mask |=
-        content::StoragePartition::REMOVE_DATA_MASK_WEBSQL;
+        content::StoragePartition::REMOVE_DATA_MASK_WEBSQL_DEPRECATED;
   }
   if (remove_mask & REMOVE_SERVICE_WORKERS) {
     storage_partition_remove_mask |=
@@ -160,9 +160,8 @@ void BrowsingDataRemover::Remove(const TimeRange& time_range,
   if (storage_partition_remove_mask) {
     waiting_for_clear_storage_partition_data_ = true;
 
-    const uint32_t quota_storage_remove_mask = 0xFFFFFFFF;
     storage_partition_->ClearData(
-        storage_partition_remove_mask, quota_storage_remove_mask,
+        storage_partition_remove_mask,
         blink::StorageKey::CreateFirstParty(url::Origin::Create(origin)),
         delete_begin, delete_end,
         base::BindOnce(&BrowsingDataRemover::OnClearedStoragePartitionData,
@@ -175,16 +174,14 @@ void BrowsingDataRemover::Remove(const TimeRange& time_range,
 
       const uint32_t storage_partition_domain_remove_mask =
           content::StoragePartition::REMOVE_DATA_MASK_COOKIES;
-      const uint32_t quota_storage_domain_remove_mask = 0;
-
       network::mojom::CookieDeletionFilterPtr domain_deletion_filter =
           network::mojom::CookieDeletionFilter::New();
       domain_deletion_filter->including_domains = std::vector<std::string>();
-      domain_deletion_filter->including_domains->push_back(origin.host());
+      domain_deletion_filter->including_domains->push_back(
+          std::string(origin.host()));
 
       storage_partition_->ClearData(
           storage_partition_domain_remove_mask,
-          quota_storage_domain_remove_mask,
           /*filter_builder=*/nullptr,
           content::StoragePartition::StorageKeyPolicyMatcherFunction(),
           std::move(domain_deletion_filter), false, delete_begin, delete_end,

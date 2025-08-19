@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/common/app_runtime_content_client.h"
+#include "base/notimplemented.h"
 
 #include "base/files/file_util.h"
 #include "base/logging.h"
@@ -22,10 +23,9 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/services/heap_profiling/public/cpp/profiling_client.h"
-#include "content/public/common/content_plugin_info.h"
+#include "content/public/common/webplugininfo.h"
 #include "mojo/public/cpp/bindings/binder_map.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
-#include "ppapi/shared_impl/ppapi_permissions.h"
 #include "ui/base/resource/resource_bundle.h"
 
 #if defined(USE_NEVA_CDM)
@@ -60,7 +60,7 @@ gfx::Image& AppRuntimeContentClient::GetNativeImageNamed(int resource_id) {
 }
 
 void AppRuntimeContentClient::AddPlugins(
-    std::vector<content::ContentPluginInfo>* plugins) {
+    std::vector<content::WebPluginInfo>* plugins) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
 

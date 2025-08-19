@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/sample/sample_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include <tuple>
 
@@ -232,7 +234,7 @@ void SampleInjection::ReceivedSampleUpdate(const std::string& value) {
 
 // static
 void SampleInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -256,7 +258,7 @@ void SampleInjection::Install(blink::WebLocalFrame* frame) {
 }
 
 void SampleInjection::Uninstall(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -281,7 +283,8 @@ v8::MaybeLocal<v8::Object> SampleInjection::CreateSampleObject(
     v8::Isolate* isolate,
     v8::Local<v8::Object> parent) {
   gin::Handle<SampleInjection> sample =
-      gin::CreateHandle(isolate, new SampleInjection());
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<SampleInjection>(
+isolate->GetCppHeap()->GetAllocationHandle()));
   parent
       ->Set(isolate->GetCurrentContext(), gin::StringToV8(isolate, "sample"),
             sample.ToV8())
@@ -292,7 +295,7 @@ v8::MaybeLocal<v8::Object> SampleInjection::CreateSampleObject(
 // static
 void SampleInjection::DispatchValueChanged(blink::WebLocalFrame* frame,
                                            const std::string& val) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())

@@ -5,6 +5,7 @@
 // Copied from chrome/browser/permissions/permission_manager_factory.cc
 
 #include "neva/app_runtime/browser/permissions/permission_manager_factory.h"
+#include <memory>
 
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/permissions/contexts/camera_pan_tilt_zoom_permission_context.h"
@@ -15,7 +16,7 @@
 #include "neva/app_runtime/browser/media/webrtc/media_stream_device_permission_context.h"
 #include "neva/app_runtime/browser/notifications/notification_permission_context.h"
 #include "third_party/blink/public/common/permissions/permission_utils.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-shared.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-shared.h"
 
 namespace {
 
@@ -44,7 +45,7 @@ class DeniedPermissionContext : public permissions::PermissionContextBase {
   DeniedPermissionContext& operator=(const DeniedPermissionContext&) = delete;
 
  protected:
-  ContentSetting GetPermissionStatusInternal(
+  PermissionSetting GetPermissionStatusInternal(
       content::RenderFrameHost* render_frame_host,
       const GURL& requesting_origin,
       const GURL& embedding_origin) const override {
@@ -88,14 +89,14 @@ permissions::PermissionManager::PermissionContextMap CreatePermissionContexts(
   // contexts can be added here instead of DeniedPermissionContext.
   for (blink::PermissionType type : blink::GetAllPermissionTypes()) {
     ContentSettingsType content_settings_type =
-        permissions::PermissionUtil::PermissionTypeToContentSettingType(type);
+        permissions::PermissionUtil::PermissionTypeToContentSettingsType(type);
     if (content_settings_type != ContentSettingsType::DEFAULT &&
         permission_contexts.find(content_settings_type) ==
             permission_contexts.end()) {
       permission_contexts[content_settings_type] =
           std::make_unique<DeniedPermissionContext>(
               context, content_settings_type,
-              blink::mojom::PermissionsPolicyFeature::kNotFound);
+              network::mojom::PermissionsPolicyFeature::kNotFound);
     }
   }
   return permission_contexts;
@@ -120,8 +121,8 @@ PermissionManagerFactory::PermissionManagerFactory()
 PermissionManagerFactory::~PermissionManagerFactory() {}
 
 // BrowserContextKeyedServiceFactory methods:
-KeyedService* PermissionManagerFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService> PermissionManagerFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return new permissions::PermissionManager(context,
-                                            CreatePermissionContexts(context));
+  return std::make_unique<permissions::PermissionManager>(
+      context, CreatePermissionContexts(context));
 }

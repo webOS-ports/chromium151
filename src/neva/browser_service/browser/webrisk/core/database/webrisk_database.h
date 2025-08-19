@@ -66,7 +66,9 @@ class WebRiskDatabase {
   bool CreateTablesIfNeeded();
   bool CreateTable(const char* table_name);
 
-  sql::Database db_;
+  // M151: sql::Database requires a compile-time-validated Tag (see the
+  // DatabaseTag variants in tools/metrics/histograms/metadata/sql/histograms.xml).
+  sql::Database db_{sql::Database::Tag("NevaWebRiskDatabase")};
   base::FilePath db_file_path_;
 };
 

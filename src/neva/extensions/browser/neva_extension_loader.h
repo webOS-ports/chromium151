@@ -68,18 +68,35 @@ class NevaExtensionLoader : public extensions::ExtensionRegistrar::Delegate {
       scoped_refptr<const extensions::Extension> extension) override;
   void PostDeactivateExtension(
       scoped_refptr<const extensions::Extension> extension) override;
+  void OnAddNewOrUpdatedExtension(const extensions::Extension* extension) override;
+  void PreUninstallExtension(scoped_refptr<const extensions::Extension> extension) override;
+  void PostUninstallExtension(scoped_refptr<const extensions::Extension> extension,
+                              base::OnceClosure done_callback) override;
+  // M151 split the old three-argument LoadExtensionForReload() in two; the
+  // LoadErrorBehavior enum is now private to ExtensionRegistrar. Neither
+  // variant reports load failures here, so both do the same thing.
   void LoadExtensionForReload(const extensions::ExtensionId& extension_id,
-                              const base::FilePath& path,
-                              extensions::ExtensionRegistrar::LoadErrorBehavior
-                                  load_error_behavior) override;
+                              const base::FilePath& path) override;
+  void LoadExtensionForReloadWithQuietFailure(
+      const extensions::ExtensionId& extension_id,
+      const base::FilePath& path) override;
+  void ShowExtensionDisabledError(const extensions::Extension* extension,
+                                  bool is_remote_install) override;
   bool CanEnableExtension(const extensions::Extension* extension) override;
   bool CanDisableExtension(const extensions::Extension* extension) override;
-  bool ShouldBlockExtension(const extensions::Extension* extension) override;
+  void GrantActivePermissions(const extensions::Extension* extension) override;
+  void UpdateExternalExtensionAlert() override;
+  void OnExtensionInstalled(const extensions::Extension* extension,
+                            const syncer::StringOrdinal& page_ordinal,
+                            int install_flags,
+                            base::DictValue ruleset_install_prefs) override;
 
   raw_ptr<content::BrowserContext> browser_context_;  // Not owned.
 
   // Registers and unregisters extensions.
-  extensions::ExtensionRegistrar extension_registrar_;
+  // M151: ExtensionRegistrar is a KeyedService owned by the browser
+  // context; this is a borrowed pointer, initialised in the ctor.
+  raw_ptr<extensions::ExtensionRegistrar> extension_registrar_;
 
   // Indicates that we posted the (asynchronous) task to start reloading.
   // Used by ReloadExtension() to check whether ExtensionRegistrar calls

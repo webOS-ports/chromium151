@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/browser_shell/service/browser_shell_window_impl.h"
+#include "base/notimplemented.h"
 
 #include "base/logging.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"

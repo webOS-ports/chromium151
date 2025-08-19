@@ -9,6 +9,7 @@
 #define NEVA_APP_RUNTIME_BROWSER_PERMISSIONS_PERMISSION_PROMPT_WEBOS_H_
 
 #include "base/memory/raw_ptr.h"
+#include "components/permissions/permission_uma_constants.h"
 #include "neva/app_runtime/browser/permissions/permission_prompt.h"
 
 namespace content {
@@ -43,6 +44,17 @@ class PermissionPromptWebOS : public permissions::PermissionPrompt {
   TabSwitchingBehavior GetTabSwitchingBehavior() override;
   permissions::PermissionPromptDisposition GetPromptDisposition()
       const override;
+  bool IsAskPrompt() const override { return true; }
+  // M151: Page Embedded Permission Element only; the neva prompt has no
+  // secondary UI variants and no anchored position.
+  std::vector<permissions::ElementAnchoredBubbleVariant> GetPromptVariants()
+      const override {
+    return {};
+  }
+  std::optional<permissions::feature_params::PermissionElementPromptPosition>
+  GetPromptPosition() const override {
+    return std::nullopt;
+  }
   std::optional<gfx::Rect> GetViewBoundsInScreen() const override;
   bool ShouldFinalizeRequestAfterDecided() const override;
 

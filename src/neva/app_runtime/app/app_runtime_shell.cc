@@ -92,7 +92,8 @@ ShellWindow* Shell::CreateMainWindow(std::string url,
   page_contents_params.allow_file_access_from_file_urls = true;
   page_contents_params.allow_universal_access_from_file_urls = true;
   page_contents_params.default_access_to_media =
-      base::JSONReader::Read(GetLaunchParams())
+      base::JSONReader::Read(GetLaunchParams(),
+                             base::JSON_PARSE_CHROMIUM_EXTENSIONS)
           ->GetDict()
           .FindBool("media-access");
   page_contents_params.user_agent = user_agent_;

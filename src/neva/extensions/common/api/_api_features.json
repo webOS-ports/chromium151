@@ -7,7 +7,7 @@
 // See chrome/common/extensions/api/_features.md to understand this file, as
 // well as feature.h, simple_feature.h, and feature_provider.h.
 //
-// Note that specifying "web_page", "blessed_web_page", or "all" as a context
+// Note that specifying "web_page", "privileged_web_page", or "all" as a context
 // type will require manually updating chrome/renderer/resources/dispatcher.cc.
 
 {
@@ -15,11 +15,11 @@
     "channel": "stable",
     "extension_types": ["extension", "legacy_packaged_app"],
     "contexts": [
-      "blessed_extension",
-      "unblessed_extension",
+      "privileged_extension",
+      "unprivileged_extension",
       "content_script",
       "web_page",
-      "blessed_web_page"
+      "privileged_web_page"
     ],
     "disallow_for_service_workers": true,
     "max_manifest_version": 2,
@@ -28,28 +28,24 @@
   },
   "action": {
     "dependencies": ["manifest:action"],
-    "contexts": ["blessed_extension"]
+    "contexts": ["privileged_extension"]
   },
   "browserAction": {
     "dependencies": ["manifest:browser_action"],
-    "contexts": ["blessed_extension"]
+    "contexts": ["privileged_extension"]
   },
   "pageAction": {
     "dependencies": ["manifest:page_action"],
-    "contexts": ["blessed_extension"]
-  },
-  "scripting": {
-    "dependencies": ["permission:scripting"],
-    "contexts": ["blessed_extension"]
+    "contexts": ["privileged_extension"]
   },
   "tabs": {
     "channel": "stable",
     "extension_types": ["extension", "legacy_packaged_app"],
-    "contexts": ["blessed_extension"],
+    "contexts": ["privileged_extension"],
     "default_parent": true
   },
   "windows": {
     "dependencies": ["api:tabs"],
-    "contexts": ["blessed_extension"]
+    "contexts": ["privileged_extension"]
   }
 }

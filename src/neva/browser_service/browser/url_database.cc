@@ -42,7 +42,7 @@ URLDatabase::URLDatabase(const std::string& table_name)
 URLDatabase::~URLDatabase() = default;
 
 bool URLDatabase::InsertURL(const std::string& url) {
-  if (!db_.BeginTransaction()) {
+  if (!db_.BeginTransactionDeprecated()) {
     LOG(ERROR) << __func__ << "Failed to begin the transaction.";
     return false;
   }
@@ -51,24 +51,24 @@ bool URLDatabase::InsertURL(const std::string& url) {
       base::StringPrintf("INSERT INTO %s VALUES (?)", table_name_.c_str());
 
   sql::Statement statement(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
   statement.BindString(0, url);
   statement.Run();
 
   if (!db_.GetLastChangeCount()) {
     LOG(ERROR) << __func__ << "Insertion in DB Failed";
-    db_.RollbackTransaction();
+    db_.RollbackTransactionDeprecated();
     return false;
   }
 
-  db_.CommitTransaction();
+  db_.CommitTransactionDeprecated();
   return true;
 }
 
 bool URLDatabase::DeleteURLs(const std::vector<std::string>& url_list) {
   VLOG(2) << __func__ << "Number of URLs to be deleted: " << url_list.size();
 
-  if (!db_.BeginTransaction()) {
+  if (!db_.BeginTransactionDeprecated()) {
     LOG(ERROR) << __func__ << "Failed to begin the transaction.";
     return false;
   }
@@ -77,23 +77,23 @@ bool URLDatabase::DeleteURLs(const std::vector<std::string>& url_list) {
       "DELETE FROM %s WHERE url LIKE ?", table_name_.c_str());
   for (const auto& url : url_list) {
     sql::Statement statement(
-        db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+        db_.GetCachedStatement(SQL_FROM_HERE, query));
     statement.BindString(0, url);
     statement.Run();
 
     if (!db_.GetLastChangeCount()) {
       LOG(ERROR) << __func__ << "Deletion from DB Failed";
-      db_.RollbackTransaction();
+      db_.RollbackTransactionDeprecated();
       return false;
     }
   }
 
-  db_.CommitTransaction();
+  db_.CommitTransactionDeprecated();
   return true;
 }
 
 bool URLDatabase::ClearAllURLs() {
-  if (!db_.BeginTransaction()) {
+  if (!db_.BeginTransactionDeprecated()) {
     LOG(ERROR) << __func__ << "Failed to begin the transaction.";
     return false;
   }
@@ -101,14 +101,14 @@ bool URLDatabase::ClearAllURLs() {
   const std::string query =
       base::StringPrintf("DELETE FROM %s", table_name_.c_str());
   sql::Statement statement(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
 
   if (!statement.Run()) {
     LOG(ERROR) << __func__ << "Deletion from DB Failed";
     return false;
   }
 
-  db_.CommitTransaction();
+  db_.CommitTransactionDeprecated();
   return true;
 }
 
@@ -118,7 +118,7 @@ bool URLDatabase::ModifyURL(const std::string& old_url,
       "UPDATE  %s SET url = ? WHERE url LIKE ? ", table_name_.c_str());
 
   sql::Statement statement(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
   statement.BindString(0, new_url);
   statement.BindString(1, old_url);
   statement.Run();
@@ -136,7 +136,7 @@ bool URLDatabase::IsURLAvailable(const std::string& url) {
   const std::string query =
       "select COUNT(*) from " + table_name_ + " WHERE url LIKE ? ";
   sql::Statement response_urls(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
   response_urls.BindString(0, url);
   if (response_urls.Step())
     count = response_urls.ColumnInt(0);
@@ -146,7 +146,9 @@ bool URLDatabase::IsURLAvailable(const std::string& url) {
 
 bool URLDatabase::GetAllURLs(std::vector<std::string>& url_list) {
   const std::string query = "select url from " + table_name_;
-  sql::Statement response_urls(db_.GetUniqueStatement(query.c_str()));
+  // M151: GetUniqueStatement takes base::cstring_view, which converts from
+  // std::string but not from a bare const char*.
+  sql::Statement response_urls(db_.GetUniqueStatement(query));
   while (response_urls.Step()) {
     url_list.push_back(response_urls.ColumnString(0));
   }
@@ -166,7 +168,7 @@ bool URLDatabase::CreateTableIfNeeded() {
       ")",
       table_name_.c_str());
 
-  if (!db_.Execute(query.c_str())) {
+  if (!db_.Execute(query)) {
     LOG(ERROR) << __func__ << "Error Creating " << table_name_ << " Table";
     return false;
   }

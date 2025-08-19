@@ -18,6 +18,7 @@
 
 #include "base/base64.h"
 #include "base/files/file_util.h"
+#include "base/logging.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "neva/browser_service/browser/webrisk/core/database/webrisk_database.h"

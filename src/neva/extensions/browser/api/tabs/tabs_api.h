@@ -89,6 +89,7 @@ class ExecuteCodeInTabFunction : public extensions::ExecuteCodeFunction {
   bool CanExecuteScriptOnPage(std::string* error) override;
   extensions::ScriptExecutor* GetScriptExecutor(std::string* error) override;
   bool IsWebView() const override;
+  int GetRootFrameId() const override;
   const GURL& GetWebViewSrc() const override;
 
  private:

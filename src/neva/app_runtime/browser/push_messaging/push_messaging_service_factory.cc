@@ -47,9 +47,9 @@ PushMessagingServiceFactory::PushMessagingServiceFactory()
 
 PushMessagingServiceFactory::~PushMessagingServiceFactory() = default;
 
-KeyedService* PushMessagingServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService> PushMessagingServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return new PushMessagingServiceImpl(context);
+  return std::make_unique<PushMessagingServiceImpl>(context);
 }
 
 }  // namespace neva_app_runtime

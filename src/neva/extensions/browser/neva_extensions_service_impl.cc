@@ -304,12 +304,9 @@ void NevaExtensionsServiceImpl::OnExtensionPopupViewCreated(
   }
 
   GURL popup_url = extension_action->GetPopupUrl(tab_id);
-  scoped_refptr<content::SiteInstance> site_instance =
-      extensions::ProcessManager::Get(browser_context_)
-          ->GetSiteInstanceForURL(popup_url);
-
+  // M151: ExtensionHost picks the SiteInstance itself from the BrowserContext.
   popup_extension_host_ = std::make_unique<NevaExtensionHost>(
-      extension, site_instance.get(), popup_url,
+      extension, browser_context_, popup_url,
       extensions::mojom::ViewType::kExtensionPopup);
   popup_extension_host_->CreateRendererSoon();
   web_view->SetWebContents(popup_extension_host_->host_contents());
@@ -335,7 +332,8 @@ void NevaExtensionsServiceImpl::OnViewIsDeleting(views::View* observed_view) {
 
 void NevaExtensionsServiceImpl::OnViewVisibilityChanged(
     views::View* observed_view,
-    views::View* starting_view) {
+    views::View* starting_view,
+    bool visible) {
   if (popup_extension_host_ && !observed_view->HasFocus()) {
     popup_extension_host_.reset();
   }

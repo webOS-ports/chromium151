@@ -25,6 +25,7 @@
 #include "content/public/browser/network_service_instance.h"
 #include "content/public/browser/storage_partition.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "neva/app_runtime/app/app_runtime_main_delegate.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 
@@ -85,7 +86,7 @@ GCMProfileServiceFactory::GCMProfileServiceFactory()
 
 GCMProfileServiceFactory::~GCMProfileServiceFactory() = default;
 
-KeyedService* GCMProfileServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService> GCMProfileServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   scoped_refptr<base::SequencedTaskRunner> blocking_task_runner(
       base::ThreadPool::CreateSequencedTaskRunner(
@@ -103,9 +104,13 @@ KeyedService* GCMProfileServiceFactory::BuildServiceInstanceFor(
       content::GetNetworkConnectionTracker(), version_info::Channel::UNKNOWN,
       "org.chromium.linux", nullptr, std::make_unique<GCMClientFactory>(),
       content::GetUIThreadTaskRunner({}), content::GetIOThreadTaskRunner({}),
-      blocking_task_runner);
+      blocking_task_runner,
+      // M151: the GCM store is encrypted through OSCryptAsync. It must be the
+      // same instance the cookie store uses, and GCMDriverDesktop dereferences
+      // it in its constructor, so it cannot be null.
+      neva_app_runtime::GetAppRuntimeContentBrowserClient()->GetOSCryptAsync());
 
-  return service.release();
+  return service;
 }
 
 }  // namespace gcm

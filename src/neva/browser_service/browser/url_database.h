@@ -49,7 +49,10 @@ class URLDatabase {
   URLDatabase(const URLDatabase&) = delete;
   URLDatabase& operator=(const URLDatabase&) = delete;
 
-  sql::Database db_;
+  // M151: sql::Database has no default constructor; it requires a Tag that is
+  // validated at compile time against the DatabaseTag variants in
+  // tools/metrics/histograms/metadata/sql/histograms.xml.
+  sql::Database db_{sql::Database::Tag("NevaUrlDatabase")};
   base::FilePath db_file_path_;
   std::string table_name_;
 };

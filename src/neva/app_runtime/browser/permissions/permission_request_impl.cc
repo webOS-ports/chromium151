@@ -19,6 +19,7 @@
 #include "base/logging.h"
 #include "components/permissions/permission_prompt.h"
 #include "components/permissions/permission_request.h"
+#include "components/permissions/resolvers/permission_prompt_options.h"
 #include "components/permissions/request_type.h"
 
 namespace neva_app_runtime {
@@ -55,7 +56,8 @@ PermissionRequest::RequestType PermissionRequestImpl::GetRequestType() const {
 }
 
 void PermissionRequestImpl::PermissionGranted(bool is_one_time) {
-  permission_request_->PermissionGranted(is_one_time);
+  permission_request_->PermissionGranted(
+      PromptOptions(std::monostate()), is_one_time);
 }
 
 void PermissionRequestImpl::PermissionDenied() {
@@ -67,7 +69,11 @@ void PermissionRequestImpl::Cancelled() {
 }
 
 void PermissionRequestImpl::RequestFinished() {
-  permission_request_->RequestFinished();
+  // M151 removed PermissionRequest::RequestFinished(). The permission system
+  // now owns the request's lifetime and runs the request_finished_callback it
+  // was constructed with from ~PermissionRequest, so there is nothing left to
+  // forward here. The neva-side hook stays so the browser shell prompt keeps
+  // its unchanged Delegate contract.
 }
 
 }  // namespace neva_app_runtime

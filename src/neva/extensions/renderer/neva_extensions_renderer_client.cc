@@ -20,7 +20,6 @@
 #include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest_handlers/background_info.h"
-#include "extensions/renderer/dispatcher_delegate.h"
 #include "extensions/renderer/extension_web_view_helper.h"
 #include "neva/extensions/renderer/neva_extensions_dispatcher_delegate.h"
 
@@ -28,7 +27,14 @@ namespace neva {
 
 NevaExtensionsRendererClient::NevaExtensionsRendererClient()
     : dispatcher_(std::make_unique<extensions::Dispatcher>(
-          std::make_unique<NevaExtensionsDispatcherDelegate>())) {
+          [] {
+            std::vector<
+                std::unique_ptr<const extensions::ExtensionsRendererAPIProvider>>
+                providers;
+            providers.push_back(
+                std::make_unique<NevaExtensionsDispatcherDelegate>());
+            return providers;
+          }())) {
   dispatcher_->OnRenderThreadStarted(content::RenderThread::Get());
 }
 
@@ -67,8 +73,9 @@ bool NevaExtensionsRendererClient::ExtensionAPIEnabledForServiceWorkerScript(
   if (scope != extension->url())
     return false;
 
-  const std::string& sw_script =
-      extensions::BackgroundInfo::GetBackgroundServiceWorkerScript(extension);
+  const std::string sw_script(
+      extensions::BackgroundInfo::GetBackgroundServiceWorkerScriptURL(extension)
+          .path());
 
   return extension->GetResourceURL(sw_script) == script_url;
 }

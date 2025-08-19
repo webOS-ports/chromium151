@@ -17,6 +17,7 @@
 #ifndef NEVA_EMULATOR_EMULATOR_DATA_SOURCE_H_
 #define NEVA_EMULATOR_EMULATOR_DATA_SOURCE_H_
 
+#include <optional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -93,7 +94,7 @@ class EMULATOR_EXPORT EmulatorDataSource : public base::Thread {
                                 const std::string& response);
 
   void OnURLLoadComplete(const network::SimpleURLLoader* source,
-                         std::unique_ptr<std::string> response_body);
+                         std::optional<std::string> response_body);
 
   // Gets a WeakPtr to this instance.
   base::WeakPtr<EmulatorDataSource> GetWeakPtr();

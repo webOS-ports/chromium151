@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/browser_shell/browser_shell_page_contents.h"
+#include "base/notimplemented.h"
 
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
@@ -147,7 +149,8 @@ void BrowserShellPageContents::ConstructorCallback(
   mojo::Remote<browser_shell::mojom::PageContents> remote_contents;
   auto pending_receiver = remote_contents.BindNewPipeAndPassReceiver();
   auto* shell_page_contents =
-      new BrowserShellPageContents(isolate, std::move(remote_contents), params);
+      cppgc::MakeGarbageCollected<BrowserShellPageContents>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, std::move(remote_contents), params);
 
   (*shell_service)
       ->CreatePageContents(
@@ -420,7 +423,8 @@ void BrowserShellPageContents::OnAuthChallenge(
   v8::Context::Scope context_scope(context);
 
   gin::Handle<BrowserShellLogin> login_obj =
-      gin::CreateHandle(isolate, new BrowserShellLogin(this, std::move(challenge)));
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<BrowserShellLogin>(
+isolate->GetCppHeap()->GetAllocationHandle(), this, std::move(challenge)));
   DoEmit(events::kAuthChallengeEvent, login_obj.ToV8());
 }
 
@@ -529,8 +533,8 @@ void BrowserShellPageContents::OnNewWindowOpen(
 
   BrowserShellPageContents::CreateParams page_contents_params;
   page_contents_params.error_page_hiding = error_page_hiding_;
-  auto* new_page_contents = new BrowserShellPageContents(
-      isolate, std::move(remote_new_contents), page_contents_params);
+  auto* new_page_contents = cppgc::MakeGarbageCollected<BrowserShellPageContents>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, std::move(remote_new_contents), page_contents_params);
 
   remote_->BindNewPageContentsById(
       std::move(pending_receiver_new_contents), id,
@@ -622,7 +626,8 @@ void BrowserShellPageContents::OnPermissionRequest(
       .Check();
 
   gin::Handle<PermissionRequest> request_obj =
-      gin::CreateHandle(isolate, new PermissionRequest(this, id));
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<PermissionRequest>(
+isolate->GetCppHeap()->GetAllocationHandle(), this, id));
   request_permission
       ->Set(context, gin::StringToV8(isolate, "request"), request_obj.ToV8())
       .Check();
@@ -731,7 +736,8 @@ void BrowserShellPageContents::RunJSDialog(const std::string& type,
                                       v8::MicrotasksScope::kRunMicrotasks);
   v8::Context::Scope context_scope(context);
   gin::Handle<DialogController> dialog_controller =
-      gin::CreateHandle(isolate, new DialogController(this));
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<DialogController>(
+isolate->GetCppHeap()->GetAllocationHandle(), this));
 
   DoEmit(events::kDialog, type, message, dialog_controller.ToV8(), default_prompt_text);
 }

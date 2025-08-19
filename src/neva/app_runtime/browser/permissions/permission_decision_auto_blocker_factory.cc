@@ -6,6 +6,7 @@
 // weblayer/browser/permissions/permission_decision_auto_blocker_factory.cc
 
 #include "neva/app_runtime/browser/permissions/permission_decision_auto_blocker_factory.h"
+#include <memory>
 
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/permissions/permission_decision_auto_blocker.h"
@@ -38,9 +39,9 @@ PermissionDecisionAutoBlockerFactory::PermissionDecisionAutoBlockerFactory()
 PermissionDecisionAutoBlockerFactory::~PermissionDecisionAutoBlockerFactory() =
     default;
 
-KeyedService* PermissionDecisionAutoBlockerFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService> PermissionDecisionAutoBlockerFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return new permissions::PermissionDecisionAutoBlocker(
+  return std::make_unique<permissions::PermissionDecisionAutoBlocker>(
       HostContentSettingsMapFactory::GetForBrowserContext(context));
 }
 

@@ -34,7 +34,7 @@ PageView::PageView(PageViewDelegate* delegate)
     : id_(ShellEnvironment::GetInstance()->GetNextIDFor(this)),
       delegate_(delegate ? delegate : &stub_delegate_),
       web_view_(new views::WebView()) {
-  web_view_->set_owned_by_client();
+  web_view_->set_owned_by_client(views::View::OwnedByClientPassKey());
 }
 
 PageView::~PageView() {
@@ -120,7 +120,7 @@ PageView* PageView::AddChildPageView(std::unique_ptr<PageView> page_view) {
     map_view_to_page_view_[inserted.first->first->GetView()] =
         inserted.first->first;
     web_view_->AddChildView(inserted.first->first->GetView());
-    web_view_->Layout();
+    web_view_->DeprecatedLayoutImmediately();
     inserted.first->first->SetParentPageView(this);
     return inserted.first->first;
   }

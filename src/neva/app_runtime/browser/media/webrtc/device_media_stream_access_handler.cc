@@ -17,6 +17,7 @@
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/permission_controller.h"
+#include "content/public/browser/permission_descriptor_util.h"
 #include "content/public/browser/web_contents.h"
 #include "neva/app_runtime/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "neva/app_runtime/browser/media/webrtc/media_stream_capture_indicator.h"
@@ -59,8 +60,17 @@ void UpdatePageSpecificContentSettings(
       microphone_camera_state;
   std::string selected_audio_device;
   std::string selected_video_device;
-  std::string requested_audio_device = request.requested_audio_device_id;
-  std::string requested_video_device = request.requested_video_device_id;
+  // M151: MediaStreamRequest carries a list of eligible device ids rather than
+  // one requested id. This code only ever asks "was a specific device asked
+  // for", so take the first.
+  std::string requested_audio_device =
+      request.requested_audio_device_ids.empty()
+          ? std::string()
+          : request.requested_audio_device_ids.front();
+  std::string requested_video_device =
+      request.requested_video_device_ids.empty()
+          ? std::string()
+          : request.requested_video_device_ids.front();
 
   content::BrowserContext* context = web_contents->GetBrowserContext();
   PrefService* prefs = user_prefs::UserPrefs::Get(context);
@@ -90,23 +100,20 @@ void UpdatePageSpecificContentSettings(
     }
   }
 
-  GURL embedding_origin;
-  if (permissions::PermissionsClient::Get()->DoURLsMatchNewTabPage(
-          request.security_origin,
-          web_contents->GetLastCommittedURL().DeprecatedGetOriginAsURL())) {
-    embedding_origin =
-        web_contents->GetLastCommittedURL().DeprecatedGetOriginAsURL();
-  } else {
-    embedding_origin = permissions::PermissionUtil::GetLastCommittedOriginAsURL(
-        render_frame_host->GetMainFrame());
-  }
+  GURL embedding_origin =
+      permissions::PermissionsClient::Get()
+          ->GetEmbeddingOriginOverride(request.security_origin,
+                                       render_frame_host)
+          .value_or(permissions::PermissionUtil::GetLastCommittedOriginAsURL(
+              render_frame_host->GetMainFrame()));
 
+  // M151 dropped the selected/requested device ids from this notification;
+  // PageSpecificContentSettings now only tracks the access/blocked bits.
   content_settings->OnMediaStreamPermissionSet(
       permissions::PermissionUtil::GetCanonicalOrigin(
           ContentSettingsType::MEDIASTREAM_CAMERA, request.security_origin,
           embedding_origin),
-      microphone_camera_state, selected_audio_device, selected_video_device,
-      requested_audio_device, requested_video_device);
+      microphone_camera_state);
 }
 
 }  // namespace
@@ -151,8 +158,11 @@ bool DeviceMediaStreamAccessHandler::CheckMediaAccessPermission(
   // instead.
   return render_frame_host->GetBrowserContext()
              ->GetPermissionController()
-             ->GetPermissionStatusForCurrentDocument(permission_type,
-                                                     render_frame_host) ==
+             ->GetPermissionStatusForCurrentDocument(
+                 content::PermissionDescriptorUtil::
+                     CreatePermissionDescriptorForPermissionType(
+                         permission_type),
+                 render_frame_host) ==
          blink::mojom::PermissionStatus::GRANTED;
 }
 

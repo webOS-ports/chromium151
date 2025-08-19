@@ -22,9 +22,9 @@
 
 namespace neva {
 
-void NevaExtensionsDispatcherDelegate::InitializeBindingsSystem(
+void NevaExtensionsDispatcherDelegate::AddBindingsSystemHooks(
     extensions::Dispatcher* dispatcher,
-    extensions::NativeExtensionBindingsSystem* bindings_system) {
+    extensions::NativeExtensionBindingsSystem* bindings_system) const {
   extensions::APIBindingsSystem* bindings = bindings_system->api_system();
   bindings->RegisterHooksDelegate("tabs",
                                   std::make_unique<TabsHooksDelegate>(

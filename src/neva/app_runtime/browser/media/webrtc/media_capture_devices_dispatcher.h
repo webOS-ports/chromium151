@@ -48,11 +48,18 @@ class MediaCaptureDevicesDispatcher
   // webrtc::MediaStreamDeviceEnumeratorImpl:
   const blink::MediaStreamDevices& GetAudioCaptureDevices() const override;
   const blink::MediaStreamDevices& GetVideoCaptureDevices() const override;
-  void GetDefaultDevicesForBrowserContext(
+  // M151 replaced GetDefaultDevicesForBrowserContext(), which filled in a
+  // StreamDevices for audio and video at once, with these two per-kind
+  // getters. The neva behaviour is unchanged: prefer the device named by the
+  // kDefaultAudio/VideoCaptureDevice pref, else the first available one.
+  const std::optional<blink::MediaStreamDevice>
+  GetPreferredAudioDeviceForBrowserContext(
       content::BrowserContext* context,
-      bool audio,
-      bool video,
-      blink::mojom::StreamDevices& devices) override;
+      const std::vector<std::string>& eligible_device_ids) const override;
+  const std::optional<blink::MediaStreamDevice>
+  GetPreferredVideoDeviceForBrowserContext(
+      content::BrowserContext* context,
+      const std::vector<std::string>& eligible_device_ids) const override;
 
   // content::MediaObserver:
   void OnMediaRequestStateChanged(int render_process_id,

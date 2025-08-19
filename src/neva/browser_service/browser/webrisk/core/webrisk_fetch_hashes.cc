@@ -113,7 +113,7 @@ void WebRiskFetchHashes::ComputeDiffRequest() {
 
 void WebRiskFetchHashes::OnRequestResponse(
     const std::string& url,
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   VLOG(2) << __func__ << " URL = " << url;
   ComputeThreatListDiffResponse file_format;
   bool is_computed_diff =
@@ -147,7 +147,7 @@ void WebRiskFetchHashes::OnUpdatedDiff(base::TimeDelta result) {
 }
 
 bool WebRiskFetchHashes::ComputeDiffResponse(
-    std::unique_ptr<std::string> response_body,
+    std::optional<std::string> response_body,
     ComputeThreatListDiffResponse& file_format) {
   DCHECK(url_loader_);
   std::optional<int> response_code;  // Invalid response code.
@@ -171,7 +171,7 @@ bool WebRiskFetchHashes::ComputeDiffResponse(
   }
 
   std::optional<base::Value> response_dict =
-      base::JSONReader::Read(*response_body);
+      base::JSONReader::Read(*response_body, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!response_dict.has_value()) {
     VLOG(1) << __func__ << ", Failed to response body !!";
     return false;

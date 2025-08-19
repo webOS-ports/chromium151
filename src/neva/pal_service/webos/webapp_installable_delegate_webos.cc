@@ -16,11 +16,13 @@
 
 #include "neva/pal_service/webos/webapp_installable_delegate_webos.h"
 
+#include <optional>
 #include <algorithm>
 #include <map>
 #include <ostream>
 #include <string>
 
+#include "base/containers/span.h"
 #include "base/files/dir_reader_posix.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -227,7 +229,7 @@ bool WebAppInstallableDelegateWebOS::SaveArtifacts(const WebAppInfo* app_info,
   }
 
   base::FilePath appinfo_path = app_dir.AppendASCII("appinfo.json");
-  if (!base::WriteFile(appinfo_path, appinfo_str.c_str(), appinfo_str.size())) {
+  if (!base::WriteFile(appinfo_path, appinfo_str)) {
     LOG(ERROR) << __func__ << "() Failed to write " << appinfo_path;
     return false;
   }
@@ -310,16 +312,15 @@ bool WebAppInstallableDelegateWebOS::WriteIcons(
 bool WebAppInstallableDelegateWebOS::WriteIconToFile(
     const base::FilePath& file_path,
     const SkBitmap* bitmap) {
-  std::vector<unsigned char> image_data;
-  if (!gfx::PNGCodec::EncodeBGRASkBitmap(*bitmap, false, &image_data)) {
+  std::optional<std::vector<uint8_t>> image_data =
+      gfx::PNGCodec::EncodeBGRASkBitmap(*bitmap, false);
+  if (!image_data) {
     LOG(ERROR) << __func__ << "() Could not encode icon data for file "
                << file_path.AsUTF8Unsafe();
     return false;
   }
 
-  const char* image_data_ptr = reinterpret_cast<const char*>(&image_data[0]);
-  int size = base::checked_cast<int>(image_data.size());
-  if (base::WriteFile(file_path, image_data_ptr, size) != size) {
+  if (!base::WriteFile(file_path, *image_data)) {
     LOG(ERROR) << __func__
                << "() Could not write icon file: " << file_path.AsUTF8Unsafe();
     return false;
@@ -406,10 +407,9 @@ bool WebAppInstallableDelegateWebOS::AreWebosIconsDifferent(
 
       std::string icon_data;
       if (base::ReadFileToString(icon_path, &icon_data)) {
-        SkBitmap webos_bitmap;
-        if (!gfx::PNGCodec::Decode(
-                reinterpret_cast<const unsigned char*>(icon_data.c_str()),
-                icon_data.size(), &webos_bitmap)) {
+        SkBitmap webos_bitmap =
+            gfx::PNGCodec::Decode(base::as_byte_span(icon_data));
+        if (webos_bitmap.isNull()) {
           LOG(ERROR) << "Cannot decode icon from " << icon_path;
           return true;
         }
@@ -478,7 +478,7 @@ void WebAppInstallableDelegateWebOS::OnGetAppInfoPath(
     return;
   }
 
-  auto vals = base::JSONReader::ReadDict(json);
+  auto vals = base::JSONReader::ReadDict(json, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!vals || vals->empty()) {
     LOG(ERROR) << __func__ << "() Invalid response format";
     std::move(callback).Run(false, fresh_app_info->version());
@@ -503,7 +503,7 @@ void WebAppInstallableDelegateWebOS::OnGetAppInfoPath(
     return std::move(callback).Run(true, fresh_app_info->version());
   }
 
-  auto current_appinfo_json = base::JSONReader::ReadDict(app_info_str);
+  auto current_appinfo_json = base::JSONReader::ReadDict(app_info_str, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!current_appinfo_json || current_appinfo_json->empty()) {
     return std::move(callback).Run(true, fresh_app_info->version());
   }

@@ -14,6 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include <optional>
 #include "neva/browser_service/browser/webrisk/core/webrisk_search_hashes.h"
 
 #include "content/public/browser/storage_partition.h"
@@ -85,7 +86,7 @@ void WebRiskSearchHashes::SearchHashPrefix(const std::string& hash_prefix,
 void WebRiskSearchHashes::OnSearchHashResponse(
     const std::string& url,
     SearchHashesCallback callback,
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   std::string response_body_data = std::move(*response_body);
   int response_code = -1;
   if (url_loader_ && url_loader_->ResponseInfo() &&

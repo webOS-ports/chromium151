@@ -18,6 +18,7 @@
 
 #include "content/public/renderer/v8_value_converter.h"
 #include "extensions/common/api/messaging/message.h"
+#include "extensions/common/api/messaging/messaging_util.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/mojom/message_port.mojom-shared.h"
@@ -105,9 +106,11 @@ RequestResult TabsHooksDelegate::HandleSendRequest(
   v8::Local<v8::Value> v8_message = arguments[1];
   std::string error;
 
-  std::unique_ptr<Message> message = messaging_util::MessageFromV8(
+  std::optional<Message> message = messaging_util::MessageFromV8(
       script_context->v8_context(), v8_message,
-      messaging_util::GetSerializationFormat(*script_context), &error);
+      messaging_util::GetSerializationFormat(script_context->extension(),
+                                             mojom::ChannelType::kSendRequest),
+      &error);
   if (!message) {
     RequestResult result(RequestResult::INVALID_INVOCATION);
     result.error = std::move(error);
@@ -121,8 +124,8 @@ RequestResult TabsHooksDelegate::HandleSendRequest(
 
   messaging_service_->SendOneTimeMessage(
       script_context, MessageTarget::ForTab(tab_id, messaging_util::kNoFrameId),
-      mojom::ChannelType::kSendRequest, *message, parse_result.async_type,
-      response_callback);
+      mojom::ChannelType::kSendRequest, std::move(*message),
+      parse_result.async_type, response_callback);
 
   return RequestResult(RequestResult::HANDLED);
 }
@@ -145,9 +148,11 @@ RequestResult TabsHooksDelegate::HandleSendMessage(
   DCHECK(!v8_message.IsEmpty());
   std::string error;
 
-  std::unique_ptr<Message> message = messaging_util::MessageFromV8(
+  std::optional<Message> message = messaging_util::MessageFromV8(
       script_context->v8_context(), v8_message,
-      messaging_util::GetSerializationFormat(*script_context), &error);
+      messaging_util::GetSerializationFormat(script_context->extension(),
+                                             mojom::ChannelType::kSendMessage),
+      &error);
   if (!message) {
     RequestResult result(RequestResult::INVALID_INVOCATION);
     result.error = std::move(error);
@@ -162,8 +167,8 @@ RequestResult TabsHooksDelegate::HandleSendMessage(
   v8::Local<v8::Promise> promise = messaging_service_->SendOneTimeMessage(
       script_context,
       MessageTarget::ForTab(tab_id, options.frame_id, options.document_id),
-      mojom::ChannelType::kSendMessage, *message, parse_result.async_type,
-      response_callback);
+      mojom::ChannelType::kSendMessage, std::move(*message),
+      parse_result.async_type, response_callback);
   DCHECK_EQ(parse_result.async_type == binding::AsyncResponseType::kPromise,
             !promise.IsEmpty())
       << "SendOneTimeMessage should only return a Promise for promise based "
@@ -192,15 +197,17 @@ RequestResult TabsHooksDelegate::HandleConnect(
         messaging_util::PARSE_FRAME_ID | messaging_util::PARSE_CHANNEL_NAME);
   }
 
-  gin::Handle<GinPort> port = messaging_service_->Connect(
+  GinPort* port = messaging_service_->Connect(
       script_context,
       MessageTarget::ForTab(tab_id, options.frame_id, options.document_id),
       options.channel_name,
-      messaging_util::GetSerializationFormat(*script_context));
-  DCHECK(!port.IsEmpty());
+      messaging_util::GetSerializationFormat(script_context->extension(),
+                                             mojom::ChannelType::kConnect));
+  DCHECK(port);
 
   RequestResult result(RequestResult::HANDLED);
-  result.return_value = port.ToV8();
+  result.return_value =
+      port->GetWrapper(script_context->isolate()).ToLocalChecked();
   return result;
 }
 

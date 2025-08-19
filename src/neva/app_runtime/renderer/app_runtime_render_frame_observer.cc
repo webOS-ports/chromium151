@@ -29,6 +29,7 @@
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
+#include "third_party/blink/public/platform/web_scoped_page_pauser.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_frame.h"
@@ -39,7 +40,6 @@
 #include "third_party/blink/public/web/web_settings.h"
 #include "third_party/blink/public/web/web_view.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
-#include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "ui/base/resource/resource_bundle.h"
 
@@ -103,10 +103,9 @@ void AppRuntimeRenderFrameObserver::SuspendDOM() {
   if (dom_suspended_)
     return;
   dom_suspended_ = true;
-  blink::WebLocalFrameImpl* frame = static_cast<blink::WebLocalFrameImpl*>(
-      render_frame()->GetWebFrame());
+  blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
   CHECK(frame);
-  page_pauser_ = std::make_unique<blink::WebScopedPagePauser>(*frame);
+  page_pauser_ = blink::WebScopedPagePauser::Create(*frame);
 }
 
 void AppRuntimeRenderFrameObserver::ResumeDOM() {
@@ -184,7 +183,7 @@ void AppRuntimeRenderFrameObserver::GrantLoadLocalResources() {
 
 void AppRuntimeRenderFrameObserver::InsertStyleSheet(const std::string& css) {
   render_frame()->GetWebFrame()->GetDocument().InsertStyleSheet(
-      blink::WebString::FromUTF8(css));
+      blink::WebString::FromUtf8(css));
 }
 
 void AppRuntimeRenderFrameObserver::ReplaceBaseURL(const std::string& new_url) {

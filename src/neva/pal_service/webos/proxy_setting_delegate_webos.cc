@@ -124,25 +124,21 @@ void ProxySettingDelegateWebos::GetProxyInfoFromSettingsServiceCallback(
 
 bool ProxySettingDelegateWebos::GetProxyInfoFromSystemEnvironments() {
   auto env = base::Environment::Create();
-  std::string proxy_single_address;
-  std::string proxy_single_port;
-  if (!env->GetVar("PROXY_HOST", &proxy_single_address) ||
-      !env->GetVar("PROXY_PORT", &proxy_single_port))
+  std::optional<std::string> proxy_single_address = env->GetVar("PROXY_HOST");
+  std::optional<std::string> proxy_single_port = env->GetVar("PROXY_PORT");
+  if (!proxy_single_address || !proxy_single_port)
     return false;
 
   content::ProxySettings proxy_settings;
-  proxy_settings.ip = std::move(proxy_single_address);
-  proxy_settings.port = std::move(proxy_single_port);
+  proxy_settings.ip = std::move(*proxy_single_address);
+  proxy_settings.port = std::move(*proxy_single_port);
   proxy_settings.enabled = true;
-  std::string scheme;
-  if (env->GetVar("PROXY_SCHEME", &scheme))
-    proxy_settings.scheme = std::move(scheme);
-  std::string username;
-  if (env->GetVar("PROXY_ID", &username))
-    proxy_settings.username = std::move(username);
-  std::string password;
-  if (env->GetVar("PROXY_PW", &password))
-    proxy_settings.password = std::move(password);
+  if (std::optional<std::string> scheme = env->GetVar("PROXY_SCHEME"))
+    proxy_settings.scheme = std::move(*scheme);
+  if (std::optional<std::string> username = env->GetVar("PROXY_ID"))
+    proxy_settings.username = std::move(*username);
+  if (std::optional<std::string> password = env->GetVar("PROXY_PW"))
+    proxy_settings.password = std::move(*password);
   system_enviroments_proxy_info_ = std::move(proxy_settings);
   return true;
 }

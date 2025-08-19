@@ -9,6 +9,7 @@
 #define NEVA_APPRUNTIME_BROWSER_PUSH_MESSAGING_PUSH_MESSAGING_SERVICE_IMPL_H_
 
 #include "components/content_settings/core/common/content_settings.h"
+#include "base/functional/callback_helpers.h"
 #include "components/gcm_driver/common/gcm_message.h"
 #include "components/gcm_driver/crypto/gcm_encryption_provider.h"
 #include "components/gcm_driver/gcm_app_handler.h"
@@ -19,6 +20,7 @@
 #include "components/gcm_driver/instance_id/instance_id_profile_service.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "content/public/browser/devtools_background_services_context.h"
+#include "content/public/browser/permission_result.h"
 #include "content/public/browser/push_messaging_service.h"
 #include "neva/app_runtime/browser/push_messaging/push_messaging_app_identifier.h"
 #include "third_party/blink/public/mojom/push_messaging/push_messaging.mojom-forward.h"
@@ -135,7 +137,7 @@ class PushMessagingServiceImpl : public content::PushMessagingService,
                    RegisterCallback callback,
                    int render_process_id,
                    int render_frame_id,
-                   blink::mojom::PermissionStatus permission_status);
+                   content::PermissionResult permission_result);
 
   void SubscribeEnd(RegisterCallback callback,
                     const std::string& subscription_id,
@@ -217,6 +219,7 @@ class PushMessagingServiceImpl : public content::PushMessagingService,
       base::OnceCallback<void(blink::mojom::PushSubscriptionPtr)> callback,
       const std::string& sender_id,
       bool is_valid,
+      bool user_visible_only,
       const GURL& endpoint,
       const std::optional<base::Time>& expiration_time,
       const std::vector<uint8_t>& p256dh,

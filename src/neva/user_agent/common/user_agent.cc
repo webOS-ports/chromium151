@@ -19,7 +19,7 @@
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "components/version_info/version_info.h"
-#include "content/public/common/user_agent.h"
+#include "components/embedder_support/user_agent_utils.h"
 #include "net/http/http_util.h"
 #include "neva/user_agent/common/user_agent_switches.h"
 #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
@@ -43,7 +43,7 @@ std::string GetDefaultUserAgent() {
   }
 
   std::string product = GetProduct();
-  return content::BuildUserAgentFromProduct(product);
+  return embedder_support::BuildUserAgentFromProduct(product);
 }
 
 bool IsUserAgentClientHintsEnabled() {

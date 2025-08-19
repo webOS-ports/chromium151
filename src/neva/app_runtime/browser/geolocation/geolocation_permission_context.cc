@@ -16,7 +16,7 @@ GeolocationPermissionContext::GeolocationPermissionContext(
 GeolocationPermissionContext::~GeolocationPermissionContext() = default;
 
 void GeolocationPermissionContext::DecidePermission(
-    permissions::PermissionRequestData request_data,
+    std::unique_ptr<permissions::PermissionRequestData> request_data,
     permissions::BrowserPermissionCallback callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
@@ -24,20 +24,24 @@ void GeolocationPermissionContext::DecidePermission(
                                           std::move(callback));
 }
 
-ContentSetting GeolocationPermissionContext::GetPermissionStatusInternal(
+PermissionSetting GeolocationPermissionContext::GetPermissionStatusInternal(
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
     const GURL& embedding_origin) const {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  ContentSetting content_setting =
+  PermissionSetting setting =
       permissions::PermissionContextBase::GetPermissionStatusInternal(
           render_frame_host, requesting_origin, embedding_origin);
 
-  if (content_setting == CONTENT_SETTING_DEFAULT)
-    content_setting = CONTENT_SETTING_ASK;
+  // M151 widened this to a variant. Only the ContentSetting alternative gets
+  // the DEFAULT -> ASK treatment; a GeolocationSetting passes through.
+  if (auto* content_setting = std::get_if<ContentSetting>(&setting);
+      content_setting && *content_setting == CONTENT_SETTING_DEFAULT) {
+    return CONTENT_SETTING_ASK;
+  }
 
-  return content_setting;
+  return setting;
 }
 
 }  // namespace neva_app_runtime

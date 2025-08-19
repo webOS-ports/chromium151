@@ -21,8 +21,10 @@
 
 #include "base/memory/memory_pressure_listener.h"
 #include "base/memory/weak_ptr.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "net/cookies/canonical_cookie.h"
+#include "net/http/http_response_headers.h"
 #include "neva/app_runtime/browser/app_runtime_web_contents_delegate.h"
 #include "neva/app_runtime/public/app_runtime_constants.h"
 #include "third_party/blink/public/common/mediastream/media_stream_request.h"
@@ -192,15 +194,18 @@ class WebView : public AppRuntimeWebContentsDelegate,
   // content::WebContentsDelegate implementation
   content::WebContents* OpenURLFromTab(
       content::WebContents* source,
-      const content::OpenURLParams& params) override;
+      const content::OpenURLParams& params,
+      base::OnceCallback<void(content::NavigationHandle&)>
+          navigation_handle_callback) override;
 
-  void AddNewContents(content::WebContents* source,
-                      std::unique_ptr<content::WebContents> new_contents,
-                      const GURL& target_url,
-                      WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
-                      bool user_gesture,
-                      bool* was_blocked) override;
+  content::WebContents* AddNewContents(
+      content::WebContents* source,
+      std::unique_ptr<content::WebContents> new_contents,
+      const GURL& target_url,
+      WindowOpenDisposition disposition,
+      const blink::mojom::WindowFeatures& window_features,
+      bool user_gesture,
+      bool* was_blocked) override;
 
   void NavigationStateChanged(content::WebContents* source,
                               content::InvalidateTypes changed_flags) override;
@@ -231,7 +236,7 @@ class WebView : public AppRuntimeWebContentsDelegate,
   bool VideoCaptureAllowed() override;
 
   bool CheckMediaAccessPermission(content::RenderFrameHost* render_frame_host,
-                                  const GURL& security_origin,
+                                  const url::Origin& security_origin,
                                   blink::mojom::MediaStreamType type) override;
 
   void RequestMediaAccessPermission(
@@ -254,9 +259,17 @@ class WebView : public AppRuntimeWebContentsDelegate,
                      const GURL& validated_url) override;
   void DidUpdateFaviconURL(
       content::RenderFrameHost* rfh,
-      const std::vector<blink::mojom::FaviconURLPtr>& candidates) override;
+      const std::vector<blink::mojom::FaviconURLPtr>& candidates,
+      blink::mojom::FaviconUpdateReason reason) override;
   void DidStartNavigation(content::NavigationHandle* navigation_handle) override;
   void DidFinishNavigation(content::NavigationHandle* navigation_handle) override;
+
+#if defined(ENABLE_PWA_MANAGER_WEBAPI)
+  // Headers of the last committed primary main frame navigation. M151 removed
+  // RenderFrameHost::GetLastResponseHeaders(), so DidFinishLoad reads them
+  // from here instead.
+  scoped_refptr<net::HttpResponseHeaders> last_main_frame_response_headers_;
+#endif
   void DidFailLoad(content::RenderFrameHost* render_frame_host,
                    const GURL& validated_url,
                    int error_code) override;

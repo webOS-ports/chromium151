@@ -16,7 +16,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "neva/app_runtime/app/app_runtime_main_delegate.h"
 #include "neva/app_runtime/browser/host_content_settings_map_factory.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 #include "url/gurl.h"
 
 // static
@@ -55,28 +55,30 @@ NotificationPermissionContext::NotificationPermissionContext(
     content::BrowserContext* browser_context)
     : PermissionContextBase(browser_context,
                             ContentSettingsType::NOTIFICATIONS,
-                            blink::mojom::PermissionsPolicyFeature::kNotFound) {
+                            network::mojom::PermissionsPolicyFeature::kNotFound) {
 }
 
 NotificationPermissionContext::~NotificationPermissionContext() {}
 
-ContentSetting NotificationPermissionContext::GetPermissionStatusInternal(
+PermissionSetting NotificationPermissionContext::GetPermissionStatusInternal(
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
     const GURL& embedding_origin) const {
-  ContentSetting content_setting =
+  PermissionSetting setting =
       permissions::PermissionContextBase::GetPermissionStatusInternal(
           render_frame_host, requesting_origin, embedding_origin);
 
-  if (requesting_origin != embedding_origin &&
-      content_setting == CONTENT_SETTING_ASK)
+  if (auto* content_setting = std::get_if<ContentSetting>(&setting);
+      requesting_origin != embedding_origin && content_setting &&
+      *content_setting == CONTENT_SETTING_ASK) {
     return CONTENT_SETTING_BLOCK;
+  }
 
-  return content_setting;
+  return setting;
 }
 
 void NotificationPermissionContext::DecidePermission(
-    permissions::PermissionRequestData request_data,
+    std::unique_ptr<permissions::PermissionRequestData> request_data,
     permissions::BrowserPermissionCallback callback) {
   // PermissionRequestManager::CreateForWebContents must have been called
   // during web contents  initialization.

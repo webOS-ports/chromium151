@@ -38,10 +38,9 @@ class AppRuntimeBrowserContext : public content::BrowserContext {
   AppRuntimeBrowserContext(const AppRuntimeBrowserContext&) = delete;
   AppRuntimeBrowserContext& operator=(const AppRuntimeBrowserContext&) = delete;
   ~AppRuntimeBrowserContext() override;
-  base::FilePath GetPath() override;
+  base::FilePath GetPath() const override;
   bool IsOffTheRecord() override;
 
-  content::ResourceContext* GetResourceContext() override;
   content::DownloadManagerDelegate* GetDownloadManagerDelegate() override;
   content::BrowserPluginGuestManager* GetGuestManager() override;
   storage::SpecialStoragePolicy* GetSpecialStoragePolicy() override;
@@ -84,7 +83,6 @@ class AppRuntimeBrowserContext : public content::BrowserContext {
   bool extensions_are_allowed_;
 
   std::unique_ptr<AppRuntimeDownloadManagerDelegate> download_manager_delegate_;
-  std::unique_ptr<content::ResourceContext> resource_context_;
   const base::FilePath path_;
 #if defined(USE_LOCAL_STORAGE_TRACKER)
   content::LocalStorageTracker* local_storage_tracker_ = nullptr;

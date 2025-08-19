@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/browser/app_runtime_plugin_service_filter.h"
+#include "base/notimplemented.h"
 
 #include "base/notreached.h"
 

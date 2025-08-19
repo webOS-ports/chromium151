@@ -18,6 +18,7 @@
 #define NEVA_BROWSER_SERVICE_BROWSER_SITEFILTER_NAVIGATION_THROTTLE_H_
 
 #include "content/public/browser/navigation_throttle.h"
+#include "content/public/browser/navigation_throttle_registry.h"
 
 namespace content {
 class NavigationHandle;
@@ -28,7 +29,7 @@ namespace neva {
 class SiteFilterNavigationThrottle : public content::NavigationThrottle {
  public:
   explicit SiteFilterNavigationThrottle(
-      content::NavigationHandle* navigation_handle);
+      content::NavigationThrottleRegistry& registry);
 
   SiteFilterNavigationThrottle(const SiteFilterNavigationThrottle&) = delete;
   SiteFilterNavigationThrottle& operator=(const SiteFilterNavigationThrottle&) =

@@ -14,6 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "base/memory/ptr_util.h"
 #include "neva/extensions/browser/neva_extensions_service_factory.h"
 
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
@@ -43,10 +44,16 @@ NevaExtensionsServiceFactory::GetFactoryInstance() {
   return factory.get();
 }
 
-KeyedService* NevaExtensionsServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService> NevaExtensionsServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* browser_context) const {
-  return NevaExtensionsServicesManagerImpl::GetInstance()
-      ->GetNevaExtensionsServiceFor(browser_context);
+  // FIXME(neva-port): NevaExtensionsServicesManagerImpl keeps a raw pointer
+  // to this object in services_map_ and never clears it, so the entry dangles
+  // once the KeyedService system destroys the service at context shutdown.
+  // That was equally true in M120, where this returned the same raw pointer and
+  // the factory took ownership; WrapUnique preserves the behaviour rather than
+  // changing it during the uprev.
+  return base::WrapUnique(NevaExtensionsServicesManagerImpl::GetInstance()
+                              ->GetNevaExtensionsServiceFor(browser_context));
 }
 
 }  // namespace neva

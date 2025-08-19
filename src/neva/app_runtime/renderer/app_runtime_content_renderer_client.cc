@@ -140,7 +140,7 @@ bool AppRuntimeContentRendererClient::IsAccessAllowedForURL(
 void AppRuntimeContentRendererClient::RegisterSchemes() {
   // webapp needs the file scheme to register a service worker. Used from
   // third_party/blink/renderer/modules/service_worker/service_worker_container.cc
-  blink::WebString file_scheme(blink::WebString::FromASCII(url::kFileScheme));
+  blink::WebString file_scheme(blink::WebString::FromAscii(url::kFileScheme));
   blink::WebSecurityPolicy::RegisterURLSchemeAsAllowingServiceWorkers(
       file_scheme);
 }
@@ -201,7 +201,8 @@ void AppRuntimeContentRendererClient::PrepareErrorPage(
       base::DictValue error_strings;
       AppRuntimeLocalizedError::GetErrorStrings(error.reason(), error_strings);
       // "t" is the id of the template's root node.
-      *error_html = webui::GetTemplatesHtml(template_html, error_strings, "t");
+      *error_html =
+          webui::GetI18nTemplateHtml(template_html, error_strings);
     }
 
     render_observer_.reset(new AppRuntimeRenderObserver(render_frame, this));
@@ -211,12 +212,13 @@ void AppRuntimeContentRendererClient::PrepareErrorPage(
 void AppRuntimeContentRendererClient::WillSendRequest(
     blink::WebLocalFrame* frame,
     ui::PageTransition transition_type,
-    const blink::WebURL& url,
+    const blink::WebURL& upstream_url,
+    const blink::WebURL& target_url,
     const net::SiteForCookies& site_for_cookies,
     const url::Origin* initiator_origin,
     GURL* new_url) {
   // Ignore non-file scheme requests
-  if (!static_cast<GURL>(url).SchemeIsFile())
+  if (!static_cast<GURL>(target_url).SchemeIsFile())
     return;
 
   // Ignore file scheme requests from non-file scheme origins granted
@@ -234,12 +236,13 @@ void AppRuntimeContentRendererClient::WillSendRequest(
       return;
 
     base::FilePath file_path;
-    if (!net::FileURLToFilePath(GURL(url), &file_path) ||
+    if (!net::FileURLToFilePath(GURL(target_url), &file_path) ||
         !file_access_controller->IsAccessAllowed(file_path, webview_info_)) {
       blink::WebConsoleMessage error_msg;
       error_msg.level = blink::mojom::ConsoleMessageLevel::kError;
-      error_msg.text = blink::WebString::FromASCII(
-          "Access is blocked to resource: " + url.GetString().Ascii());
+      error_msg.text = blink::WebString::FromAscii(
+          "Access is blocked to resource: " +
+          target_url.GetString().Ascii());
       frame->AddMessageToConsole(error_msg);
 
       // Redirect to unreachable URL
@@ -307,11 +310,6 @@ void AppRuntimeContentRendererClient::InitRenderThreadForExtension() {
   const bool is_extension = base::CommandLine::ForCurrentProcess()->HasSwitch(
       extensions::switches::kExtensionProcess);
 
-  thread->SetRendererProcessType(
-      is_extension
-          ? blink::scheduler::WebRendererProcessType::kExtensionRenderer
-          : blink::scheduler::WebRendererProcessType::kRenderer);
-
   if (is_extension) {
     // The process name was set to "Renderer" in RendererMain(). Update it to
     // "Extension Renderer" to highlight that it's hosting an extension.
@@ -352,21 +350,24 @@ void AppRuntimeContentRendererClient::WillEvaluateServiceWorkerOnWorkerThread(
     v8::Local<v8::Context> v8_context,
     int64_t service_worker_version_id,
     const GURL& service_worker_scope,
-    const GURL& script_url) {
+    const GURL& script_url,
+    const blink::ServiceWorkerToken& service_worker_token) {
   extensions_renderer_client_->GetDispatcher()
       ->WillEvaluateServiceWorkerOnWorkerThread(
           context_proxy, v8_context, service_worker_version_id,
-          service_worker_scope, script_url);
+          service_worker_scope, script_url, service_worker_token);
 }
 
 void AppRuntimeContentRendererClient::
     DidStartServiceWorkerContextOnWorkerThread(
         int64_t service_worker_version_id,
         const GURL& service_worker_scope,
-        const GURL& script_url) {
+        const GURL& script_url,
+        const blink::ServiceWorkerToken& service_worker_token) {
   extensions_renderer_client_->GetDispatcher()
       ->DidStartServiceWorkerContextOnWorkerThread(
-          service_worker_version_id, service_worker_scope, script_url);
+          service_worker_version_id, service_worker_scope, script_url,
+          service_worker_token);
 }
 
 void AppRuntimeContentRendererClient::
@@ -374,10 +375,12 @@ void AppRuntimeContentRendererClient::
         v8::Local<v8::Context> context,
         int64_t service_worker_version_id,
         const GURL& service_worker_scope,
-        const GURL& script_url) {
+        const GURL& script_url,
+        const blink::ServiceWorkerToken& service_worker_token) {
   extensions_renderer_client_->GetDispatcher()
       ->WillDestroyServiceWorkerContextOnWorkerThread(
-          context, service_worker_version_id, service_worker_scope, script_url);
+          context, service_worker_version_id, service_worker_scope, script_url,
+          service_worker_token);
 }
 #endif  // defined(USE_NEVA_CHROME_EXTENSIONS)
 

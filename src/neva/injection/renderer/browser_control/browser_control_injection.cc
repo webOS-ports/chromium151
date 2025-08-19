@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/browser_control/browser_control_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include <tuple>
 
@@ -82,7 +84,7 @@ gin::ObjectTemplateBuilder BrowserControlInjection::GetObjectTemplateBuilder(
 
 // static
 void BrowserControlInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -109,7 +111,7 @@ void BrowserControlInjection::Install(blink::WebLocalFrame* frame) {
 }
 
 void BrowserControlInjection::Uninstall(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -138,7 +140,8 @@ v8::MaybeLocal<v8::Object> BrowserControlInjection::CreateObject(
     v8::Isolate* isolate,
     v8::Local<v8::Object> parent) {
   gin::Handle<BrowserControlInjection> browser_control =
-      gin::CreateHandle(isolate, new BrowserControlInjection(frame));
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<BrowserControlInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), frame));
   parent
       ->Set(frame->MainWorldScriptContext(),
             gin::StringToV8(isolate, "browser_control"), browser_control.ToV8())

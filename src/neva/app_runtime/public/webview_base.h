@@ -20,6 +20,7 @@
 #include <memory>
 #include <string>
 
+#include "content/public/browser/scoped_accessibility_mode.h"
 #include "neva/app_runtime/public/app_runtime_constants.h"
 #include "neva/app_runtime/public/app_runtime_export.h"
 #include "neva/app_runtime/public/webview_base_internals.h"
@@ -345,6 +346,9 @@ class APP_RUNTIME_EXPORT WebViewBase : public WebViewDelegate,
   const WebViewInfo& GetWebViewInfo() const override;
 
  private:
+  // M151: accessibility mode lives as long as this object does.
+  std::unique_ptr<content::ScopedAccessibilityMode>
+      scoped_accessibility_mode_;
   WebView* webview_;
   WebViewInfo webview_info_;
 };

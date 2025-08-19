@@ -28,13 +28,9 @@ class NevaExtensionHostDelegate : public extensions::ExtensionHostDelegate {
 
   void OnExtensionHostCreated(content::WebContents* web_contents) override;
 
-  void OnMainFrameCreatedForBackgroundPage(
-      extensions::ExtensionHost* host) override;
-
-  content::JavaScriptDialogManager* GetJavaScriptDialogManager() override;
-
   void CreateTab(std::unique_ptr<content::WebContents> web_contents,
-                 const std::string& extension_id,
+                 const GURL& target_url,
+                 const extensions::ExtensionId& extension_id,
                  WindowOpenDisposition disposition,
                  const blink::mojom::WindowFeatures& window_features,
                  bool user_gesture) override;
@@ -47,7 +43,7 @@ class NevaExtensionHostDelegate : public extensions::ExtensionHostDelegate {
 
   bool CheckMediaAccessPermission(
       content::RenderFrameHost* render_frame_host,
-      const GURL& security_origin,
+      const url::Origin& security_origin,
       blink::mojom::MediaStreamType type,
       const extensions::Extension* extension) override;
 

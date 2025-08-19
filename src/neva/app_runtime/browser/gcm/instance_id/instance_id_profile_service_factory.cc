@@ -44,9 +44,9 @@ InstanceIDProfileServiceFactory::InstanceIDProfileServiceFactory()
 
 InstanceIDProfileServiceFactory::~InstanceIDProfileServiceFactory() {}
 
-KeyedService* InstanceIDProfileServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService> InstanceIDProfileServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return new InstanceIDProfileService(
+  return std::make_unique<InstanceIDProfileService>(
       gcm::GCMProfileServiceFactory::GetForProfile(context)->driver(),
       context->IsOffTheRecord());
 }

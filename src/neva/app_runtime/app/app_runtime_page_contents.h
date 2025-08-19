@@ -17,11 +17,13 @@
 #ifndef NEVA_APP_RUNTIME_APP_APP_RUNTIME_PAGE_CONTENTS_H_
 #define NEVA_APP_RUNTIME_APP_APP_RUNTIME_PAGE_CONTENTS_H_
 
+#include <list>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
 
+#include "base/callback_list.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/host_zoom_map.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -171,7 +173,8 @@ class PageContents : public AppRuntimeWebContentsDelegate,
   void DidStopLoading() override;
   void DidUpdateFaviconURL(
       content::RenderFrameHost* render_frame_host,
-      const std::vector<blink::mojom::FaviconURLPtr>& candidates) override;
+      const std::vector<blink::mojom::FaviconURLPtr>& candidates,
+      blink::mojom::FaviconUpdateReason reason) override;
   void DidGetUserInteraction(const blink::WebInputEvent& event) override;
   void DOMContentLoaded(content::RenderFrameHost* render_frame_host) override;
   void LoadProgressChanged(double progress) override;
@@ -198,16 +201,19 @@ class PageContents : public AppRuntimeWebContentsDelegate,
   // WebContentsDelegate
   content::WebContents* OpenURLFromTab(
       content::WebContents* source,
-      const content::OpenURLParams& params) override;
+      const content::OpenURLParams& params,
+      base::OnceCallback<void(content::NavigationHandle&)>
+          navigation_handle_callback) override;
   content::JavaScriptDialogManager* GetJavaScriptDialogManager(
       content::WebContents* source) override;
-  void AddNewContents(content::WebContents* source,
-                      std::unique_ptr<content::WebContents> new_contents,
-                      const GURL& target_url,
-                      WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
-                      bool user_gesture,
-                      bool* was_blocked) override;
+  content::WebContents* AddNewContents(
+      content::WebContents* source,
+      std::unique_ptr<content::WebContents> new_contents,
+      const GURL& target_url,
+      WindowOpenDisposition disposition,
+      const blink::mojom::WindowFeatures& window_features,
+      bool user_gesture,
+      bool* was_blocked) override;
   void CloseContents(content::WebContents* source) override;
   void EnterFullscreenModeForTab(
       content::RenderFrameHost* requesting_frame,
@@ -225,7 +231,7 @@ class PageContents : public AppRuntimeWebContentsDelegate,
       const content::MediaStreamRequest& request,
       content::MediaResponseCallback callback) override;
   bool CheckMediaAccessPermission(content::RenderFrameHost* render_frame_host,
-                                  const GURL& security_origin,
+                                  const url::Origin& security_origin,
                                   blink::mojom::MediaStreamType type) override;
   void OverrideWebkitPrefs(blink::web_pref::WebPreferences* prefs) override;
   void FindReply(content::WebContents* web_contents,

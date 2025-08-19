@@ -14,7 +14,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/browser_shell/browser_shell_ipc_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
+#include "base/notimplemented.h"
 
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
@@ -39,7 +42,7 @@ gin::WrapperInfo BrowserShellIpcInjection::kWrapperInfo = {
 };
 
 void BrowserShellIpcInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -94,7 +97,8 @@ void BrowserShellIpcInjection::ConstructorCallback(
 
   (*shell_service)->CreateShellIpcEndpoint(std::move(pending_receiver),
                                            channel);
-  auto* shell_ipc = new BrowserShellIpcInjection(isolate, std::move(channel),
+  auto* shell_ipc = cppgc::MakeGarbageCollected<BrowserShellIpcInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, std::move(channel),
                                                  std::move(remote_endpoint));
   gin::Handle<injections::BrowserShellIpcInjection> handle =
       gin::CreateHandle(isolate, shell_ipc);

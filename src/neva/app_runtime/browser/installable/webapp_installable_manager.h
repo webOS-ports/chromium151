@@ -20,6 +20,7 @@
 #include <memory>
 
 #include "chrome/browser/web_applications/web_contents/web_app_data_retriever.h"
+#include "chrome/browser/web_applications/jobs/manifest_to_web_app_install_info_job.h"
 #include "neva/pal_service/public/webapp_installable_delegate.h"
 
 struct WebAppInstallInfo;
@@ -45,7 +46,6 @@ class WebAppInstallableManager {
  private:
   void OnCheckInstallability(CheckInstallabilityCallback callback,
                              blink::mojom::ManifestPtr opt_manifest,
-                             const GURL& manifest_url,
                              bool valid_manifest_for_web_app,
                              webapps::InstallableStatusCode is_installable);
   void OnIsWebAppForUrlInstallability(bool is_installable,
@@ -55,32 +55,29 @@ class WebAppInstallableManager {
       content::WebContents* web_contents,
       std::unique_ptr<web_app::WebAppInstallInfo> web_app_info,
       bool is_installed);
-  void OnIconsDownloaded(
+  void OnInstallInfoCreated(
       InstallWebAppCallback callback,
-      std::unique_ptr<web_app::WebAppInstallInfo> web_app_info,
-      web_app::IconsDownloadedResult result,
-      web_app::IconsMap icons_map,
-      web_app::DownloadedIconsHttpResults icons_http_results);
+      std::unique_ptr<web_app::WebAppInstallInfo> web_app_info);
   void OnDidGetManifest(content::WebContents* web_contents,
                         InstallWebAppCallback callback,
+                        blink::mojom::ManifestRequestResult result,
                         const GURL& manifest_url,
                         blink::mojom::ManifestPtr manifest);
   std::unique_ptr<pal::WebAppInstallableDelegate::WebAppInfo> ConvertAppInfo(
       const web_app::WebAppInstallInfo* web_app_info);
   void OnManifestForUpdate(content::WebContents* web_contents,
                            blink::mojom::ManifestPtr opt_manifest,
-                           const GURL& manifest_url,
                            bool valid_manifest_for_web_app,
                            webapps::InstallableStatusCode is_installable);
   void OnShouldAppForURLBeUpdated(
       content::WebContents* web_contents,
       std::unique_ptr<web_app::WebAppInstallInfo> web_app_info,
       bool should_update);
-  void OnIconsDownloadedForUpdate(
-      std::unique_ptr<web_app::WebAppInstallInfo> web_app_info,
-      web_app::IconsDownloadedResult result,
-      web_app::IconsMap icons_map,
-      web_app::DownloadedIconsHttpResults icons_http_results);
+  void OnInstallInfoCreatedForUpdate(
+      content::WebContents* web_contents,
+      std::unique_ptr<web_app::WebAppInstallInfo> web_app_info);
+  void OnIconsFetchedForUpdate(
+      std::unique_ptr<web_app::WebAppInstallInfo> web_app_info);
   void OnIsInfoChanged(
       std::unique_ptr<pal::WebAppInstallableDelegate::WebAppInfo>
           new_delegate_info,
@@ -92,6 +89,10 @@ class WebAppInstallableManager {
   // finished its work
   bool is_processing_install_ = false;
   std::unique_ptr<web_app::WebAppDataRetriever> data_retriever_;
+  // Owns the in-flight manifest -> install-info conversion. Also holds the
+  // debug data the job writes into, which nothing here consumes.
+  std::unique_ptr<web_app::ManifestToWebAppInstallInfoJob> install_info_job_;
+  base::DictValue install_info_debug_data_;
   std::unique_ptr<pal::WebAppInstallableDelegate> pal_installable_delegate_;
   base::WeakPtrFactory<WebAppInstallableManager> weak_factory_;
 };

@@ -32,7 +32,7 @@ class ExtensionTabUtil {
       int window_id,
       bool focused,
       extensions::api::windows::WindowType type =
-          extensions::api::windows::WINDOW_TYPE_POPUP,
+          extensions::api::windows::WindowType::kPopup,
       bool always_on_top = false,
       bool incognito = false);
   static void DispatchTabsOnActivated(content::BrowserContext* context,

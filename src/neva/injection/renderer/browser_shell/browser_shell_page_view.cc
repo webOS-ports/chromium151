@@ -14,6 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/browser_shell/browser_shell_page_view.h"
 
 #include "base/functional/bind.h"
@@ -86,8 +87,8 @@ void BrowserShellPageView::ConstructorCallback(
 
   mojo::Remote<browser_shell::mojom::PageView> remote_view;
   auto pending_receiver = remote_view.BindNewPipeAndPassReceiver();
-  auto* shell_page_view = new injections::BrowserShellPageView(
-      isolate, std::move(remote_view), params);
+  auto* shell_page_view = cppgc::MakeGarbageCollected<injections::BrowserShellPageView>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, std::move(remote_view), params);
   (*shell_service)
       ->CreatePageView(std::move(pending_receiver), json,
                        base::BindOnce(&BrowserShellPageView::Setup,
@@ -135,8 +136,8 @@ BrowserShellPageView::BrowserShellPageView(
   page_content_params.error_page_hiding = params.error_page_hiding;
   page_content_params.is_main_contents = params.is_main_view;
 
-  auto* shell_page_contents = new injections::BrowserShellPageContents(
-      isolate, std::move(remote_contents), page_content_params);
+  auto* shell_page_contents = cppgc::MakeGarbageCollected<injections::BrowserShellPageContents>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, std::move(remote_contents), page_content_params);
 
   remote_->BindPageContents(
       std::move(pending_receiver),

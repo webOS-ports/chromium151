@@ -32,7 +32,7 @@ class AppRuntimeContentClient : public content::ContentClient {
       ui::ResourceScaleFactor scale_factor) override;
   base::RefCountedMemory* GetDataResourceBytes(int resource_id) override;
   gfx::Image& GetNativeImageNamed(int resource_id) override;
-  void AddPlugins(std::vector<content::ContentPluginInfo>* plugins) override;
+  void AddPlugins(std::vector<content::WebPluginInfo>* plugins) override;
   void AddContentDecryptionModules(
       std::vector<content::CdmInfo>* cdms,
       std::vector<media::CdmHostFilePath>* cdm_host_file_paths) override;

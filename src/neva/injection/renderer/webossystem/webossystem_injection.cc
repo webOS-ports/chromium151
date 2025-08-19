@@ -14,7 +14,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/webossystem/webossystem_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
+#include "base/notimplemented.h"
 
 #include <string>
 
@@ -60,13 +63,15 @@ void WebOSSystemInjection::BuildExtraObjects(v8::Local<v8::Object> obj,
                                              v8::Local<v8::Context> context) {
   // Build webOSSystem.window
   gin::Handle<WindowInjection> window_obj =
-    gin::CreateHandle(isolate, new WindowInjection(this));
+    gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<WindowInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), this));
   obj->Set(context, gin::StringToV8(isolate, "window"), window_obj.ToV8())
       .Check();
 
   // Build webOSSystem.cursor
   gin::Handle<CursorInjection> cursor_obj =
-    gin::CreateHandle(isolate, new CursorInjection(this));
+    gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<CursorInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), this));
   obj->Set(context, gin::StringToV8(isolate, "cursor"), cursor_obj.ToV8())
       .Check();
 
@@ -611,7 +616,7 @@ double WebOSSystemInjection::DevicePixelRatio() {
 }
 
 void WebOSSystemInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -626,7 +631,8 @@ void WebOSSystemInjection::Install(blink::WebLocalFrame* frame) {
   if (!webossystem_value.IsEmpty() && webossystem_value->IsObject())
     return;
 
-  auto* webossystem_ptr = new WebOSSystemInjection(frame);
+  auto* webossystem_ptr = cppgc::MakeGarbageCollected<WebOSSystemInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), frame);
 
   if (!webossystem_ptr)
     return;
@@ -648,7 +654,7 @@ void WebOSSystemInjection::Uninstall(blink::WebLocalFrame* frame) {
       ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
           IDR_WEBOSSYSTEM_ROLLBACK_JS);
 
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())

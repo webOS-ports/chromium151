@@ -53,11 +53,6 @@ bool ClientHints::IsJavaScriptAllowed(const GURL& url,
   return enable_ua_ch_;
 }
 
-bool ClientHints::AreThirdPartyCookiesBlocked(const GURL& url,
-                                              content::RenderFrameHost* rfh) {
-  return false;
-}
-
 blink::UserAgentMetadata ClientHints::GetUserAgentMetadata() {
   return GetDefaultUserAgentMetadata();
 }

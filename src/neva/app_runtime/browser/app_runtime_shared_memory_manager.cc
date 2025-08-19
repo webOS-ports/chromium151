@@ -19,6 +19,7 @@
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "base/process/process_metrics.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/system/sys_info.h"
@@ -29,16 +30,15 @@
 namespace neva_app_runtime {
 
 AppRuntimeSharedMemoryManager::AppRuntimeSharedMemoryManager()
-    : memory_pressure_listener_(new base::MemoryPressureListener(
-        FROM_HERE, base::BindRepeating(
-            &AppRuntimeSharedMemoryManager::OnMemoryPressure,
-                base::Unretained(this)))),
+    : memory_pressure_listener_registration_(
+          base::MemoryPressureListenerTag::kDiscardableSharedMemoryManager,
+          this),
       discardable_shared_memory_manager_(
           discardable_memory::DiscardableSharedMemoryManager::Get()) {
   const int kMegabyte = 1024 * 1024;
 
   VLOG(1) << "Memory detected: "
-          << base::SysInfo::AmountOfPhysicalMemory() / kMegabyte
+          << base::SysInfo::AmountOfTotalPhysicalMemory().InBytes() / kMegabyte
           << "MB Low end mode: "
           << (base::SysInfo::IsLowEndDevice() ? "enabled" : "disabled");
 
@@ -46,7 +46,7 @@ AppRuntimeSharedMemoryManager::AppRuntimeSharedMemoryManager()
   int64_t shmem_dir_amount_of_total_space = 0;
   if (base::GetShmemTempDir(false, &shmem_dir)) {
     shmem_dir_amount_of_total_space =
-        base::SysInfo::AmountOfTotalDiskSpace(shmem_dir);
+        base::SysInfo::AmountOfTotalDiskSpace(shmem_dir).value_or(0);
   }
 
   int64_t shared_memory_mb = shmem_dir_amount_of_total_space > 0
@@ -67,7 +67,7 @@ AppRuntimeSharedMemoryManager::AppRuntimeSharedMemoryManager()
 
   shared_memory_mb = shared_memory_mb / reduction_factor;
   memory_limit_ = shared_memory_mb * kMegabyte;
-  discardable_shared_memory_manager_->SetMemoryLimit(memory_limit_);
+  discardable_shared_memory_manager_->SetMaxBytes(memory_limit_);
   VLOG(1) << "The limit of discardable shared memory is " << shared_memory_mb
           << "MB";
 
@@ -95,11 +95,11 @@ void AppRuntimeSharedMemoryManager::OnMemoryPressure(
     case base::MEMORY_PRESSURE_LEVEL_NONE:
       break;
     case base::MEMORY_PRESSURE_LEVEL_MODERATE:
-      discardable_shared_memory_manager_->SetMemoryLimit(
+      discardable_shared_memory_manager_->SetMaxBytes(
           std::max(memory_limit_ / memory_pressure_divider_, minimal_limit_));
       break;
     case base::MEMORY_PRESSURE_LEVEL_CRITICAL:
-      discardable_shared_memory_manager_->SetMemoryLimit(minimal_limit_);
+      discardable_shared_memory_manager_->SetMaxBytes(minimal_limit_);
       break;
   }
 }

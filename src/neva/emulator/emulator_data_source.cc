@@ -14,6 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include <optional>
 #include "emulator_data_source.h"
 
 #include <algorithm>
@@ -277,7 +278,8 @@ std::string EmulatorDataSource::PrepareRequestParams(
 
 bool EmulatorDataSource::GetResponseParams(ResponseArgs &args,
     const std::string& response) {
-  auto ret = base::JSONReader::ReadAndReturnValueWithError(response);
+  auto ret = base::JSONReader::ReadAndReturnValueWithError(
+      response, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!ret.has_value()) {
     LOG(ERROR) << __func__
                << "() : JSONReader failed : " << ret.error().message;
@@ -303,7 +305,7 @@ bool EmulatorDataSource::GetResponseParams(ResponseArgs &args,
 
 void EmulatorDataSource::OnURLLoadComplete(
     const network::SimpleURLLoader* source,
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto find_url_loader =

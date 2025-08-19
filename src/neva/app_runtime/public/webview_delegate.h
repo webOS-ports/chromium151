@@ -17,6 +17,7 @@
 #ifndef NEVA_APP_RUNTIME_PUBLIC_WEBVIEW_DELEGATE_H_
 #define NEVA_APP_RUNTIME_PUBLIC_WEBVIEW_DELEGATE_H_
 
+#include <memory>
 #include <string>
 
 #include "neva/app_runtime/public/app_runtime_constants.h"

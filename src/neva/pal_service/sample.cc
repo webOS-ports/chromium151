@@ -16,6 +16,7 @@
 
 #include "neva/pal_service/sample.h"
 
+#include "base/logging.h"
 #include "content/public/browser/browser_thread.h"
 #include "neva/emulator/emulator_urls.h"
 

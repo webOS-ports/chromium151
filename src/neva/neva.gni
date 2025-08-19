@@ -95,6 +95,9 @@ declare_args() {
   # Use webOS PmLog logging library
   use_pmlog = false
 
+  # Use LTTng tracing library
+  use_lttng = false
+
   # Use code cache for local script resource
   use_filescheme_codecache = true
 

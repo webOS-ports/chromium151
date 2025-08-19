@@ -45,6 +45,11 @@ class WebOSServiceBridgeInjection
       public pal::mojom::SystemServiceBridgeClient {
  public:
   static gin::WrapperInfo kWrapperInfo;
+  // M151: gin::WrappableBase requires this virtual getter so an
+  // unwrap can type-check against the static kWrapperInfo.
+  const gin::WrapperInfo* wrapper_info() const override {
+    return &kWrapperInfo;
+  }
 
   static void Install(blink::WebLocalFrame* frame);
   static void Uninstall(blink::WebLocalFrame* frame);
@@ -73,6 +78,10 @@ class WebOSServiceBridgeInjection
   void Call(gin::Arguments* args);
   void DoCall(std::string uri, std::string payload);
   void Cancel();
+  // Shared body for Cancel() and the destructor. The destructor runs from the
+  // cppgc sweeper, where V8 API calls are not allowed, so it passes
+  // release_pool_reference=false to skip the __WebOSServiceBridgePool update.
+  void CancelInternal(bool release_pool_reference);
   void DoNothing();
 
   bool IsWebOSSystemLoaded();

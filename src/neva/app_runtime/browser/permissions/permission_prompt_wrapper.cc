@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/browser/permissions/permission_prompt_wrapper.h"
+#include "base/notimplemented.h"
 
 #include "components/permissions/permission_uma_util.h"
 #include "content/browser/web_contents/web_contents_impl.h"
@@ -28,7 +29,10 @@ PermissionPromptWrapper::PermissionPromptWrapper(
   content::WebContentsImpl* web_contents_impl =
       static_cast<content::WebContentsImpl*>(web_contents);
   std::string application_id =
-      web_contents_impl->GetRendererPrefs().application_id;
+      web_contents_impl
+          ->GetRendererPrefs(
+              web_contents_impl->GetPrimaryMainFrame()->render_view_host())
+          .application_id;
   if (!application_id.empty()) {
     app_id_ = std::move(application_id);
   }
@@ -37,9 +41,10 @@ PermissionPromptWrapper::PermissionPromptWrapper(
   // permissions::PermissionPrompt::Delegate::Requests() raw pointer is used to
   // wrap pointer to permissions::PermissionRequest
   // the raw pointer will be deleted on dtor
-  for (auto& request : delegate_->Requests()) {
+  for (const std::unique_ptr<permissions::PermissionRequest>& request :
+       delegate_->Requests()) {
     wrapped_requests_.push_back(
-        new neva_app_runtime::PermissionRequestImpl(request));
+        new neva_app_runtime::PermissionRequestImpl(request.get()));
   }
 }
 
@@ -90,19 +95,19 @@ const std::string& PermissionPromptWrapper::GetAppId() const {
 }
 
 void PermissionPromptWrapper::Accept() {
-  delegate_->Accept();
+  delegate_->Accept(std::monostate());
 }
 
 void PermissionPromptWrapper::AcceptThisTime() {
-  delegate_->AcceptThisTime();
+  delegate_->AcceptThisTime(std::monostate());
 }
 
 void PermissionPromptWrapper::Deny() {
-  delegate_->Deny();
+  delegate_->Deny(std::monostate());
 }
 
 void PermissionPromptWrapper::Closing() {
-  delegate_->Dismiss();
+  delegate_->Dismiss(std::monostate());
 }
 
 }  // namespace neva_app_runtime

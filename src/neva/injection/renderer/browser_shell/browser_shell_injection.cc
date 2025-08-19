@@ -14,7 +14,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/browser_shell/browser_shell_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
+#include "base/notimplemented.h"
 
 #include "base/functional/bind.h"
 #include "base/logging.h"
@@ -47,7 +50,7 @@ const char BrowserShellInjection::kLaunchArgsPropertyName[] = "launchArgs";
 const char BrowserShellInjection::kShellWindowPropertyName[] = "shellWindow";
 
 void BrowserShellInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -63,7 +66,8 @@ void BrowserShellInjection::Install(blink::WebLocalFrame* frame) {
     return;
 
   gin::Handle<BrowserShellInjection> shell =
-      gin::CreateHandle(isolate, new BrowserShellInjection(isolate, global));
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<BrowserShellInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, global));
   global
       ->Set(isolate->GetCurrentContext(), gin::StringToV8(isolate, "shell"),
             shell.ToV8())
@@ -123,7 +127,8 @@ BrowserShellInjection::BrowserShellInjection(v8::Isolate* isolate,
   mojo::Remote<browser_shell::mojom::ShellWindow> window_remote;
   auto window_receiver = window_remote.BindNewPipeAndPassReceiver();
   auto* shell_window =
-      new injections::BrowserShellWindow(isolate, std::move(window_remote));
+      cppgc::MakeGarbageCollected<injections::BrowserShellWindow>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, std::move(window_remote));
   remote_->BindShellWindow(std::move(window_receiver),
                            base::BindOnce(&BrowserShellWindow::Setup,
                                           base::Unretained(shell_window)));
@@ -162,7 +167,8 @@ v8::Local<v8::Object> BrowserShellInjection::GetSession(
 
   gin::Handle<injections::BrowserShellSession> handle =
       gin::CreateHandle(isolate,
-                        new BrowserShellSession(isolate, &remote_, partition));
+                        cppgc::MakeGarbageCollected<BrowserShellSession>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, &remote_, partition));
 
   auto local_session = handle->GetWrapper(isolate).ToLocalChecked();
   sessions_[partition].Reset(isolate, local_session);

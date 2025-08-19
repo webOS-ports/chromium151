@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/browser_control/cookiemanager_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include "base/functional/bind.h"
 #include "gin/arguments.h"
@@ -46,7 +48,7 @@ gin::WrapperInfo CookieManagerInjection::kWrapperInfo = {
 
 // static
 void CookieManagerInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -72,7 +74,7 @@ void CookieManagerInjection::Install(blink::WebLocalFrame* frame) {
 
 // static
 void CookieManagerInjection::Uninstall(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -98,7 +100,8 @@ void CookieManagerInjection::CreateCookieManagerObject(
     v8::Isolate* isolate,
     v8::Local<v8::Object> parent) {
   gin::Handle<CookieManagerInjection> cookiemanager =
-      gin::CreateHandle(isolate, new CookieManagerInjection());
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<CookieManagerInjection>(
+isolate->GetCppHeap()->GetAllocationHandle()));
   parent
       ->Set(isolate->GetCurrentContext(),
             gin::StringToV8(isolate, kCookieManagerObjectName),

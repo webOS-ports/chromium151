@@ -15,7 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/public/webview_base.h"
+#include "base/notimplemented.h"
 
+#include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -153,8 +155,15 @@ void WebViewBase::SetUseEnyoOptimization(bool enabled) {
 }
 
 void WebViewBase::SetUseAccessibility(bool enabled) {
-  if (enabled)
-    GetWebContents()->EnableWebContentsOnlyAccessibilityMode();
+  // M151: accessibility mode is scoped to the lifetime of the returned object.
+  if (enabled) {
+    scoped_accessibility_mode_ =
+        content::BrowserAccessibilityState::GetInstance()
+            ->CreateScopedModeForWebContents(GetWebContents(),
+                                             ui::kAXModeWebContentsOnly);
+  } else {
+    scoped_accessibility_mode_.reset();
+  }
 }
 
 void WebViewBase::SetBlockWriteDiskcache(bool blocked) {

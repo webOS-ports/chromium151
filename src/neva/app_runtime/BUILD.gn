@@ -271,6 +271,9 @@ static_library("app_runtime") {
   ]
 
   deps = [
+    # WTF headers include <hwy/highway.h>; blink keeps this dep private,
+    # so targets including those headers directly need it too.
+    "//third_party/highway:libhwy",
     "//base",
     "//build/util:chromium_git_revision",
     "//components/certificate_transparency",
@@ -287,6 +290,7 @@ static_library("app_runtime") {
     "//components/media_control/renderer",
     "//components/network_session_configurator/common",
     "//components/os_crypt/async/browser",
+    "//components/os_crypt/async/browser:posix_key_provider",
     "//components/permissions",
     "//components/pref_registry",
     "//components/prefs",
@@ -385,6 +389,16 @@ static_library("app_runtime") {
 
   # for version header
   deps += [ ":version_header" ]
+  # The neva changes to this target include generated headers whose
+  # producing targets were not reachable from here. Nothing ordered them
+  # against this compile, so a clean build could reach these objects
+  # before the generators ran; an incremental build never notices because
+  # the headers are left over from an earlier pass.
+  deps += [
+    ":app_runtime_inspector_resources_grit",
+    ":app_runtime_network_error_resources_grit",
+    ":app_runtime_network_error_strings",
+  ]
 }
 
 grit("app_runtime_inspector_resources_grit") {

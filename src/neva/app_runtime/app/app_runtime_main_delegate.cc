@@ -40,8 +40,8 @@
 namespace {
 
 bool SubprocessNeedsResourceBundle(const std::string& process_type) {
+  // M151 removed PPAPI, so there is no kPpapiPluginProcess any more.
   return process_type == switches::kZygoteProcess ||
-         process_type == switches::kPpapiPluginProcess ||
          process_type == switches::kGpuProcess ||
          process_type == switches::kRendererProcess ||
          process_type == switches::kUtilityProcess;

@@ -17,6 +17,7 @@
 #ifndef NEVA_BROWSER_SERVICE_BROWSER_WEBRISK_CORE_WEBRISK_FETCH_HASHES_H_
 #define NEVA_BROWSER_SERVICE_BROWSER_WEBRISK_CORE_WEBRISK_FETCH_HASHES_H_
 
+#include <optional>
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/single_thread_task_runner.h"
@@ -57,8 +58,8 @@ class WebRiskFetchHashes {
 
   void ComputeDiffRequest();
   void OnRequestResponse(const std::string& url,
-                         std::unique_ptr<std::string> response_body);
-  bool ComputeDiffResponse(std::unique_ptr<std::string> response_body,
+                         std::optional<std::string> response_body);
+  bool ComputeDiffResponse(std::optional<std::string> response_body,
                            ComputeThreatListDiffResponse& file_format);
   base::TimeDelta UpdateDiffResponse(ComputeThreatListDiffResponse file_format);
   void OnUpdatedDiff(base::TimeDelta result);

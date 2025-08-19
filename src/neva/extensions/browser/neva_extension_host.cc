@@ -14,15 +14,17 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "base/logging.h"
 #include "neva/extensions/browser/neva_extension_host.h"
 
 namespace neva {
 
-NevaExtensionHost::NevaExtensionHost(const extensions::Extension* extension,
-                                     content::SiteInstance* site_instance,
-                                     const GURL& url,
-                                     extensions::mojom::ViewType host_type)
-    : ExtensionHost(extension, site_instance, url, host_type) {}
+NevaExtensionHost::NevaExtensionHost(
+    const extensions::Extension* extension,
+    content::BrowserContext* browser_context,
+    const GURL& url,
+    extensions::mojom::ViewType host_type)
+    : ExtensionHost(extension, browser_context, url, host_type) {}
 
 NevaExtensionHost::~NevaExtensionHost() = default;
 

@@ -20,6 +20,7 @@
 #include <string>
 
 #include "base/functional/callback.h"
+#include "content/public/browser/render_widget_host_view.h"
 #include "base/memory/scoped_refptr.h"
 
 class SkBitmap;
@@ -52,7 +53,7 @@ class VisibleRegionCapture {
  private:
   bool EncodeBitmap(const SkBitmap& bitmap, std::string& base64_data);
   void EncodeBitmapOnWorkerThread(const SkBitmap& bitmap);
-  void OnBitmapCaptured(const SkBitmap& bitmap);
+  void OnBitmapCaptured(const content::CopyFromSurfaceResult& result);
   void OnBitmapEncodedOnUIThread(bool success, std::string base64_data);
 
   ReplyCallback callback_;

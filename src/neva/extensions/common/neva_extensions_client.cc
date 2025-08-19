@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/extensions/common/neva_extensions_client.h"
+#include "base/notimplemented.h"
 
 #include <memory>
 #include <string>
@@ -23,7 +24,7 @@
 #include "base/lazy_instance.h"
 #include "base/notreached.h"
 #include "components/version_info/version_info.h"
-#include "content/public/common/user_agent.h"
+#include "components/embedder_support/user_agent_utils.h"
 #include "extensions/common/core_extensions_api_provider.h"
 #include "extensions/common/extension_urls.h"
 #include "extensions/common/features/simple_feature.h"

@@ -2,7 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/webosgavplugin/webosgavplugin_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include <map>
 #include <string>
@@ -298,7 +300,7 @@ std::string WebOSGAVInjection::GetInjectionData(const std::string& name) {
 const char WebOSGAVInjection::kInjectionObjectName[] = "WebOSGAVInternal_";
 
 void WebOSGAVInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -337,7 +339,7 @@ void WebOSGAVInjection::Uninstall(blink::WebLocalFrame* frame) {
       ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
           IDR_WEBOSGAVPLUGIN_ROLLBACK_JS);
 
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -358,7 +360,8 @@ v8::MaybeLocal<v8::Object> WebOSGAVInjection::CreateWebOSGAVObject(
     v8::Isolate* isolate,
     v8::Local<v8::Object> parent) {
   gin::Handle<WebOSGAVInjection> webosgavplugin =
-      gin::CreateHandle(isolate, new WebOSGAVInjection(frame));
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<WebOSGAVInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), frame));
   parent
       ->Set(frame->MainWorldScriptContext(),
             gin::StringToV8(isolate, kInjectionObjectName),

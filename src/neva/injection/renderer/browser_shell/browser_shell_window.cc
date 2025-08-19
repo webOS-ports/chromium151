@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/browser_shell/browser_shell_window.h"
+#include "base/notimplemented.h"
 
 #include "base/functional/bind.h"
 #include "gin/dictionary.h"
@@ -49,8 +51,8 @@ BrowserShellWindow::BrowserShellWindow(
 
   BrowserShellPageView::CreateParams page_view_params;
   page_view_params.is_main_view = true;
-  auto* shell_page_view = new injections::BrowserShellPageView(
-      isolate, std::move(remote_view), page_view_params);
+  auto* shell_page_view = cppgc::MakeGarbageCollected<injections::BrowserShellPageView>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, std::move(remote_view), page_view_params);
 
   remote_->BindPageView(std::move(view_pending_receiver),
                         base::BindOnce(&BrowserShellPageView::Setup,

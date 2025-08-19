@@ -14,10 +14,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/network_error_page/network_error_page_controller_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include "base/functional/bind.h"
-#include "base/strings/string_piece.h"
+#include <string_view>
 #include "gin/arguments.h"
 #include "gin/handle.h"
 #include "neva/injection/renderer/grit/injection_resources.h"
@@ -69,7 +71,7 @@ NetworkErrorPageControllerInjection::GetObjectTemplateBuilder(
 }
 
 void NetworkErrorPageControllerInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -78,7 +80,8 @@ void NetworkErrorPageControllerInjection::Install(blink::WebLocalFrame* frame) {
   v8::Context::Scope context_scope(context);
 
   gin::Handle<NetworkErrorPageControllerInjection> controller =
-      gin::CreateHandle(isolate, new NetworkErrorPageControllerInjection());
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<NetworkErrorPageControllerInjection>(
+isolate->GetCppHeap()->GetAllocationHandle()));
   if (controller.IsEmpty())
     return;
 
@@ -93,7 +96,7 @@ void NetworkErrorPageControllerInjection::Install(blink::WebLocalFrame* frame) {
 
 void NetworkErrorPageControllerInjection::Uninstall(
     blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())

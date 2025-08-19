@@ -36,7 +36,6 @@
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/download_manager.h"
-#include "content/public/browser/resource_context.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/common/content_switches.h"
 #include "net/base/http_user_agent_settings.h"
@@ -152,14 +151,14 @@ AppRuntimeBrowserContext::~AppRuntimeBrowserContext() {
 
   if (off_the_record_) {
     ForEachLoadedStoragePartition(
-        base::BindRepeating([](content::StoragePartition* storage_partition) {
+        [](content::StoragePartition* storage_partition) {
           BrowsingDataRemover* remover =
               BrowsingDataRemover::GetForStoragePartition(storage_partition);
           remover->Remove(
               BrowsingDataRemover::Unbounded(),
               BrowsingDataRemover::RemoveBrowsingDataMask::REMOVE_ALL, GURL(),
               base::DoNothing());
-        }));
+        });
   }
 
   NotifyWillBeDestroyed();
@@ -172,16 +171,12 @@ AppRuntimeBrowserContext::~AppRuntimeBrowserContext() {
   ShutdownStoragePartitions();
 }
 
-base::FilePath AppRuntimeBrowserContext::GetPath() {
+base::FilePath AppRuntimeBrowserContext::GetPath() const {
   return path_;
 }
 
 bool AppRuntimeBrowserContext::IsOffTheRecord() {
   return off_the_record_;
-}
-
-content::ResourceContext* AppRuntimeBrowserContext::GetResourceContext() {
-  return resource_context_.get();
 }
 
 content::DownloadManagerDelegate*
@@ -288,7 +283,6 @@ AppRuntimeBrowserContext::AppRuntimeBrowserContext(const std::string& partition,
                                                    bool allow_to_load_extensions)
     : off_the_record_(off_the_record),
       extensions_are_allowed_(allow_to_load_extensions),
-      resource_context_(new content::ResourceContext()),
       path_(InitPath(partition)),
       notifier_client_(std::make_unique<NotifierClient>(this)) {
 #if defined(USE_LOCAL_STORAGE_TRACKER)

@@ -33,6 +33,8 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/permission_controller.h"
+#include "content/public/browser/permission_descriptor_util.h"
+#include "content/public/browser/permission_result.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
@@ -217,7 +219,7 @@ void PushMessagingServiceImpl::UnexpectedChange(
                      weak_factory_.GetWeakPtr(), identifier, reason,
                      base::BindOnce(&UnregisterCallbackToClosure,
                                     std::move(completed_closure)));
-  if (base::FeatureList::IsEnabled(features::kPushSubscriptionChangeEvent)) {
+  if (base::FeatureList::IsEnabled(features::kPushSubscriptionChangeEventOnInvalidation)) {
     // Find old subscription and fire a `pushsubscriptionchange` event
     GetPushSubscriptionFromAppIdentifier(
         identifier,
@@ -330,7 +332,7 @@ void PushMessagingServiceImpl::OnMessage(const std::string& app_id,
     browser_context_->DeliverPushMessage(
         app_identifier.origin(),
         app_identifier.service_worker_registration_id(), message.message_id,
-        std::move(payload),
+        std::move(payload), /*record_network_requests=*/false,
         base::BindOnce(&PushMessagingServiceImpl::DeliverMessageCallback,
                        weak_factory_.GetWeakPtr(), app_identifier.app_id(),
                        app_identifier.origin(),
@@ -563,7 +565,10 @@ void PushMessagingServiceImpl::SubscribeFromDocument(
       ->RequestPermissionFromCurrentDocument(
           render_frame_host,
           content::PermissionRequestDescription(
-              blink::PermissionType::NOTIFICATIONS, user_gesture),
+              content::PermissionDescriptorUtil::
+                  CreatePermissionDescriptorForPermissionType(
+                      blink::PermissionType::NOTIFICATIONS),
+              user_gesture),
           base::BindOnce(&PushMessagingServiceImpl::DoSubscribe,
                          weak_factory_.GetWeakPtr(), std::move(app_identifier),
                          std::move(options), std::move(callback),
@@ -604,7 +609,8 @@ void PushMessagingServiceImpl::SubscribeFromWorker(
   DoSubscribe(std::move(app_identifier), std::move(options),
               std::move(register_callback),
               /* render_process_id= */ -1, /* render_frame_id= */ -1,
-              blink::mojom::PermissionStatus::GRANTED);
+              content::PermissionResult(
+                  blink::mojom::PermissionStatus::GRANTED));
 }
 
 blink::mojom::PermissionStatus PushMessagingServiceImpl::GetPermissionStatus(
@@ -619,7 +625,10 @@ blink::mojom::PermissionStatus PushMessagingServiceImpl::GetPermissionStatus(
   // granted.
   return browser_context_->GetPermissionController()
       ->GetPermissionResultForOriginWithoutContext(
-          blink::PermissionType::NOTIFICATIONS, url::Origin::Create(origin))
+          content::PermissionDescriptorUtil::
+              CreatePermissionDescriptorForPermissionType(
+                  blink::PermissionType::NOTIFICATIONS),
+          url::Origin::Create(origin))
       .status;
 }
 
@@ -633,8 +642,8 @@ void PushMessagingServiceImpl::DoSubscribe(
     RegisterCallback register_callback,
     int render_process_id,
     int render_frame_id,
-    blink::mojom::PermissionStatus content_setting) {
-  if (content_setting != blink::mojom::PermissionStatus::GRANTED) {
+    content::PermissionResult permission_result) {
+  if (permission_result.status != blink::mojom::PermissionStatus::GRANTED) {
     SubscribeEndWithError(
         std::move(register_callback),
         blink::mojom::PushRegistrationStatus::PERMISSION_DENIED);
@@ -800,8 +809,8 @@ void PushMessagingServiceImpl::GetSubscriptionInfo(
 
   if (app_identifier.is_null()) {
     std::move(callback).Run(
-        false /* is_valid */, GURL::EmptyGURL() /*endpoint*/,
-        std::nullopt /* expiration_time */,
+        false /* is_valid */, false /* user_visible_only */,
+        GURL::EmptyGURL() /*endpoint*/, std::nullopt /* expiration_time */,
         std::vector<uint8_t>() /* p256dh */, std::vector<uint8_t>() /* auth */);
     return;
   }
@@ -835,8 +844,8 @@ void PushMessagingServiceImpl::DidValidateSubscription(
     bool is_valid) {
   if (!is_valid) {
     std::move(callback).Run(
-        false /* is_valid */, GURL::EmptyGURL() /* endpoint */,
-        std::nullopt /* expiration_time */,
+        false /* is_valid */, false /* user_visible_only */,
+        GURL::EmptyGURL() /* endpoint */, std::nullopt /* expiration_time */,
         std::vector<uint8_t>() /* p256dh */, std::vector<uint8_t>() /* auth */);
     return;
   }
@@ -857,7 +866,7 @@ void PushMessagingServiceImpl::DidGetEncryptionInfo(
   // I/O errors might prevent the GCM Driver from retrieving a key-pair.
   bool is_valid = !p256dh.empty();
   std::move(callback).Run(
-      is_valid, endpoint, expiration_time,
+      is_valid, /*user_visible_only=*/true, endpoint, expiration_time,
       std::vector<uint8_t>(p256dh.begin(), p256dh.end()),
       std::vector<uint8_t>(auth_secret.begin(), auth_secret.end()));
 }
@@ -1083,6 +1092,7 @@ void PushMessagingServiceImpl::GetPushSubscriptionFromAppIdentifierEnd(
     base::OnceCallback<void(blink::mojom::PushSubscriptionPtr)> callback,
     const std::string& sender_id,
     bool is_valid,
+    bool user_visible_only,
     const GURL& endpoint,
     const std::optional<base::Time>& expiration_time,
     const std::vector<uint8_t>& p256dh,
@@ -1106,7 +1116,7 @@ void PushMessagingServiceImpl::FirePushSubscriptionChange(
   // Ensure |completed_closure| is run after this function
   base::ScopedClosureRunner scoped_closure(std::move(completed_closure));
 
-  if (!base::FeatureList::IsEnabled(features::kPushSubscriptionChangeEvent))
+  if (!base::FeatureList::IsEnabled(features::kPushSubscriptionChangeEventOnInvalidation))
     return;
 
   if (app_identifier.is_null()) {

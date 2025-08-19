@@ -24,6 +24,7 @@
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/ime/input_method.h"
 #include "ui/base/ime/text_input_client.h"
+#include "ui/base/mojom/window_show_state.mojom-shared.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/views/corewm/tooltip_aura.h"
@@ -83,7 +84,7 @@ std::unique_ptr<PageView> ShellWindow::SetPageView(
   RemoveAllChildViews();
   SetLayoutManager(std::make_unique<views::FillLayout>());
   AddChildView(page_view_->GetView());
-  Layout();
+  DeprecatedLayoutImmediately();
   if (previous_page_view.get())
     previous_page_view->SetParentShellWindow(nullptr);
   return previous_page_view;
@@ -199,13 +200,16 @@ void ShellWindow::WindowClosing() {
 void ShellWindow::Init(const CreateParams& params) {
   // widget will be removed by its NativeWidget, or when closing with CloseNow.
   window_widget_ = new views::Widget;
+  // M151 requires the ownership mode up front. The widget owns this delegate
+  // (see init_params.delegate below), which is WIDGET_OWNS_NATIVE_WIDGET.
   views::Widget::InitParams init_params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
       params.frameless ? views::Widget::InitParams::TYPE_WINDOW_FRAMELESS
                        : views::Widget::InitParams::TYPE_WINDOW);
   init_params.bounds = gfx::Rect(0, 0, params.width, params.height);
   // Since ShellWindow is WigetViewDelegate, it's set being owned by its widget.
   init_params.delegate = this;
-  init_params.show_state = ui::SHOW_STATE_DEFAULT;
+  init_params.show_state = ui::mojom::WindowShowState::kDefault;
 
   display::Screen::Get()->AddObserver(this);
 

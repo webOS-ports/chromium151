@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/pal_service/webos/network_error_page_controller_delegate_webos.h"
+#include "base/notimplemented.h"
 
 #include "base/json/json_writer.h"
 #include "base/values.h"

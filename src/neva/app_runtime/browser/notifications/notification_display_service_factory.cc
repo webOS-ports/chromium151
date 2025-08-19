@@ -6,6 +6,7 @@
 // //chrome/browser/notifications/notification_display_service_factory.cc.
 
 #include "neva/app_runtime/browser/notifications/notification_display_service_factory.h"
+#include <memory>
 
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "neva/app_runtime/browser/notifications/notification_display_service_impl.h"
@@ -30,10 +31,10 @@ NotificationDisplayServiceFactory::NotificationDisplayServiceFactory()
           "NotificationDisplayService",
           BrowserContextDependencyManager::GetInstance()) {}
 
-KeyedService* NotificationDisplayServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService> NotificationDisplayServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   // TODO(peter): Register the notification handlers here.
-  return new NotificationDisplayServiceImpl(context);
+  return std::make_unique<NotificationDisplayServiceImpl>(context);
 }
 
 }  // namespace neva_app_runtime

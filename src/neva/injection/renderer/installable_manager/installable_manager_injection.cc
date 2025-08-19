@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/installable_manager/installable_manager_injection.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include "base/logging.h"
 #include "content/public/renderer/render_frame.h"
@@ -44,7 +46,7 @@ gin::WrapperInfo InstallableManagerInjection::kWrapperInfo = {
 
 // static
 void InstallableManagerInjection::Install(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())
@@ -67,7 +69,8 @@ void InstallableManagerInjection::Install(blink::WebLocalFrame* frame) {
 
   v8::Local<v8::Object> manager_local;
   gin::Handle<InstallableManagerInjection> manager =
-      gin::CreateHandle(isolate, new InstallableManagerInjection(frame));
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<InstallableManagerInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), frame));
   navigator
       ->Set(isolate->GetCurrentContext(),
             gin::StringToV8(isolate, "installablemanager"), manager.ToV8())
@@ -78,7 +81,7 @@ void InstallableManagerInjection::Install(blink::WebLocalFrame* frame) {
 
 // static
 void InstallableManagerInjection::Uninstall(blink::WebLocalFrame* frame) {
-  v8::Isolate* isolate = blink::MainThreadIsolate();
+  v8::Isolate* isolate = frame->GetAgentGroupScheduler()->Isolate();
   v8::HandleScope handle_scope(isolate);
   v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   if (context.IsEmpty())

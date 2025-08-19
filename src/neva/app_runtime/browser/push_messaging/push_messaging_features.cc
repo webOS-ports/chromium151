@@ -8,10 +8,12 @@
 
 namespace features {
 
-const base::Feature kPushMessagingDisallowSenderIDs{
-    "PushMessagingDisallowSenderIDs", base::FEATURE_DISABLED_BY_DEFAULT};
+BASE_FEATURE(kPushMessagingDisallowSenderIDs,
+             "PushMessagingDisallowSenderIDs",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
-const base::Feature kPushSubscriptionWithExpirationTime{
-    "PushSubscriptionWithExpirationTime", base::FEATURE_DISABLED_BY_DEFAULT};
+BASE_FEATURE(kPushSubscriptionWithExpirationTime,
+             "PushSubscriptionWithExpirationTime",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 }  // namespace features

@@ -32,7 +32,12 @@ const char kWebRiskVersionTokenTableName[] = "version_token";
 
 namespace webrisk {
 
-WebRiskDatabase::WebRiskDatabase() : db_({.cache_size = 8}) {}
+// M151: DatabaseOptions became a builder with setters rather than an aggregate,
+// and sql::Database now requires a Tag alongside it. The tag is validated at
+// compile time against tools/metrics/histograms/metadata/sql/histograms.xml.
+WebRiskDatabase::WebRiskDatabase()
+    : db_(sql::DatabaseOptions().set_cache_size(8),
+          sql::Database::Tag("NevaWebRiskDatabase")) {}
 
 bool WebRiskDatabase::Init() {
   db_file_path_ = GetFilePath(kDatabaseFileName);
@@ -57,7 +62,7 @@ bool WebRiskDatabase::InsertThreatEntry(const WebriskThreatEntry& entry) {
       " WHERE prefix = ?)",
       kWebRiskHashPrefixTableName, kWebRiskHashPrefixTableName);
   sql::Statement insert_statement(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
   insert_statement.BindString(0, entry.hash_prefix);
   insert_statement.BindString(1, entry.hash_prefix);
   return insert_statement.Run();
@@ -68,7 +73,7 @@ bool WebRiskDatabase::InsertThreatEntries(
   if (entries.empty()) {
     return true;
   }
-  if (!db_.BeginTransaction()) {
+  if (!db_.BeginTransactionDeprecated()) {
     LOG(ERROR) << __func__ << " Failed to begin the transaction.";
     return false;
   }
@@ -77,12 +82,12 @@ bool WebRiskDatabase::InsertThreatEntries(
     int last_errno = db_.GetLastErrno();
     if (last_errno != SQLITE_OK) {
       LOG(ERROR) << __func__ << " Insertion in DB failed";
-      db_.RollbackTransaction();
+      db_.RollbackTransactionDeprecated();
       return false;
     }
   }
 
-  return db_.CommitTransaction();
+  return db_.CommitTransactionDeprecated();
 }
 
 bool WebRiskDatabase::DeleteThreatEntry(const WebriskThreatEntry& entry) {
@@ -92,7 +97,7 @@ bool WebRiskDatabase::DeleteThreatEntry(const WebriskThreatEntry& entry) {
   const std::string query = base::StringPrintf(
       "DELETE FROM %s WHERE prefix = ?", kWebRiskHashPrefixTableName);
   sql::Statement delete_statement(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
   delete_statement.BindString(0, entry.hash_prefix);
 
   return (delete_statement.Run() && db_.GetLastChangeCount());
@@ -103,7 +108,7 @@ bool WebRiskDatabase::DeleteThreatEntries(
   if (entries.empty()) {
     return true;
   }
-  if (!db_.BeginTransaction()) {
+  if (!db_.BeginTransactionDeprecated()) {
     LOG(ERROR) << __func__ << " Failed to begin the transaction.";
     return false;
   }
@@ -112,12 +117,12 @@ bool WebRiskDatabase::DeleteThreatEntries(
     int last_errno = db_.GetLastErrno();
     if (last_errno != SQLITE_OK) {
       LOG(ERROR) << __func__ << " Insertion in DB failed";
-      db_.RollbackTransaction();
+      db_.RollbackTransactionDeprecated();
       return false;
     }
   }
 
-  return db_.CommitTransaction();
+  return db_.CommitTransactionDeprecated();
 }
 
 bool WebRiskDatabase::DeleteAllEntries() {
@@ -127,7 +132,7 @@ bool WebRiskDatabase::DeleteAllEntries() {
   const std::string query =
       base::StringPrintf("DELETE FROM %s", kWebRiskHashPrefixTableName);
   sql::Statement delete_all_statement(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
   return (delete_all_statement.Run() && db_.GetLastChangeCount());
 }
 
@@ -140,7 +145,7 @@ bool WebRiskDatabase::DeleteThreatEntries(const std::vector<int>& removals) {
         "LIMIT 1 OFFSET %d",
         kWebRiskVersionTokenTableName, idx);
     sql::Statement statement(
-        db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+        db_.GetCachedStatement(SQL_FROM_HERE, query));
     if (statement.Step()) {
       std::string prefix = statement.ColumnString(0);
       WebriskThreatEntry entry;
@@ -166,7 +171,7 @@ bool WebRiskDatabase::InsertOrUpdateVersionToken(
                                kWebRiskVersionTokenTableName);
   }
   sql::Statement statement(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
   statement.BindString(0, version_token);
 
   return (statement.Run() && db_.GetLastChangeCount());
@@ -176,7 +181,7 @@ std::string WebRiskDatabase::GetVersionToken() {
   const std::string query = base::StringPrintf("SELECT * FROM %s LIMIT 1",
                                                kWebRiskVersionTokenTableName);
   sql::Statement get_version_token(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
 
   if (get_version_token.Step()) {
     return get_version_token.ColumnString(0);
@@ -190,7 +195,7 @@ bool WebRiskDatabase::IsHashPrefixAvailable(const std::string& hash_prefix) {
       base::StringPrintf("SELECT COUNT(*) FROM %s WHERE prefix LIKE ?",
                          kWebRiskHashPrefixTableName);
   sql::Statement response_statement(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
   response_statement.BindString(0, hash_prefix);
   if (response_statement.Step()) {
     count = response_statement.ColumnInt(0);
@@ -233,7 +238,7 @@ bool WebRiskDatabase::CreateTable(const char* table_name) {
     return false;
   }
 
-  if (!db_.Execute(query.c_str())) {
+  if (!db_.Execute(query)) {
     LOG(ERROR) << __func__ << " Error creating " << table_name << " table";
     return false;
   }
@@ -246,7 +251,7 @@ bool WebRiskDatabase::IsTableEmtpy(const char* table_name) {
   const std::string query =
       base::StringPrintf("SELECT COUNT(*) FROM %s", table_name);
   sql::Statement response_statement(
-      db_.GetCachedStatement(SQL_FROM_HERE, query.c_str()));
+      db_.GetCachedStatement(SQL_FROM_HERE, query));
   if (response_statement.Step()) {
     count = response_statement.ColumnInt(0);
   }

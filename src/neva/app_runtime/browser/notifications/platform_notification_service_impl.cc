@@ -6,6 +6,7 @@
 // and //chrome/common/pref_names.cc.
 
 #include "neva/app_runtime/browser/notifications/platform_notification_service_impl.h"
+#include "base/notimplemented.h"
 
 #include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"

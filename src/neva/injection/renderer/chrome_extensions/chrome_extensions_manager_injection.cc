@@ -14,7 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include "v8/include/cppgc/allocation.h"
 #include "neva/injection/renderer/chrome_extensions/chrome_extensions_manager_injection.h"
+#include "base/notimplemented.h"
 
 #include "gin/dictionary.h"
 #include "gin/handle.h"
@@ -62,7 +64,8 @@ void ChromeExtensionsManagerInjection::Install(blink::WebLocalFrame* frame) {
   }
 
   gin::Handle<ChromeExtensionsManagerInjection> extensions_manager_handle =
-      gin::CreateHandle(isolate, new ChromeExtensionsManagerInjection(isolate));
+      gin::CreateHandle(isolate, cppgc::MakeGarbageCollected<ChromeExtensionsManagerInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate));
   global
       ->Set(isolate->GetCurrentContext(),
             gin::StringToV8(isolate, kExtensionsManagerObjectName),
@@ -84,8 +87,8 @@ void ChromeExtensionsManagerInjection::OnExtensionServiceRegistered(
   mojo::Remote<neva::mojom::NevaExtensionsService> remote_extensions_service;
   auto pending_receiver =
       remote_extensions_service.BindNewPipeAndPassReceiver();
-  auto* extensions_service = new injections::ChromeExtensionsInjection(
-      isolate, std::move(remote_extensions_service));
+  auto* extensions_service = cppgc::MakeGarbageCollected<injections::ChromeExtensionsInjection>(
+isolate->GetCppHeap()->GetAllocationHandle(), isolate, std::move(remote_extensions_service));
   remote_->BindNewExtensionsServiceByContext(std::move(pending_receiver),
                                              partition);
 

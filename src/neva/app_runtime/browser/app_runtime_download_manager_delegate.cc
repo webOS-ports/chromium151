@@ -43,6 +43,8 @@ void AppRuntimeDownloadManagerDelegate::CheckDownloadAllowed(
     std::optional<url::Origin> request_initiator,
     bool from_download_cross_origin_redirect,
     bool content_initiated,
+    const std::string& mime_type,
+    std::optional<ui::PageTransition> page_transition,
     content::CheckDownloadAllowedCallback check_download_allowed_cb) {
   if (notification_manager_delegate_) {
     content::WebContents* web_contents = web_contents_getter.Run();

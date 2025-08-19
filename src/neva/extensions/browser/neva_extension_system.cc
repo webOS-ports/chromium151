@@ -133,12 +133,6 @@ extensions::ContentVerifier* NevaExtensionSystem::content_verifier() {
   return nullptr;
 }
 
-std::unique_ptr<extensions::ExtensionSet>
-NevaExtensionSystem::GetDependentExtensions(
-    const extensions::Extension* extension) {
-  return std::make_unique<extensions::ExtensionSet>();
-}
-
 void NevaExtensionSystem::InstallUpdate(
     const std::string& extension_id,
     const std::string& public_key,
@@ -153,13 +147,6 @@ void NevaExtensionSystem::PerformActionBasedOnOmahaAttributes(
     const std::string& extension_id,
     const base::DictValue& attributes) {
   NOTREACHED();
-}
-
-bool NevaExtensionSystem::FinishDelayedInstallationIfReady(
-    const std::string& extension_id,
-    bool install_immediately) {
-  NOTREACHED();
-  return false;
 }
 
 void NevaExtensionSystem::OnExtensionRegisteredWithRequestContexts(

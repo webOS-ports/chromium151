@@ -34,6 +34,9 @@
 #include "components/os_crypt/async/browser/key_provider.h"
 #include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/os_crypt/async/browser/posix_key_provider.h"
+#include "content/public/browser/navigation_throttle_registry.h"
+#include "content/public/browser/security_principal.h"
+#include "ipc/constants.mojom-forward.h"
 #include "services/network/public/cpp/cookie_encryption_provider_impl.h"
 #include "components/viz/common/switches.h"
 #include "content/browser/loader/file_url_loader_factory.h"
@@ -78,6 +81,7 @@
 #include "neva/pal_service/public/notification_manager_delegate.h"
 #include "neva/user_agent/common/user_agent.h"
 #include "sandbox/policy/switches.h"
+#include "services/network/public/cpp/url_loader_factory_builder.h"
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "third_party/blink/public/common/switches.h"
@@ -89,13 +93,10 @@
 
 #if defined(USE_NEVA_CHROME_EXTENSIONS)
 #include "content/public/common/content_switches.h"
-#include "extensions/browser/api/messaging/messaging_api_message_filter.h"
 #include "extensions/browser/api/web_request/web_request_api.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
-#include "extensions/browser/extension_message_filter.h"
 #include "extensions/browser/extension_navigation_throttle.h"
 #include "extensions/browser/extension_protocols.h"
-#include "extensions/browser/extension_service_worker_message_filter.h"
 #include "extensions/browser/process_map.h"
 #include "extensions/browser/url_loader_factory_manager.h"
 #include "extensions/common/constants.h"
@@ -142,7 +143,14 @@ int64_t RandomizeByPercent(int64_t value, int percent) {
 
 std::optional<storage::QuotaSettings> GetConfiguredQuotaSettings(
     const base::FilePath& partition_path) {
-  int64_t total = base::SysInfo::AmountOfTotalDiskSpace(partition_path);
+  // M151 returns nullopt when the partition size cannot be determined; with no
+  // total there is nothing to derive a quota from.
+  std::optional<int64_t> total_opt =
+      base::SysInfo::AmountOfTotalDiskSpace(partition_path);
+  if (!total_opt) {
+    return std::optional<storage::QuotaSettings>();
+  }
+  const int64_t total = *total_opt;
   const int kRandomizedPercentage = 10;
   const double kShouldRemainAvailableRatio = 0.1;  // 10%
   const double kMustRemainAvailableRatio = 0.01;   // 1%
@@ -173,6 +181,30 @@ std::optional<storage::QuotaSettings> GetConfiguredQuotaSettings(
 }
 
 }  // namespace
+
+// Implements a stub BadgeService. This implementation does nothing, but is
+// required because inbound Mojo messages which do not have a registered
+// handler are considered an error, and the render process is terminated.
+// See https://crbug.com/1090429
+class AppRuntimeContentBrowserClient::StubBadgeService
+    : public blink::mojom::BadgeService {
+ public:
+  StubBadgeService() = default;
+  StubBadgeService(const StubBadgeService&) = delete;
+  StubBadgeService& operator=(const StubBadgeService&) = delete;
+  ~StubBadgeService() override = default;
+
+  void Bind(mojo::PendingReceiver<blink::mojom::BadgeService> receiver) {
+    receivers_.Add(this, std::move(receiver));
+  }
+
+  // blink::mojom::BadgeService:
+  void SetBadge(blink::mojom::BadgeValuePtr value) override {}
+  void ClearBadge() override {}
+
+ private:
+  mojo::ReceiverSet<blink::mojom::BadgeService> receivers_;
+};
 
 AppRuntimeContentBrowserClient::AppRuntimeContentBrowserClient()
 #if defined(ENABLE_PWA_MANAGER_WEBAPI)
@@ -272,7 +304,8 @@ bool AppRuntimeContentBrowserClient::IsFileSchemeNavigationAllowed(
   }
 
   content::FrameTreeNode* frame_tree_node =
-      content::FrameTreeNode::GloballyFindByID(render_frame_id);
+      content::FrameTreeNode::GloballyFindByID(
+          content::FrameTreeNodeId(render_frame_id));
 
   content::WebContents* web_contents =
       content::WebContents::FromRenderFrameHost(
@@ -499,8 +532,9 @@ AppRuntimeContentBrowserClient::CreateDevToolsManagerDelegate() {
   return std::make_unique<AppRuntimeDevToolsManagerDelegate>();
 }
 
-void AppRuntimeContentBrowserClient::OverrideWebkitPrefs(
+void AppRuntimeContentBrowserClient::OverrideWebPreferences(
     content::WebContents* web_contents,
+    content::SiteInstance& main_frame_site,
     blink::web_pref::WebPreferences* prefs) {
   content::WebContentsDelegate* delegate = web_contents->GetDelegate();
   if (delegate)
@@ -593,7 +627,8 @@ void AppRuntimeContentBrowserClient::
 #if defined(USE_NEVA_CHROME_EXTENSIONS)
   factories->emplace(extensions::kExtensionScheme,
                      extensions::CreateExtensionURLLoaderFactory(
-                         render_process_id, render_frame_id));
+                         content::ChildProcessId(render_process_id),
+                         render_frame_id));
 #endif
 }
 
@@ -603,25 +638,20 @@ void AppRuntimeContentBrowserClient::
 
 void AppRuntimeContentBrowserClient::RenderProcessWillLaunch(
     content::RenderProcessHost* host) {
-  int render_process_id = host->GetID();
-  BrowserContext* browser_context = host->GetBrowserContext();
-  host->AddFilter(new extensions::ExtensionMessageFilter(render_process_id,
-                                                         browser_context));
-  host->AddFilter(new extensions::MessagingAPIMessageFilter(render_process_id,
-                                                            browser_context));
-  host->AddFilter(new extensions::ExtensionServiceWorkerMessageFilter(
-      render_process_id, browser_context,
-      host->GetStoragePartition()->GetServiceWorkerContext()));
+  // M151 removed the legacy extension IPC message filters
+  // (ExtensionMessageFilter, MessagingAPIMessageFilter and
+  // ExtensionServiceWorkerMessageFilter); all three channels are mojo
+  // interfaces now, wired up by RendererStartupHelper. Nothing to install.
 }
 
-void AppRuntimeContentBrowserClient::SiteInstanceGotProcess(
+void AppRuntimeContentBrowserClient::SiteInstanceGotProcessAndSite(
     content::SiteInstance* site_instance) {
   BrowserContext* browser_context = site_instance->GetBrowserContext();
   extensions::ExtensionRegistry* registry =
       extensions::ExtensionRegistry::Get(browser_context);
   const extensions::Extension* extension =
       registry->enabled_extensions().GetExtensionOrAppByURL(
-          site_instance->GetSiteURL());
+          site_instance->GetSecurityPrincipal().GetDeprecatedSiteURL());
 
   // If this isn't an extension renderer there's nothing to do.
   if (!extension)
@@ -643,7 +673,7 @@ void AppRuntimeContentBrowserClient::ExposeInterfacesToRenderer(
   registry->AddInterface<neva::mojom::NevaExtensionsServicesManager>(
       base::BindRepeating(
           &neva::NevaExtensionsServicesManagerImpl::BindForRenderer,
-          render_process_host->GetID()),
+          render_process_host->GetDeprecatedID()),
       content::GetUIThreadTaskRunner({}));
 
   associated_registry->AddInterface<extensions::mojom::EventRouter>(
@@ -658,29 +688,18 @@ void AppRuntimeContentBrowserClient::OverrideURLLoaderFactoryParams(
     content::BrowserContext* browser_context,
     const url::Origin& origin,
     bool is_for_isolated_world,
+    bool is_for_service_worker,
     network::mojom::URLLoaderFactoryParams* factory_params) {
   extensions::URLLoaderFactoryManager::OverrideURLLoaderFactoryParams(
-      browser_context, origin, is_for_isolated_world, factory_params);
-}
-
-void AppRuntimeContentBrowserClient::
-    RegisterNonNetworkNavigationURLLoaderFactories(
-        int frame_tree_node_id,
-        ukm::SourceIdObj ukm_source_id,
-        NonNetworkURLLoaderFactoryMap* factories) {
-  DCHECK(factories);
-
-  content::WebContents* web_contents =
-      content::WebContents::FromFrameTreeNodeId(frame_tree_node_id);
-  factories->emplace(
-      extensions::kExtensionScheme,
-      extensions::CreateExtensionNavigationURLLoaderFactory(
-          web_contents->GetBrowserContext(), ukm_source_id, false));
+      browser_context, origin, is_for_isolated_world, is_for_service_worker,
+      factory_params);
 }
 
 void AppRuntimeContentBrowserClient::
     RegisterNonNetworkWorkerMainResourceURLLoaderFactories(
         content::BrowserContext* browser_context,
+        const std::optional<url::Origin>& request_initiator,
+        network::mojom::RequestDestination request_destination,
         NonNetworkURLLoaderFactoryMap* factories) {
   DCHECK(browser_context);
   DCHECK(factories);
@@ -688,7 +707,7 @@ void AppRuntimeContentBrowserClient::
   factories->emplace(
       extensions::kExtensionScheme,
       extensions::CreateExtensionWorkerMainResourceURLLoaderFactory(
-          browser_context));
+          browser_context, request_initiator));
 }
 
 bool AppRuntimeContentBrowserClient::ShouldSendOutermostOriginToRenderer(
@@ -732,15 +751,20 @@ bool AppRuntimeContentBrowserClient::ShouldSwapBrowsingInstancesForNavigation(
 }
 #endif  // defined(USE_NEVA_CHROME_EXTENSIONS)
 
-bool AppRuntimeContentBrowserClient::WillCreateURLLoaderFactory(
+// M151 reshaped this hook: it returns void and hands over a
+// network::URLLoaderFactoryBuilder instead of a PendingReceiver to swap out.
+// Appending to the builder is the direct replacement for the old
+// "take the receiver, hand back a fresh one" dance.
+void AppRuntimeContentBrowserClient::WillCreateURLLoaderFactory(
     content::BrowserContext* browser_context,
     content::RenderFrameHost* frame,
     int render_process_id,
     URLLoaderFactoryType type,
     const url::Origin& request_initiator,
+    const net::IsolationInfo& isolation_info,
     std::optional<int64_t> navigation_id,
     ukm::SourceIdObj ukm_source_id,
-    mojo::PendingReceiver<network::mojom::URLLoaderFactory>* factory_receiver,
+    network::URLLoaderFactoryBuilder& factory_builder,
     mojo::PendingRemote<network::mojom::TrustedURLLoaderHeaderClient>*
         header_client,
     bool* bypass_redirect_checks,
@@ -753,18 +777,16 @@ bool AppRuntimeContentBrowserClient::WillCreateURLLoaderFactory(
           browser_context);
   bool use_proxy = web_request_api->MaybeProxyURLLoaderFactory(
       browser_context, frame, render_process_id, type, navigation_id,
-      ukm_source_id, factory_receiver, header_client,
-      std::move(navigation_response_task_runner));
+      ukm_source_id, factory_builder, header_client,
+      std::move(navigation_response_task_runner), request_initiator);
   if (bypass_redirect_checks)
     *bypass_redirect_checks = use_proxy;
   if (use_proxy)
-    return use_proxy;
+    return;
 #endif  // defined(USE_NEVA_CHROME_EXTENSIONS)
 
   // Create ProxyURL factory
-  auto proxied_receiver = std::move(*factory_receiver);
-  mojo::PendingRemote<network::mojom::URLLoaderFactory> target_factory_remote;
-  *factory_receiver = target_factory_remote.InitWithNewPipeAndPassReceiver();
+  auto [proxied_receiver, target_factory_remote] = factory_builder.Append();
 
   // To implement the proxying factory we rely on the
   // WebRequestProxyingURLLoaderFactory implementation in extensions and
@@ -785,12 +807,11 @@ bool AppRuntimeContentBrowserClient::WillCreateURLLoaderFactory(
 
   new AppRuntimeProxyingURLLoaderFactory(
       neva_app_runtime::AppRuntimeWebRequestHandler::From(browser_context),
-      render_process_id, frame ? frame->GetRoutingID() : MSG_ROUTING_NONE,
+      render_process_id,
+      frame ? frame->GetRoutingID() : IPC::mojom::kRoutingIdNone,
       &url_factory_next_id_, std::move(navigation_ui_data), std::move(navigation_id),
       std::move(proxied_receiver), std::move(target_factory_remote),
       std::move(header_client_receiver), type);
-
-  return true;
 }
 
 void AppRuntimeContentBrowserClient::GetAdditionalAllowedSchemesForFileSystem(
@@ -810,12 +831,15 @@ std::unique_ptr<content::LoginDelegate>
 AppRuntimeContentBrowserClient::CreateLoginDelegate(
     const net::AuthChallengeInfo& auth_info,
     content::WebContents* web_contents,
+    content::BrowserContext* browser_context,
     const content::GlobalRequestID& request_id,
-    bool is_request_for_main_frame,
+    bool is_request_for_primary_main_frame_navigation,
+    bool is_request_for_navigation,
     const GURL& url,
     scoped_refptr<net::HttpResponseHeaders> response_headers,
     bool first_auth_attempt,
-    LoginAuthRequiredCallback auth_required_callback) {
+    content::GuestPageHolder* guest_page_holder,
+    content::LoginDelegate::LoginAuthRequiredCallback auth_required_callback) {
   if (!auth_required_callback.is_null() && !credentials_.Empty()) {
     content::GetUIThreadTaskRunner({})->PostTask(
         FROM_HERE,
@@ -828,7 +852,7 @@ AppRuntimeContentBrowserClient::CreateLoginDelegate(
 bool AppRuntimeContentBrowserClient::HandleExternalProtocol(
     const GURL& url,
     content::WebContents::Getter web_contents_getter,
-    int frame_tree_node_id,
+    content::FrameTreeNodeId frame_tree_node_id,
     content::NavigationUIData* navigation_data,
     bool is_primary_main_frame,
     bool is_in_fenced_frame_tree,
@@ -837,13 +861,15 @@ bool AppRuntimeContentBrowserClient::HandleExternalProtocol(
     bool has_user_gesture,
     const std::optional<url::Origin>& initiating_origin,
     content::RenderFrameHost* initiator_document,
+    const net::IsolationInfo& isolation_info,
     mojo::PendingRemote<network::mojom::URLLoaderFactory>* out_factory) {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kEnableExternalProtocolsHandling)) {
     content::WebContents* web_contents = web_contents_getter.Run();
 
-    if (web_contents && HasCustomSchemeHandler(
-                            web_contents->GetBrowserContext(), url.scheme())) {
+    if (web_contents &&
+        HasCustomSchemeHandler(web_contents->GetBrowserContext(),
+                               std::string(url.scheme()))) {
       auto* protocol_handler_registry =
           AppRuntimeProtocolHandlerRegistryFactory::GetForBrowserContext(
               web_contents->GetBrowserContext());
@@ -888,6 +914,7 @@ bool AppRuntimeContentBrowserClient::HandleExternalProtocol(
 
 base::OnceClosure AppRuntimeContentBrowserClient::SelectClientCertificate(
     content::BrowserContext* browser_context,
+    int process_id,
     content::WebContents* web_contents,
     net::SSLCertRequestInfo* cert_request_info,
     net::ClientCertIdentityList client_certs,
@@ -988,19 +1015,9 @@ void AppRuntimeContentBrowserClient::ConfigureNetworkContextParams(
   // Cookie encryption keys reach the network service through this provider.
   // PosixKeyProvider reproduces the pre-M151 --password-store=basic scheme
   // exactly, so cookie databases written by the M120 build remain readable.
-  if (!os_crypt_async_) {
-    std::vector<std::pair<os_crypt_async::OSCryptAsync::Precedence,
-                          std::unique_ptr<os_crypt_async::KeyProvider>>>
-        providers;
-    providers.emplace_back(
-        /*precedence=*/10u,
-        std::make_unique<os_crypt_async::PosixKeyProvider>());
-    os_crypt_async_ =
-        std::make_unique<os_crypt_async::OSCryptAsync>(std::move(providers));
-  }
   if (!cookie_encryption_provider_) {
     cookie_encryption_provider_ =
-        std::make_unique<CookieEncryptionProviderImpl>(os_crypt_async_.get());
+        std::make_unique<CookieEncryptionProviderImpl>(GetOSCryptAsync());
   }
   network_context_params->cookie_encryption_provider =
       cookie_encryption_provider_->BindNewRemote();
@@ -1089,30 +1106,6 @@ void AppRuntimeContentBrowserClient::SetProxyServer(
   }
 }
 
-// Implements a stub BadgeService. This implementation does nothing, but is
-// required because inbound Mojo messages which do not have a registered
-// handler are considered an error, and the render process is terminated.
-// See https://crbug.com/1090429
-class AppRuntimeContentBrowserClient::StubBadgeService
-    : public blink::mojom::BadgeService {
- public:
-  StubBadgeService() = default;
-  StubBadgeService(const StubBadgeService&) = delete;
-  StubBadgeService& operator=(const StubBadgeService&) = delete;
-  ~StubBadgeService() override = default;
-
-  void Bind(mojo::PendingReceiver<blink::mojom::BadgeService> receiver) {
-    receivers_.Add(this, std::move(receiver));
-  }
-
-  // blink::mojom::BadgeService:
-  void SetBadge(blink::mojom::BadgeValuePtr value) override {}
-  void ClearBadge() override {}
-
- private:
-  mojo::ReceiverSet<blink::mojom::BadgeService> receivers_;
-};
-
 void AppRuntimeContentBrowserClient::RegisterBrowserInterfaceBindersForFrame(
     content::RenderFrameHost* render_frame_host,
     mojo::BinderMapWithContext<content::RenderFrameHost*>* map) {
@@ -1175,7 +1168,8 @@ AppRuntimeContentBrowserClient::CreateURLLoaderThrottles(
     content::BrowserContext* browser_context,
     const base::RepeatingCallback<content::WebContents*()>& wc_getter,
     content::NavigationUIData* navigation_ui_data,
-    int frame_tree_node_id) {
+    content::FrameTreeNodeId frame_tree_node_id,
+    std::optional<int64_t> navigation_id) {
   std::vector<std::unique_ptr<blink::URLLoaderThrottle>> result;
   return result;
 }
@@ -1183,10 +1177,10 @@ AppRuntimeContentBrowserClient::CreateURLLoaderThrottles(
 #if defined(ENABLE_PWA_MANAGER_WEBAPI)
 class PwaNavigationThrottle : public NavigationThrottle {
  public:
-  explicit PwaNavigationThrottle(NavigationHandle* navigation_handle,
+  explicit PwaNavigationThrottle(NavigationThrottleRegistry& registry,
                                  const GURL& url,
                                  AppRuntimeContentBrowserClient* browser_client)
-      : NavigationThrottle(navigation_handle),
+      : NavigationThrottle(registry),
         pwa_url_(url),
         browser_client_(browser_client) {
     CHECK(browser_client_);
@@ -1198,7 +1192,7 @@ class PwaNavigationThrottle : public NavigationThrottle {
                   ->GetWebContents()
                   ->GetPrimaryMainFrame()
                   ->GetProcess()
-                  ->GetID();
+                  ->GetDeprecatedID();
 
     std::string permit_list;
     browser_client_->GetPwaExternalLinkPermitList(pid, permit_list);
@@ -1225,12 +1219,11 @@ class PwaNavigationThrottle : public NavigationThrottle {
 
   const char* GetNameForLogging() override { return "PwaNavigationThrottle"; }
 
-  static std::unique_ptr<NavigationThrottle> CreateThrottleForNavigation(
-      NavigationHandle* navigation_handle,
-      const GURL& url,
-      AppRuntimeContentBrowserClient* browser_client) {
-    return std::make_unique<PwaNavigationThrottle>(navigation_handle, url,
-                                                   browser_client);
+  static void CreateAndAdd(NavigationThrottleRegistry& registry,
+                           const GURL& url,
+                           AppRuntimeContentBrowserClient* browser_client) {
+    registry.AddThrottle(
+        std::make_unique<PwaNavigationThrottle>(registry, url, browser_client));
   }
 
   PwaNavigationThrottle(const PwaNavigationThrottle&) = delete;
@@ -1318,38 +1311,50 @@ void AppRuntimeContentBrowserClient::RemoveExternalLinkPermitList(
 
 ///@name USE_NEVA_CHROME_EXTENSIONS | ENABLE_PWA_MANAGER_WEBAPI
 ///@{
-std::vector<std::unique_ptr<content::NavigationThrottle>>
-AppRuntimeContentBrowserClient::CreateThrottlesForNavigation(
-    content::NavigationHandle* navigation_handle) {
-  auto throttles =
-      ContentBrowserClient::CreateThrottlesForNavigation(navigation_handle);
+void AppRuntimeContentBrowserClient::CreateThrottlesForNavigation(
+    content::NavigationThrottleRegistry& registry) {
+  ContentBrowserClient::CreateThrottlesForNavigation(registry);
 
 #if defined(ENABLE_PWA_MANAGER_WEBAPI)
-  int pid = navigation_handle->GetWebContents()
+  int pid = registry.GetNavigationHandle()
+                .GetWebContents()
                 ->GetPrimaryMainFrame()
                 ->GetProcess()
-                ->GetID();
+                ->GetDeprecatedID();
   if (pwa_origins_.count(pid)) {
-    throttles.push_back(PwaNavigationThrottle::CreateThrottleForNavigation(
-        navigation_handle, pwa_origins_[pid], this));
-    return throttles;
+    // As before: for a PWA navigation this is the only throttle that runs.
+    PwaNavigationThrottle::CreateAndAdd(registry, pwa_origins_[pid], this);
+    return;
   }
 #endif  // ENABLE_PWA_MANAGER_WEBAPI
 
 #if defined(USE_NEVA_CHROME_EXTENSIONS)
-  throttles.push_back(std::make_unique<extensions::ExtensionNavigationThrottle>(
-      navigation_handle));
+  registry.AddThrottle(
+      std::make_unique<extensions::ExtensionNavigationThrottle>(registry));
 #endif  // defined(USE_NEVA_CHROME_EXTENSIONS)
 
-  throttles.push_back(std::make_unique<neva::SiteFilterNavigationThrottle>(
-      navigation_handle));
-
-  return throttles;
+  registry.AddThrottle(
+      std::make_unique<neva::SiteFilterNavigationThrottle>(registry));
 }
 ///@}
 
 size_t AppRuntimeContentBrowserClient::GetMaxRendererProcessCountOverride() {
   return std::numeric_limits<size_t>::max();
+}
+
+os_crypt_async::OSCryptAsync*
+AppRuntimeContentBrowserClient::GetOSCryptAsync() {
+  if (!os_crypt_async_) {
+    std::vector<std::pair<os_crypt_async::OSCryptAsync::Precedence,
+                          std::unique_ptr<os_crypt_async::KeyProvider>>>
+        providers;
+    providers.emplace_back(
+        /*precedence=*/10u,
+        std::make_unique<os_crypt_async::PosixKeyProvider>());
+    os_crypt_async_ =
+        std::make_unique<os_crypt_async::OSCryptAsync>(std::move(providers));
+  }
+  return os_crypt_async_.get();
 }
 
 }  // namespace neva_app_runtime

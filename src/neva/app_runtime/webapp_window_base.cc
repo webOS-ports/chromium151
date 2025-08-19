@@ -15,10 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/public/webapp_window_base.h"
+#include "base/notimplemented.h"
 
 #include "base/strings/utf_string_conversions.h"
 #include "content/public/browser/web_contents.h"
 #include "neva/app_runtime/webapp_window.h"
+#include "ui/base/mojom/window_show_state.mojom-shared.h"
 #include "ui/views/widget/desktop_aura/desktop_window_tree_host.h"
 #include "ui/views/widget/widget.h"
 
@@ -82,23 +84,23 @@ views::Widget::InitParams::Type ToViewsWidgetType(
   NOTREACHED();
 }
 
-ui::WindowShowState ToUiWindowShowState(
+ui::mojom::WindowShowState ToUiWindowShowState(
     WebAppWindowBase::WindowShowState state) {
   switch (state) {
     case WebAppWindowBase::WindowShowState::kDefault:
-      return ui::SHOW_STATE_DEFAULT;
+      return ui::mojom::WindowShowState::kDefault;
     case WebAppWindowBase::WindowShowState::kNormal:
-      return ui::SHOW_STATE_NORMAL;
+      return ui::mojom::WindowShowState::kNormal;
     case WebAppWindowBase::WindowShowState::kMinimized:
-      return ui::SHOW_STATE_MINIMIZED;
+      return ui::mojom::WindowShowState::kMinimized;
     case WebAppWindowBase::WindowShowState::kMaximized:
-      return ui::SHOW_STATE_MAXIMIZED;
+      return ui::mojom::WindowShowState::kMaximized;
     case WebAppWindowBase::WindowShowState::kInactive:
-      return ui::SHOW_STATE_INACTIVE;
+      return ui::mojom::WindowShowState::kInactive;
     case WebAppWindowBase::WindowShowState::kFullscreen:
-      return ui::SHOW_STATE_FULLSCREEN;
+      return ui::mojom::WindowShowState::kFullscreen;
     case WebAppWindowBase::WindowShowState::kEnd:
-      return ui::SHOW_STATE_END;
+      return ui::mojom::WindowShowState::kMaxValue;
   }
 
   NOTREACHED();

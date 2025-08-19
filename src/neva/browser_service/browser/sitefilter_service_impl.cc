@@ -231,7 +231,7 @@ std::string SiteFilterServiceImpl::GetDomain(const std::string& url) {
   GURL decoded_url = url_formatter::FixupURL(url, std::string());
   if (!(decoded_url.is_valid() && decoded_url.IsStandard()))
     return {};
-  std::string domain = decoded_url.host();
+  std::string domain(decoded_url.host());
   if (domain.find(kWwwPrefix) == 0) {
     domain = domain.substr(kWwwPrefix.length());
   }

@@ -37,6 +37,11 @@ class InstallableManagerInjection
     : public gin::Wrappable<InstallableManagerInjection> {
  public:
   static gin::WrapperInfo kWrapperInfo;
+  // M151: gin::WrappableBase requires this virtual getter so an
+  // unwrap can type-check against the static kWrapperInfo.
+  const gin::WrapperInfo* wrapper_info() const override {
+    return &kWrapperInfo;
+  }
 
   static void Install(blink::WebLocalFrame* frame);
   static void Uninstall(blink::WebLocalFrame* frame);

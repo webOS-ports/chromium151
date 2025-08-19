@@ -17,11 +17,17 @@
 #ifndef NEVA_EXTENSIONS_RENDERER_NEVA_EXTENSIONS_DISPATCHER_DELEGATE_H_
 #define NEVA_EXTENSIONS_RENDERER_NEVA_EXTENSIONS_DISPATCHER_DELEGATE_H_
 
-#include "extensions/renderer/dispatcher_delegate.h"
+#include "extensions/renderer/extensions_renderer_api_provider.h"
 
 namespace neva {
 
-class NevaExtensionsDispatcherDelegate : public extensions::DispatcherDelegate {
+// M151 removed extensions::DispatcherDelegate. Its replacement is
+// ExtensionsRendererAPIProvider: the Dispatcher now takes a vector of these,
+// and AddBindingsSystemHooks() is the direct successor of
+// InitializeBindingsSystem(). The other methods are pure virtual but have
+// nothing to do here.
+class NevaExtensionsDispatcherDelegate
+    : public extensions::ExtensionsRendererAPIProvider {
  public:
   NevaExtensionsDispatcherDelegate() = default;
 
@@ -33,10 +39,21 @@ class NevaExtensionsDispatcherDelegate : public extensions::DispatcherDelegate {
   ~NevaExtensionsDispatcherDelegate() override = default;
 
  private:
-  // extensions::DispatcherDelegate implementation.
-  void InitializeBindingsSystem(
+  // extensions::ExtensionsRendererAPIProvider:
+  void RegisterNativeHandlers(
+      extensions::ModuleSystem* module_system,
+      extensions::NativeExtensionBindingsSystem* bindings_system,
+      extensions::V8SchemaRegistry* v8_schema_registry,
+      extensions::ScriptContext* context) const override {}
+  void AddBindingsSystemHooks(
       extensions::Dispatcher* dispatcher,
-      extensions::NativeExtensionBindingsSystem* bindings_system) override;
+      extensions::NativeExtensionBindingsSystem* bindings_system)
+      const override;
+  void PopulateSourceMap(
+      extensions::ResourceBundleSourceMap* source_map) const override {}
+  void EnableCustomElementAllowlist() const override {}
+  void RequireWebViewModules(extensions::ScriptContext* context) const override {
+  }
 };
 
 }  // namespace neva

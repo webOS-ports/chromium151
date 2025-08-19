@@ -5,6 +5,7 @@
 // Copied from
 // chrome/browser/media/webrtc/media_stream_device_permission_context.cc
 
+#include "base/logging.h"
 #include "neva/app_runtime/browser/media/webrtc/media_stream_device_permission_context.h"
 
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -15,18 +16,18 @@
 #include "components/permissions/permission_util.h"
 #include "components/permissions/permissions_client.h"
 #include "content/public/browser/browser_thread.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 #include "url/gurl.h"
 
 namespace {
 
-blink::mojom::PermissionsPolicyFeature GetPermissionsPolicyFeature(
+network::mojom::PermissionsPolicyFeature GetPermissionsPolicyFeature(
     ContentSettingsType type) {
   if (type == ContentSettingsType::MEDIASTREAM_MIC)
-    return blink::mojom::PermissionsPolicyFeature::kMicrophone;
+    return network::mojom::PermissionsPolicyFeature::kMicrophone;
 
   DCHECK_EQ(ContentSettingsType::MEDIASTREAM_CAMERA, type);
-  return blink::mojom::PermissionsPolicyFeature::kCamera;
+  return network::mojom::PermissionsPolicyFeature::kCamera;
 }
 
 }  // namespace
@@ -47,7 +48,7 @@ MediaStreamDevicePermissionContext::MediaStreamDevicePermissionContext(
 MediaStreamDevicePermissionContext::~MediaStreamDevicePermissionContext() {}
 
 void MediaStreamDevicePermissionContext::DecidePermission(
-    permissions::PermissionRequestData request_data,
+    std::unique_ptr<permissions::PermissionRequestData> request_data,
     permissions::BrowserPermissionCallback callback) {
   // PermissionRequestManager::CreateForWebContents must have been called
   // during web contents  initialization.
@@ -55,21 +56,23 @@ void MediaStreamDevicePermissionContext::DecidePermission(
                                                        std::move(callback));
 }
 
-ContentSetting MediaStreamDevicePermissionContext::GetPermissionStatusInternal(
+PermissionSetting MediaStreamDevicePermissionContext::GetPermissionStatusInternal(
     content::RenderFrameHost* render_frame_host,
     const GURL& requesting_origin,
     const GURL& embedding_origin) const {
-  ContentSetting content_setting =
+  PermissionSetting setting =
       permissions::PermissionContextBase::GetPermissionStatusInternal(
           render_frame_host, requesting_origin, embedding_origin);
 
   VLOG(2) << __func__ << " requesting_origin=" << requesting_origin
           << ", embedding_origin=" << embedding_origin
-          << ", content_setting=" << content_setting;
-  if (content_setting == CONTENT_SETTING_DEFAULT)
-    content_setting = CONTENT_SETTING_ASK;
+          << ", setting=" << setting;
+  if (auto* content_setting = std::get_if<ContentSetting>(&setting);
+      content_setting && *content_setting == CONTENT_SETTING_DEFAULT) {
+    return CONTENT_SETTING_ASK;
+  }
 
-  return content_setting;
+  return setting;
 }
 
 void MediaStreamDevicePermissionContext::ResetPermission(
