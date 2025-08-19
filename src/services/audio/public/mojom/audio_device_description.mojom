@@ -12,4 +12,9 @@ struct AudioDeviceDescription {
   string group_id;
   bool is_system_default;
   bool is_communications_device;
+
+  ///@name USE_WEBOS_AUDIO
+  ///@{
+  string display_id;
+  ///@}
 };

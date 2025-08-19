@@ -8,7 +8,10 @@ import("//mojo/public/tools/bindings/mojom.gni")
 import("//net/features.gni")
 import("//services/network/public/cpp/features.gni")
 
+import("//neva/neva.gni")
+
 mojom("mojom_ad_auction") {
+
   generate_java = true
   sources = [ "ad_auction.mojom" ]
 
@@ -741,6 +744,10 @@ mojom("url_loader_base") {
   enabled_features = []
   if (is_android || is_chromeos || is_linux) {
     enabled_features += [ "network_change_notifier_in_browser" ]
+  }
+
+  if (use_filescheme_codecache) {
+    enabled_features += [ "filescheme_codecache" ]
   }
 
   if (is_linux) {
@@ -2056,6 +2063,7 @@ mojom("mojom") {
     "//components/variations:variations_mojom",
     "//mojo/public/mojom/base",
     "//mojo/public/mojom/base:protobuf_support",
+    "//neva/pal_service/public/mojom",
     "//sandbox/policy/mojom",
     "//services/proxy_resolver/public/mojom",
     "//url/mojom:url_mojom_gurl",
@@ -2082,6 +2090,10 @@ mojom("mojom") {
     ]
   }
 
+  if (use_neva_appruntime) {
+    enabled_features += [ "neva_appruntime" ]
+  }
+
   has_dchecks = is_debug || dcheck_always_on
   if (has_dchecks && is_win) {
     enabled_features += [ "win_permissions_validation" ]
@@ -2100,6 +2112,10 @@ mojom("mojom") {
     # TODO(crbug.com/40263697): Remove this once is_linux in the mojom IDL does
     # not include lacros.
     enabled_features += [ "use_network_interface_change_listener" ]
+  }
+
+  if (is_webos) {
+    enabled_features += [ "is_webos" ]
   }
 
   if (enable_vrp_flags) {

@@ -14,6 +14,7 @@
 #include "base/component_export.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/scoped_refptr.h"
+#include "components/cookie_config/cookie_store_util_neva.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/extras/sqlite/sqlite_persistent_cookie_store.h"
 #include "net/log/net_log_with_source.h"
@@ -58,6 +59,10 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) SessionCleanupCookieStore
   // Should be called at the end of a session. Deletes all cookies that
   // |delete_cookie_predicate| returns true for.
   void DeleteSessionCookies(DeleteCookiePredicate delete_cookie_predicate);
+
+#if defined(USE_NEVA_APPRUNTIME)
+  net::CookieCryptoDelegate* GetCookieCryptoDelegate();
+#endif
 
  protected:
   ~SessionCleanupCookieStore() override;

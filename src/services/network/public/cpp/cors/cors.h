@@ -70,7 +70,8 @@ base::expected<void, CorsErrorStatus> CheckAccess(
     const std::optional<std::string>& allow_origin_header,
     const std::optional<std::string>& allow_credentials_header,
     mojom::CredentialsMode credentials_mode,
-    const url::Origin& origin);
+    const url::Origin& origin,
+    bool non_strict_mode = false);
 
 // Returns true if |request_mode| is not kNavigate nor kNoCors, and the
 // |request_initiator| is not same as the origin of |request_url|. The

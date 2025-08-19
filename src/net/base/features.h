@@ -275,6 +275,10 @@ NET_EXPORT BASE_DECLARE_FEATURE_PARAM(bool, kFallbackInLowPowerMode);
 // Enables Connection Keep-Alive feature for Http2
 NET_EXPORT BASE_DECLARE_FEATURE(kConnectionKeepAliveForHttp2);
 
+// When enabled, cookies are more immediately written to the media.
+// NEVA: aggressive cookie-store flushing for embedded targets.
+NET_EXPORT BASE_DECLARE_FEATURE(kAggressiveFlushing);
+
 // When enabled, the time threshold for Lax-allow-unsafe cookies will be lowered
 // from 2 minutes to 10 seconds. This time threshold refers to the age cutoff
 // for which cookies that default into SameSite=Lax, which are newer than the

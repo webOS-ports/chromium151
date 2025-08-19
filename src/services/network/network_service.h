@@ -205,6 +205,12 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkService
       mojom::NetworkService::GetNetworkListCallback callback) override;
   void OnTrustStoreChanged() override;
   void OnClientCertStoreChanged() override;
+#if defined(OS_WEBOS)
+  void AddCorsCorbExceptionForProcess(uint32_t process_id) override;
+  void RemoveCorsCorbExceptionForProcess(uint32_t process_id) override;
+  void AddCorsCorbExceptionForURL(const GURL& url) override;
+  void RemoveCorsCorbExceptionForURL(const GURL& url) override;
+#endif
   void OnPeerToPeerConnectionsCountChange(uint32_t count) override;
 #if BUILDFLAG(IS_ANDROID)
   void OnApplicationStateChange(base::android::ApplicationState state) override;

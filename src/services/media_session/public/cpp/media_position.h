@@ -52,6 +52,13 @@ struct COMPONENT_EXPORT(MEDIA_SESSION_BASE_CPP) MediaPosition {
   // Return the duration of the media.
   base::TimeDelta duration() const;
 
+#if defined(OS_WEBOS)
+  // GetPosition() method returns adjusted value based on TimeTicks::Now(), so
+  // drift's value is too low to update media position. So get_position() is
+  // introduced not to use TimeTicks::Now().
+  base::TimeDelta get_position() const;
+#endif  // defined(OS_WEBOS)
+
   // Return the current position of the media.
   base::TimeDelta GetPosition() const;
 

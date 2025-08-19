@@ -289,6 +289,7 @@ class CookieOSCryptAsyncDelegate : public net::CookieCryptoDelegate {
       delete;
 
   void Init(base::OnceClosure callback) override;
+  bool ShouldEncrypt() override;
   bool EncryptString(const std::string& plaintext,
                      std::string* ciphertext) override;
   bool DecryptString(const std::string& ciphertext,
@@ -315,6 +316,10 @@ CookieOSCryptAsyncDelegate::CookieOSCryptAsyncDelegate(
     mojo::PendingRemote<network::mojom::CookieEncryptionProvider> provider)
     : provider_(std::move(provider)) {
   DETACH_FROM_SEQUENCE(sequence_checker_);
+}
+
+bool CookieOSCryptAsyncDelegate::ShouldEncrypt() {
+  return true;
 }
 
 bool CookieOSCryptAsyncDelegate::EncryptString(const std::string& plaintext,
@@ -505,6 +510,49 @@ std::string HashesToBase64String(
   }
   return base::JoinString(strings, ",");
 }
+
+#if defined(USE_NEVA_APPRUNTIME)
+class ExtraHeaderNetworkDelegate : public NetworkServiceNetworkDelegate,
+                                   public mojom::ExtraHeaderNetworkDelegate {
+ public:
+  ExtraHeaderNetworkDelegate(
+      bool enable_referrers,
+      bool validate_referrer_policy_on_initial_request,
+      mojo::PendingRemote<mojom::ProxyErrorClient> proxy_error_client_remote,
+      NetworkContext* network_context,
+      mojo::PendingReceiver<mojom::ExtraHeaderNetworkDelegate> receiver)
+      : NetworkServiceNetworkDelegate(
+            enable_referrers,
+            validate_referrer_policy_on_initial_request,
+            std::move(proxy_error_client_remote),
+            network_context),
+        receiver_(this, std::move(receiver)) {}
+
+  void SetWebSocketHeader(const std::string& key,
+                          const std::string& value) override {
+    extra_websocket_headers_.insert(std::make_pair(key, value));
+  }
+
+  int OnBeforeStartTransaction(
+      net::URLRequest* request,
+      const net::HttpRequestHeaders& headers,
+      net::NetworkDelegate::OnBeforeStartTransactionCallback callback) override {
+    // Extra WebSocket headers should be applied for WebSocket requests only
+    if (request->url().SchemeIsWSOrWSS()) {
+      for (const auto& pair : extra_websocket_headers_) {
+        auto& non_const_headers = const_cast<net::HttpRequestHeaders&>(headers);
+        non_const_headers.SetHeader(pair.first, pair.second);
+      }
+    }
+    return NetworkServiceNetworkDelegate::OnBeforeStartTransaction(
+        request, headers, std::move(callback));
+  }
+
+ private:
+  mojo::Receiver<mojom::ExtraHeaderNetworkDelegate> receiver_;
+  std::map<std::string, std::string> extra_websocket_headers_;
+};
+#endif
 
 #if BUILDFLAG(IS_CT_SUPPORTED)
 // SCTAuditingDelegate is an implementation of the delegate interface that is
@@ -2872,11 +2920,20 @@ URLRequestContextOwner NetworkContext::MakeURLRequestContext(
       std::make_unique<SCTAuditingDelegate>(weak_factory_.GetWeakPtr()));
 #endif  // BUILDFLAG(IS_CT_SUPPORTED)
 
+#if defined(USE_NEVA_APPRUNTIME)
+  std::unique_ptr<NetworkServiceNetworkDelegate> network_delegate =
+      std::make_unique<ExtraHeaderNetworkDelegate>(
+          params_->enable_referrers,
+          params_->validate_referrer_policy_on_initial_request,
+          std::move(params_->proxy_error_client), this,
+          std::move(params_->network_delegate_receiver));
+#else
   std::unique_ptr<NetworkServiceNetworkDelegate> network_delegate =
       std::make_unique<NetworkServiceNetworkDelegate>(
           params_->enable_referrers,
           params_->validate_referrer_policy_on_initial_request,
           std::move(params_->proxy_error_client), this);
+#endif
   network_delegate_ = network_delegate.get();
   builder.set_network_delegate(std::move(network_delegate));
 
@@ -3324,7 +3381,7 @@ URLRequestContextOwner NetworkContext::MakeURLRequestContext(
 }
 
 scoped_refptr<SessionCleanupCookieStore>
-NetworkContext::MakeSessionCleanupCookieStore() const {
+NetworkContext::MakeSessionCleanupCookieStore() {
   base::FilePath cookie_path;
   if (!GetFullDataFilePath(
           params_->file_paths,
@@ -3345,8 +3402,23 @@ NetworkContext::MakeSessionCleanupCookieStore() const {
 
   if (params_->enable_encrypted_cookies) {
     if (params_->cookie_encryption_provider) {
+#if defined(USE_NEVA_APPRUNTIME)
+      // NEVA: wrap M151's OSCryptAsync-backed delegate so webOS keeps its own
+      // PAL keystore path while still honouring the upstream one as default.
+      // M151's cookie_config::GetCookieCryptoDelegate() now needs an
+      // OSCryptAsync instance, which is not available here; the encryption
+      // provider wired up in ConfigureNetworkContextParams() is used instead.
+      auto neva_delegate =
+          std::make_unique<cookie_config::CookieNevaCryptoDelegate>(
+              background_task_runner);
+      neva_delegate->SetDefaultCryptoDelegate(
+          std::make_unique<CookieOSCryptAsyncDelegate>(
+              std::move(params_->cookie_encryption_provider)));
+      crypto_delegate = std::move(neva_delegate);
+#else
       crypto_delegate = std::make_unique<CookieOSCryptAsyncDelegate>(
           std::move(params_->cookie_encryption_provider));
+#endif
     } else {
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
       // A cookie crypto delegate should not be created on Android or iOS
@@ -3561,6 +3633,19 @@ void NetworkContext::CreateTrustedUrlLoaderFactoryForNetworkService(
   url_loader_factory_params->process_id = OriginatingProcessId::browser();
   CreateURLLoaderFactory(std::move(url_loader_factory_pending_receiver),
                          std::move(url_loader_factory_params));
+}
+
+void NetworkContext::SetOSCrypt(
+    mojo::PendingRemote<pal::mojom::OSCrypt> os_crypt) {
+#if defined(USE_NEVA_APPRUNTIME)
+  cookie_config::CookieNevaCryptoDelegate* crypto_delegate =
+      static_cast<cookie_config::CookieNevaCryptoDelegate*>(
+          cookie_manager_->GetCookieCryptoDelegate());
+  if (!crypto_delegate || crypto_delegate->HasOSCrypt()) {
+    return;
+  }
+  crypto_delegate->SetOSCrypt(std::move(os_crypt));
+#endif
 }
 
 void NetworkContext::SetSharedDictionaryCacheMaxSize(uint64_t cache_max_size) {

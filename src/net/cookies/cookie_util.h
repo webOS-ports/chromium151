@@ -398,6 +398,9 @@ NET_EXPORT bool IsOriginBoundCookiesPartiallyEnabled();
 
 NET_EXPORT bool IsTimeLimitedInsecureCookiesEnabled();
 
+// Returns whether aggressive flushing is enabled.
+NET_EXPORT bool IsAggressiveFlushingEnabled();
+
 // Computes the First-Party Sets metadata and cache match information.
 // `isolation_info` must be fully populated.
 [[nodiscard]] NET_EXPORT

@@ -33,6 +33,7 @@
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/header_util.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
+#include "services/network/public/cpp/neva/cors_corb_exception.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/mojom/clear_data_filter.mojom.h"
@@ -233,11 +234,20 @@ base::expected<void, CorsErrorStatus> CheckPreflightAccess(
     const std::optional<std::string>& allow_origin_header,
     const std::optional<std::string>& allow_credentials_header,
     mojom::CredentialsMode actual_credentials_mode,
-    const url::Origin& origin) {
+    const url::Origin& origin,
+    bool non_strict_mode = false) {
   // Step 7 of https://fetch.spec.whatwg.org/#cors-preflight-fetch
   auto cors_result =
       CheckAccess(response_url, allow_origin_header, allow_credentials_header,
                   actual_credentials_mode, origin);
+
+  // Replace cors_result with nullopt for the cases that we want to allow cors
+  // in non_strict_mode
+  if (non_strict_mode && !cors_result.has_value() &&
+      neva::CorsCorbException::ApplyException(cors_result.error())) {
+    cors_result = base::expected<void, CorsErrorStatus>();
+  }
+
   const bool has_ok_status = IsSuccessfulStatus(response_status_code);
 
   if (cors_result.has_value()) {
@@ -288,7 +298,8 @@ std::unique_ptr<PreflightResult> CreatePreflightResult(
       GetHeaderString(head.headers,
                       header_names::kAccessControlAllowCredentials),
       original_request.credentials_mode,
-      tainted ? url::Origin() : *original_request.request_initiator);
+      tainted ? url::Origin() : *original_request.request_initiator,
+      non_strict_mode);
   if (!check_result.has_value()) {
     *detected_error_status = std::move(check_result.error());
     return nullptr;
@@ -342,7 +353,8 @@ class PreflightController::PreflightLoader final {
       const net::NetLogWithSource net_log,
       bool acam_preflight_spec_conformant,
       mojo::PendingRemote<mojom::URLLoaderNetworkServiceObserver>
-          url_loader_network_service_observer)
+          url_loader_network_service_observer,
+      uint32_t process_id)
       : controller_(controller),
         completion_callback_(std::move(completion_callback)),
         original_request_(request),
@@ -354,7 +366,8 @@ class PreflightController::PreflightLoader final {
         net_log_(net_log),
         acam_preflight_spec_conformant_(acam_preflight_spec_conformant),
         url_loader_network_service_observer_(
-            std::move(url_loader_network_service_observer)) {
+            std::move(url_loader_network_service_observer)),
+        process_id_(process_id) {
     if (devtools_observer_)
       devtools_request_id_ = base::UnguessableToken::Create();
     auto preflight_request =
@@ -596,7 +609,8 @@ void PreflightController::PerformPreflightCheck(
     const net::NetLogWithSource& net_log,
     bool acam_preflight_spec_conformant,
     mojo::PendingRemote<mojom::URLLoaderNetworkServiceObserver>
-        url_loader_network_service_observer) {
+        url_loader_network_service_observer,
+    uint32_t process_id) {
   DCHECK(request.request_initiator);
 
   const net::NetworkIsolationKey& network_isolation_key =
@@ -621,7 +635,7 @@ void PreflightController::PerformPreflightCheck(
       with_trusted_header_client, non_wildcard_request_headers_support, tainted,
       annotation_tag, network_isolation_key, devtools_observer, net_log,
       acam_preflight_spec_conformant,
-      std::move(url_loader_network_service_observer)));
+      std::move(url_loader_network_service_observer), process_id));
   (*emplaced_pair.first)->Request(loader_factory);
 }
 

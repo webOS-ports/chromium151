@@ -7,6 +7,7 @@
 #ifndef NET_TRAFFIC_ANNOTATION_NETWORK_TRAFFIC_ANNOTATION_H_
 #define NET_TRAFFIC_ANNOTATION_NETWORK_TRAFFIC_ANNOTATION_H_
 
+#include <cstddef>
 #include <cstdint>
 
 #include "base/check.h"

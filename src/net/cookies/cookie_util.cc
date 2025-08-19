@@ -1102,6 +1102,12 @@ bool IsTimeLimitedInsecureCookiesEnabled() {
          base::FeatureList::IsEnabled(features::kTimeLimitedInsecureCookies);
 }
 
+// NEVA: webOS flushes the cookie store aggressively so cookies survive an
+// unclean shutdown on embedded targets.
+bool IsAggressiveFlushingEnabled() {
+  return base::FeatureList::IsEnabled(features::kAggressiveFlushing);
+}
+
 std::pair<FirstPartySetMetadata, FirstPartySetsCacheFilter::MatchInfo>
 ComputeFirstPartySetMetadata(
     const SchemefulSite& request_site,

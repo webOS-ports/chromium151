@@ -97,4 +97,15 @@ struct CompositorFrameMetadata {
 
   // Tracked element rects for the frame.
   TrackedElementRects tracked_element_rects;
+
+  // NEVA: first-contentful-paint signalling for the splash/visually-committed
+  // handshake in app_runtime.
+  [EnableIf=use_neva_appruntime]
+  bool is_first_contentful_paint;
+
+  [EnableIf=use_neva_appruntime]
+  bool did_reset_container_state;
+
+  [EnableIf=use_neva_appruntime]
+  bool seen_first_contentful_paint;
 };

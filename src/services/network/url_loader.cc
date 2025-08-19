@@ -103,6 +103,7 @@
 #include "services/network/public/cpp/loading_params.h"
 #include "services/network/public/cpp/net_adapters.h"
 #include "services/network/public/cpp/network_switches.h"
+#include "services/network/public/cpp/neva/cors_corb_exception.h"
 #include "services/network/public/cpp/orb/orb_api.h"
 #include "services/network/public/cpp/parsed_headers.h"
 #include "services/network/public/cpp/resource_request.h"
@@ -539,6 +540,11 @@ URLLoader::URLLoader(
   url_loader_util::ConfigureUrlRequest(request, *factory_params_,
                                        *origin_access_list_, *url_request_,
                                        shared_resource_checker);
+
+  if (neva::CorsCorbException::ShouldAllowExceptionForProcess(GetProcessId())) {
+    is_nocors_corb_excluded_request_ = true;
+  }
+
   if (context.ShouldRequireIsolationInfo()) {
     DCHECK(!url_request_->isolation_info().IsEmpty());
   }
@@ -1354,7 +1360,8 @@ void URLLoader::ContinueOnResponseStarted() {
 
   // Figure out if we need to sniff (for MIME type detection or for Opaque
   // Response Blocking / ORB).
-  if (factory_params_->is_orb_enabled) {
+  if (factory_params_->is_orb_enabled &&
+      !is_nocors_corb_excluded_request_) {
     // TODO(ricea): Make ORB and ReadAndDiscardBody work together if necessary.
     CHECK(!(options_ & mojom::kURLLoadOptionReadAndDiscardBody))
         << "ORB is incompatible with the ReadAndDiscardBody option";

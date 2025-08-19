@@ -348,6 +348,20 @@ interface NetworkService {
   // Notification that the client certificate store has been modified.
   OnClientCertStoreChanged();
 
+  // Allow the process id to request resources with the security exception
+  // for CORS/CORB.
+  [EnableIf=is_webos]
+  AddCorsCorbExceptionForProcess(uint32 process_id);
+
+  [EnableIf=is_webos]
+  RemoveCorsCorbExceptionForProcess(uint32 process_id);
+
+  [EnableIf=is_webos]
+  AddCorsCorbExceptionForURL(url.mojom.Url url);
+
+  [EnableIf=is_webos]
+  RemoveCorsCorbExceptionForURL(url.mojom.Url url);
+
   // Called when there is a change in the current count of peer to peer
   // connections that may require low latency.
   OnPeerToPeerConnectionsCountChange(uint32 count);

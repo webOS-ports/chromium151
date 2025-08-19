@@ -152,6 +152,16 @@ NET_ERROR(LOCAL_NETWORK_PERMISSION_MISSING, -36)
 //    connection after retrying with retry_configs.
 NET_ERROR(STRICT_ECH_REQUIRED, -37)
 
+#if defined(USE_NEVA_BROWSER_SERVICE)
+// NEVA: renumbered from -33/-34 for M151 -- upstream took those for
+// NETWORK_ACCESS_REVOKED and BLOCKED_BY_FINGERPRINTING_PROTECTION.
+// Blocked the navigation by the Site filter feature
+NET_ERROR(BLOCKED_BY_SITEFILTER, -38)
+
+// Blocked the navigation by the malware sites detection
+NET_ERROR(BLOCKED_BY_MALWARE_SITES, -39)
+#endif
+
 // A connection was closed (corresponding to a TCP FIN).
 NET_ERROR(CONNECTION_CLOSED, -100)
 

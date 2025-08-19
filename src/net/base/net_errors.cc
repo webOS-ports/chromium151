@@ -88,6 +88,10 @@ bool IsRequestBlockedError(int error) {
     case ERR_BLOCKED_BY_ADMINISTRATOR:
     case ERR_BLOCKED_BY_CSP:
     case ERR_BLOCKED_IN_INCOGNITO_BY_ADMINISTRATOR:
+#if defined(USE_NEVA_BROWSER_SERVICE)
+    case ERR_BLOCKED_BY_SITEFILTER:
+    case ERR_BLOCKED_BY_MALWARE_SITES:
+#endif
       return true;
     default:
       return false;

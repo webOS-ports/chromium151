@@ -86,6 +86,12 @@ bool StructTraits<viz::mojom::CompositorFrameMetadataDataView,
     return false;
   }
 
+#if defined(USE_NEVA_APPRUNTIME)
+  out->is_first_contentful_paint = data.is_first_contentful_paint();
+  out->did_reset_container_state = data.did_reset_container_state();
+  out->seen_first_contentful_paint = data.seen_first_contentful_paint();
+#endif
+
   // Verify that OffsetTagDefinition providers are referenced surfaces.
   for (auto& tag_def : out->offset_tag_definitions) {
     if (!std::ranges::contains(out->referenced_surfaces, tag_def.provider)) {

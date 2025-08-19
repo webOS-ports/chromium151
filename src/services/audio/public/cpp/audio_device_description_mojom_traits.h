@@ -32,6 +32,13 @@ struct StructTraits<audio::mojom::AudioDeviceDescriptionDataView,
     return input.is_communications_device;
   }
 
+  ///@name USE_WEBOS_AUDIO
+  ///@{
+  static std::string display_id(const media::AudioDeviceDescription& input) {
+    return input.display_id;
+  }
+  ///@}
+
   static bool Read(audio::mojom::AudioDeviceDescriptionDataView data,
                    media::AudioDeviceDescription* output);
 };

@@ -83,6 +83,10 @@ class COMPONENT_EXPORT(NET_EXTRAS) SQLitePersistentCookieStore
 
   bool IsBackendInitializedForTesting() const;
 
+#if defined(USE_NEVA_APPRUNTIME)
+  CookieCryptoDelegate* GetCookieCryptoDelegate();
+#endif
+
  private:
   ~SQLitePersistentCookieStore() override;
   void CompleteLoad(LoadedCallback callback,

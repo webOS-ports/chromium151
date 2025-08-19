@@ -30,6 +30,10 @@ class COMPONENT_EXPORT(NET_EXTRAS) CookieCryptoDelegate {
   // asynchronously.
   virtual void Init(base::OnceClosure callback) = 0;
 
+  // NEVA: return whether cookies should be encrypted on this platform.
+  // Decryption of previously encrypted cookies is always possible.
+  virtual bool ShouldEncrypt() = 0;
+
   // Encrypt `plaintext` string and store the result in `ciphertext`. Returns
   // true if the encryption succeeded. This must only be called after the
   // callback from `Init` has run. This method can be called on any sequence.

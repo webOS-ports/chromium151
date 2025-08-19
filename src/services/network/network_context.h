@@ -28,6 +28,7 @@
 #include "base/types/pass_key.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
+#include "components/cookie_config/cookie_store_util_neva.h"
 #include "components/variations/variations.mojom.h"
 #include "mojo/public/cpp/base/big_buffer.h"
 #include "mojo/public/cpp/bindings/direct_receiver.h"
@@ -50,6 +51,7 @@
 #include "net/reporting/reporting_target_type.h"
 #include "net/storage_access_api/status.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
+#include "neva/pal_service/public/mojom/os_crypt.mojom.h"
 #include "services/network/cors/preflight_controller.h"
 #include "services/network/first_party_sets/first_party_sets_access_delegate.h"
 #include "services/network/http_cache_data_counter.h"
@@ -556,6 +558,7 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) NetworkContext
       const std::string& realm,
       LookupProxyAuthCredentialsCallback callback) override;
 #endif
+  void SetOSCrypt(mojo::PendingRemote<pal::mojom::OSCrypt> os_crypt) override;
   void SetSharedDictionaryCacheMaxSize(uint64_t cache_max_size) override;
   void ClearSharedDictionaryCache(
       base::Time start_time,

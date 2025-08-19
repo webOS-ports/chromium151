@@ -93,6 +93,7 @@
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/initiator_lock_compatibility.h"
 #include "services/network/public/cpp/network_switches.h"
+#include "services/network/public/cpp/neva/cors_corb_exception.h"
 #include "services/network/public/cpp/parsed_headers.h"
 #include "services/network/public/cpp/source_stream_to_data_pipe.h"
 #include "services/network/public/mojom/key_pinning.mojom.h"
@@ -920,6 +921,26 @@ void NetworkService::OnTrustStoreChanged() {
 void NetworkService::OnClientCertStoreChanged() {
   net::CertDatabase::GetInstance()->NotifyObserversClientCertStoreChanged();
 }
+
+#if defined(OS_WEBOS)
+void NetworkService::AddCorsCorbExceptionForProcess(uint32_t process_id) {
+  DCHECK_NE(mojom::kBrowserProcessId, process_id);
+  neva::CorsCorbException::AddForProcess(process_id);
+}
+
+void NetworkService::RemoveCorsCorbExceptionForProcess(uint32_t process_id) {
+  DCHECK_NE(mojom::kBrowserProcessId, process_id);
+  neva::CorsCorbException::RemoveForProcess(process_id);
+}
+
+void NetworkService::AddCorsCorbExceptionForURL(const GURL& url) {
+  neva::CorsCorbException::AddForURL(url);
+}
+
+void NetworkService::RemoveCorsCorbExceptionForURL(const GURL& url) {
+  neva::CorsCorbException::RemoveForURL(url);
+}
+#endif  // defined(OS_WEBOS)
 
 void NetworkService::OnPeerToPeerConnectionsCountChange(uint32_t count) {
   network_quality_estimator_manager_->GetNetworkQualityEstimator()

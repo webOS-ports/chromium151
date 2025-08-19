@@ -397,6 +397,12 @@ class SQLitePersistentCookieStore::Backend
   // Post background delete of all cookies that match |cookies|.
   void DeleteAllInList(const std::list<CookieOrigin>& cookies);
 
+#if defined(USE_NEVA_APPRUNTIME)
+  CookieCryptoDelegate* GetCookieCryptoDelegate() {
+    return crypto_.get();
+  }
+#endif
+
  private:
   // You should call Close() before destructing this object.
   ~Backend() override {
@@ -1165,6 +1171,12 @@ void SQLitePersistentCookieStore::Backend::BatchOperation(
     const CanonicalCookie& cc) {
   // Commit every 30 seconds.
   constexpr base::TimeDelta kCommitInterval = base::Seconds(30);
+  // NEVA: with aggressive flushing enabled, commit every second so cookies
+  // survive an unclean shutdown on embedded targets.
+  constexpr base::TimeDelta kCommitAggressiveInterval = base::Seconds(1);
+  const base::TimeDelta commit_interval =
+      cookie_util::IsAggressiveFlushingEnabled() ? kCommitAggressiveInterval
+                                                 : kCommitInterval;
   // Commit right away if we have more than 512 outstanding operations.
   constexpr size_t kCommitAfterBatchSize = 512;
   DCHECK(!background_task_runner()->RunsTasksInCurrentSequence());
@@ -1214,7 +1226,7 @@ void SQLitePersistentCookieStore::Backend::BatchOperation(
     // We've gotten our first entry for this batch, fire off the timer.
     if (!background_task_runner()->PostDelayedTask(
             FROM_HERE, base::BindOnce(&Backend::Commit, this),
-            kCommitInterval)) {
+            commit_interval)) {
       DUMP_WILL_BE_NOTREACHED() << "background_task_runner() is not running.";
     }
   } else if (num_pending == kCommitAfterBatchSize) {
@@ -1287,7 +1299,8 @@ void SQLitePersistentCookieStore::Backend::DoCommit() {
           add_statement.BindString(1, po->cc().Domain());
           add_statement.BindString(2, serialized_partition_key->TopLevelSite());
           add_statement.BindString(3, po->cc().Name());
-          if (crypto_) {
+          // NEVA: webOS may opt out of cookie encryption at runtime.
+          if (crypto_ && crypto_->ShouldEncrypt()) {
             std::string encrypted_value;
             if (!crypto_->EncryptString(
                     base::StrCat({crypto::SHA256HashString(po->cc().Domain()),
@@ -1303,6 +1316,7 @@ void SQLitePersistentCookieStore::Backend::DoCommit() {
             add_statement.BindString(4, po->cc().Value());
             add_statement.BindBlob(5,
                                    base::span<uint8_t>());  // encrypted_value
+            VLOG(1) << "v6 Write Non-encrypt Cookie String completed";
           }
           add_statement.BindString(6, po->cc().Path());
           add_statement.BindTime(7, po->cc().ExpiryDate());
@@ -1553,6 +1567,10 @@ void SQLitePersistentCookieStore::Flush(base::OnceClosure callback) {
 
 size_t SQLitePersistentCookieStore::GetQueueLengthForTesting() {
   return backend_->GetQueueLengthForTesting();
+}
+
+CookieCryptoDelegate* SQLitePersistentCookieStore::GetCookieCryptoDelegate() {
+  return backend_->GetCookieCryptoDelegate();
 }
 
 SQLitePersistentCookieStore::~SQLitePersistentCookieStore() {

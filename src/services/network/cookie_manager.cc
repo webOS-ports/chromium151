@@ -365,6 +365,12 @@ void CookieManager::BlockThirdPartyCookies(bool block) {
   cookie_settings_.set_block_third_party_cookies(block);
 }
 
+#if defined(USE_NEVA_APPRUNTIME)
+net::CookieCryptoDelegate* CookieManager::GetCookieCryptoDelegate() {
+  return session_cleanup_cookie_store_->GetCookieCryptoDelegate();
+}
+#endif
+
 void CookieManager::OnSettingsWillChange() {
   if (settings_will_change_callback_) {
     settings_will_change_callback_.Run();

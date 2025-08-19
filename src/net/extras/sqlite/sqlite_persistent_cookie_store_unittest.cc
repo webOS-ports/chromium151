@@ -82,6 +82,12 @@ class CookieCryptor : public CookieCryptoDelegate {
   // while still retaining a weak reference to the Init function.
   base::OnceClosure GetInitClosure(base::OnceClosure callback);
 
+  // Obtain a closure that can be called to trigger an initialize. If this
+  // instance has already been destructed then the returned base::OnceClosure
+  // does nothing. This allows tests to pass ownership to the CookieCryptor
+  // while still retaining a weak reference to the Init function.
+  base::OnceClosure GetInitClosure(base::OnceClosure callback);
+
  private:
   void InitComplete();
   bool init_ GUARDED_BY_CONTEXT(sequence_checker_) = false;

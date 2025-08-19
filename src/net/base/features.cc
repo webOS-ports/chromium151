@@ -187,6 +187,10 @@ extern const base::FeatureParam<int> kMaxPreconnectRetryInterval(
     "MaxPreconnectRetryInterval",
     30);
 
+// NEVA: aggressive cookie-store flushing for embedded targets.
+// M151 BASE_FEATURE() derives the trial name from the variable name.
+BASE_FEATURE(kAggressiveFlushing, base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE_PARAM(int,
                    kPingIntervalInSeconds,
                    &kSearchEnginePreconnect2,
@@ -322,7 +326,13 @@ BASE_FEATURE(kMigrateSessionsOnNetworkChangeV2,
              kMigrateSessionsOnNetworkChangeV2Default);
 
 #if BUILDFLAG(IS_LINUX)
+// TODO(neva): Please remove this block after the wam_demo crash issue
+// has been resolved on both PC and OSE.
+#if defined(USE_NEVA_APPRUNTIME)
+BASE_FEATURE(kAddressTrackerLinuxIsProxied, base::FEATURE_DISABLED_BY_DEFAULT);
+#else
 BASE_FEATURE(kAddressTrackerLinuxIsProxied, base::FEATURE_ENABLED_BY_DEFAULT);
+#endif  // defined(USE_NEVA_APPRUNTIME)
 #endif  // BUILDFLAG(IS_LINUX)
 
 // Enables binding of cookies to the port that originally set them by default.
