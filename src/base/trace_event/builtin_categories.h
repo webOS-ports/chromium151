@@ -185,6 +185,8 @@ PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(
     perfetto::Category("net.stream").SetDescription(
         "Includes events related to creating HTTP streams to serve requests."),
     perfetto::Category("network.scheduler"),
+    perfetto::Category("neva").SetDescription(
+      "Events from the webOS/neva embedder."),
     perfetto::Category("netlog").SetTags("navigation").SetDescription(
       "NetLog events and metadata. Describes the operation of the //net "
       "network stack, e.g. HTTP requests, TLS, DNS, connections, sockets, "
@@ -202,6 +204,8 @@ PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(
     perfetto::Category("partition_alloc"),
     perfetto::Category("passwords"),
     perfetto::Category("p2p").SetTags("audio"),
+    perfetto::Category("pal").SetDescription(
+      "Events from the neva Platform Abstraction Layer."),
     perfetto::Category("page-serialization"),
     perfetto::Category("paint_preview"),
     perfetto::Category("pepper"),

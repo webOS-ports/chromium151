@@ -47,7 +47,10 @@ namespace mojo::core {
 namespace {
 
 #if BUILDFLAG(MOJO_SUPPORT_LEGACY_CORE)
-#if BUILDFLAG(IS_CHROMEOS) && !defined(ENABLE_IPCZ_ON_CHROMEOS)
+// TODO(neva): Remove USE_NEVA_APPRUNTIME if mojo-ipcz turns out to be better on
+// memory and performance. M151 keeps the outer MOJO_SUPPORT_LEGACY_CORE guard.
+#if (BUILDFLAG(IS_CHROMEOS) && !defined(ENABLE_IPCZ_ON_CHROMEOS)) || \
+    defined(USE_NEVA_APPRUNTIME)
 std::atomic<bool> g_mojo_ipcz_enabled{false};
 #else
 // Default to enabled even if InitFeatures() is never called.

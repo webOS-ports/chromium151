@@ -241,6 +241,7 @@ class DesktopCaptureDevice;
 class DWriteFontCollectionProxy;
 class DWriteFontProxyImpl;
 class InProcessUtilityThread;
+class NavigationRequest;
 class NestedMessagePumpAndroid;
 class NetworkServiceInstancePrivate;
 class PepperPrintSettingsManagerImpl;
@@ -442,6 +443,9 @@ class FuchsiaPerfettoProducerConnector;
 namespace ui {
 class DrmThreadProxy;
 class DrmDisplayHostManager;
+#if defined(USE_NEVA_APPRUNTIME)
+class ScopedAllowBlockingForBitmap;
+#endif
 class ScopedAllowBlockingForGbmSurface;
 class SelectFileDialogLinux;
 class WindowResizeHelperMac;
@@ -660,6 +664,9 @@ class BASE_EXPORT ScopedAllowBlocking {
       ScopedBypassIOThreadRestrictions;  // http://crbug.com/1144161
   friend class remoting::ScopedAllowBlockingForCrashReporting;
   friend class ui::DrmDisplayHostManager;
+#if defined(USE_NEVA_APPRUNTIME)
+  friend class ui::ScopedAllowBlockingForBitmap;
+#endif
   friend class ui::ScopedAllowBlockingForGbmSurface;
   friend class ui::SelectFileDialogLinux;
 #if BUILDFLAG(IS_MAC)
@@ -674,7 +681,9 @@ class BASE_EXPORT ScopedAllowBlocking {
 #if BUILDFLAG(IS_IOS)
   friend class ::BrowserStateDirectoryBuilder;
 #endif
-
+#if defined(USE_NEVA_APPRUNTIME)
+  friend class content::NavigationRequest;
+#endif
   // Sorted by function name (with namespace), ignoring the return type.
   friend Profile* ::GetLastProfileMac();  // http://crbug.com/1176734
   // Note: This function return syntax is required so the "::" doesn't get

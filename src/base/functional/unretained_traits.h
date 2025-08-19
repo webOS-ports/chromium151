@@ -36,7 +36,8 @@
   BASE_INTERNAL_SAFE_FOR_UNRETAINED(hb_set_t)                          \
   BASE_INTERNAL_SAFE_FOR_UNRETAINED(wl_gpu)                            \
   BASE_INTERNAL_SAFE_FOR_UNRETAINED(wl_shm)                            \
-  BASE_INTERNAL_SAFE_FOR_UNRETAINED(wl_surface)
+  BASE_INTERNAL_SAFE_FOR_UNRETAINED(wl_surface)                        \
+  BASE_INTERNAL_SAFE_FOR_UNRETAINED(wl_webos_exported)
 
 #define BASE_INTERNAL_SAFE_FOR_UNRETAINED(x) struct x;
 BASE_INTERNAL_LIST_OF_SAFE_FOR_UNRETAINED

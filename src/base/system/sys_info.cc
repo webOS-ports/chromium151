@@ -74,8 +74,9 @@ ByteSize SysInfo::AmountOfAvailablePhysicalMemory() {
 }
 
 bool SysInfo::IsLowEndDevice() {
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kEnableLowEndDeviceMode)) {
+  auto* command_line = CommandLine::ForCurrentProcess();
+  if (command_line->HasSwitch(switches::kEnableLowEndDeviceMode) ||
+      command_line->HasSwitch(switches::kForceLowEndDeviceMode)) {
     return true;
   }
 
@@ -198,7 +199,10 @@ bool DetectLowEndDevice() {
   // Keep in sync with the Android implementation of this function.
   // LINT.IfChange
   CommandLine* command_line = CommandLine::ForCurrentProcess();
-  if (command_line->HasSwitch(switches::kEnableLowEndDeviceMode)) {
+  // NEVA: --force-low-end-device-mode enables low-end behaviour without also
+  // faking physical memory the way --enable-low-end-device-mode does.
+  if (command_line->HasSwitch(switches::kEnableLowEndDeviceMode) ||
+      command_line->HasSwitch(switches::kForceLowEndDeviceMode)) {
     return true;
   }
   if (command_line->HasSwitch(switches::kDisableLowEndDeviceMode)) {

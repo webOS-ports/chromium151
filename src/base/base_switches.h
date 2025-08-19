@@ -35,6 +35,15 @@ inline constexpr char kEnableFeatures[] = "enable-features";
 // Force low-end device mode when set.
 inline constexpr char kEnableLowEndDeviceMode[] = "enable-low-end-device-mode";
 
+// NEVA: force low-end device mode without faking physical memory, unlike
+// --enable-low-end-device-mode. M151 style: inline constexpr, not extern.
+inline constexpr char kForceLowEndDeviceMode[] = "force-low-end-device-mode";
+
+#if defined(USE_LOCAL_STORAGE_TRACKER)
+// On/Off local storage tracker
+inline constexpr char kLocalStorageTracker[] = "local-storage-tracker";
+#endif
+
 // Configure the background threadpool field trial.
 inline constexpr char kBackgroundThreadPoolFieldTrial[] =
     "background-thread-pool-field-trial";
@@ -206,7 +215,6 @@ inline constexpr char kPackageVersionName[] = "package-version-name";
 // Range is 0(no biased load) ~ 100(mamximum load value).
 inline constexpr char kSchedulerBoostUrgent[] = "scheduler-boost-urgent";
 #endif
-
 }  // namespace switches
 
 #endif  // BASE_BASE_SWITCHES_H_

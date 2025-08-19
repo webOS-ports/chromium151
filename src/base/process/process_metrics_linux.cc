@@ -445,6 +445,12 @@ bool ParseProcMeminfo(std::string_view meminfo_data,
       target = &meminfo->slab;
     }
 #endif
+#if defined(OS_WEBOS)
+    // NEVA: webOS kernels export the CMA carve-out size here.
+    else if (tokens[0] == "CmaDeviceAlloc:") {
+      target = &meminfo->cma_device_alloc;
+    }
+#endif  // defined(OS_WEBOS)
     if (target) {
       uint64_t value;
       if (StringToUint64(tokens[1], &value) &&

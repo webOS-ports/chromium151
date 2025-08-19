@@ -31,7 +31,18 @@ base::ByteSize AmountOfMemory(int pages_name) {
   if (pages < 0 || page_size < 0) {
     return base::ByteSize(0);
   }
-  return base::ByteSize(base::checked_cast<unsigned long>(page_size)) * pages;
+  base::ByteSize total =
+      base::ByteSize(base::checked_cast<unsigned long>(page_size)) * pages;
+#if defined(OS_WEBOS)
+  // NEVA: the CMA carve-out is reserved for the video/graphics pipeline and is
+  // not usable as general purpose memory, so exclude it from the total.
+  base::SystemMemoryInfo info;
+  if (base::GetSystemMemoryInfo(&info) &&
+      info.cma_device_alloc <= total) {
+    total -= info.cma_device_alloc;
+  }
+#endif
+  return total;
 }
 
 base::ByteSize AmountOfPhysicalMemory() {

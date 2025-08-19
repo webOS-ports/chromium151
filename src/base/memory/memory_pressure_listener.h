@@ -59,7 +59,12 @@ enum class MemoryPressureListenerTag {
   // kHistoryBackend = 26,
   // kMediaUrlIndex = 27,
   // kBFCachePolicy = 28,
+#if defined(USE_NEVA_APPRUNTIME)
+  // NEVA: still used to drive the low-end tile memory policy.
+  kLayerTreeHostImpl = 29,
+#else
   // kLayerTreeHostImpl = 29,
+#endif
   // kCacheStorageManager = 30,
   // kPlayerCompositorDelegate = 31,
   // kNetworkServiceClient = 32,
@@ -101,6 +106,10 @@ enum class MemoryPressureListenerTag {
   kGrShaderCache = 68,
   kMemoryPressureListenerPolicy = 69,
   kLongScreenshotsTabService = 70,
+#if defined(USE_NEVA_APPRUNTIME)
+  // NEVA: software decode cache purging under memory pressure.
+  kSoftwareImageDecodeCache = 71,
+#endif
 };
 
 // base::MemoryPressureListener is deprecated. Use base::MemoryConsumer instead.

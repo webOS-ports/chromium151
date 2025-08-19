@@ -37,6 +37,10 @@ namespace crypto {
 
 namespace {
 
+#if defined(USE_NEVA_APPRUNTIME)
+static const char kNevaCertificateTokenDescription[] = "NevaCertificates";
+#endif
+
 #if !BUILDFLAG(IS_CHROMEOS)
 base::FilePath GetXdgDataNssdbDirectory() {
   std::unique_ptr<base::Environment> env = base::Environment::Create();
@@ -87,9 +91,26 @@ base::FilePath PrepareDefaultConfigDirectory() {
 // On non-ChromeOS platforms, return the default config directory. On ChromeOS
 // return a empty path which will result in NSS being initialized without a
 // persistent database.
+#if defined(OS_WEBOS) && defined(USE_READ_ONLY_NSSDB)
+// NEVA: webOS ships a pre-populated, read-only NSS database in the rootfs
+// instead of creating a per-user one under $HOME.
+constexpr base::FilePath::CharType kReadOnlyCertDB[] =
+    FILE_PATH_LITERAL("/etc/pki/nssdb");
+#endif
+
+// On non-ChromeOS platforms, return the default config directory. On ChromeOS
+// return an empty path which will result in NSS being initialized without a
+// persistent database. On webOS with a read-only NSS database, return that
+// directory if it exists.
 base::FilePath GetInitialConfigDirectory() {
 #if BUILDFLAG(IS_CHROMEOS)
   return base::FilePath();
+#elif defined(OS_WEBOS) && defined(USE_READ_ONLY_NSSDB)
+  base::FilePath database_dir = base::FilePath(kReadOnlyCertDB);
+  if (!base::PathExists(database_dir)) {
+    database_dir.clear();
+  }
+  return database_dir;
 #else
   return PrepareDefaultConfigDirectory();
 #endif  // BUILDFLAG(IS_CHROMEOS)
@@ -293,6 +314,8 @@ class NSSInitSingleton {
     NSS_SetAlgorithmPolicy(SEC_OID_MD5, 0, NSS_USE_ALG_IN_CERT_SIGNATURE);
     NSS_SetAlgorithmPolicy(SEC_OID_PKCS1_MD5_WITH_RSA_ENCRYPTION, 0,
                            NSS_USE_ALG_IN_CERT_SIGNATURE);
+
+    LoadNSSNevaCertificatesPath();
   }
 
   // Stores opened software NSS databases.
@@ -393,6 +416,29 @@ std::string GetNSSErrorMessage() {
     result = base::StringPrintf("NSS error code: %d", PR_GetError());
   }
   return result;
+}
+
+void LoadNSSNevaCertificatesPath() {
+  base::FilePath neva_certificates_path;
+  base::PathService::Get(base::DIR_NEVA_CERTIFICATES, &neva_certificates_path);
+  if (neva_certificates_path.empty()) {
+    VLOG(2) << "Neva certificates path is empty";
+    return;
+  }
+
+  const std::string modspec = base::StringPrintf(
+      "configDir='sql:%s' tokenDescription='%s'",
+      neva_certificates_path.value().c_str(), kNevaCertificateTokenDescription);
+  PK11SlotInfo* db_slot = SECMOD_OpenUserDB(modspec.c_str());
+  if (db_slot) {
+    if (PK11_NeedUserInit(db_slot))
+      PK11_InitPin(db_slot, nullptr, nullptr);
+    VLOG(2) << "Neva certificates database (" << modspec
+            << ") loaded successfully";
+  } else {
+    LOG(ERROR) << "Error opening persistent database (" << modspec
+               << "): " << GetNSSErrorMessage();
+  }
 }
 
 }  // namespace crypto

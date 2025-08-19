@@ -28,6 +28,11 @@ struct COMPONENT_EXPORT(URL_MOJOM_TRAITS)
   static uint16_t port(const url::Origin& r) {
     return r.GetTupleOrPrecursorTupleIfOpaque().port();
   }
+#if defined(USE_NEVA_APPRUNTIME)
+  static const std::optional<std::string> webapp_id(const url::Origin& r) {
+    return r.get_webapp_id();
+  }
+#endif
   static mojo::OptionalAsPointer<const base::UnguessableToken> nonce_if_opaque(
       const url::Origin& r) {
     return mojo::OptionalAsPointer(r.GetNonceForSerialization());

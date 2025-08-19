@@ -70,6 +70,12 @@ inline constexpr char16_t kStandardSchemeSeparator16[] = u"://";
 // has the same value, for more details.
 inline constexpr size_t kMaxURLChars = 2 * 1024 * 1024;
 
+#if defined(USE_NEVA_APPRUNTIME)
+// NEVA: substituted for a local file request when the file does not exist.
+inline constexpr char kIllegalDataURL[] =
+    "chrome-error://chromeillegalwebdata/";
+#endif
+
 }  // namespace url
 
 #endif  // URL_URL_CONSTANTS_H_

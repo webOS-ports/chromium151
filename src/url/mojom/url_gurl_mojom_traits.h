@@ -5,6 +5,7 @@
 #ifndef URL_MOJOM_URL_GURL_MOJOM_TRAITS_H_
 #define URL_MOJOM_URL_GURL_MOJOM_TRAITS_H_
 
+#include <optional>
 #include <string_view>
 
 #include "base/component_export.h"
@@ -18,6 +19,9 @@ template <>
 struct COMPONENT_EXPORT(URL_MOJOM_TRAITS)
     StructTraits<url::mojom::UrlDataView, GURL> {
   static std::string_view url(const GURL& r);
+#if defined(USE_NEVA_APPRUNTIME)
+  static std::optional<std::string> webapp_id(const GURL& r);
+#endif
   static bool Read(url::mojom::UrlDataView data, GURL* out);
 };
 

@@ -24,7 +24,9 @@ const char kSuppressEventfdUpgradeForWebview[] =
         // BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(MOJO_SUPPORT_LEGACY_CORE)
-#if BUILDFLAG(IS_CHROMEOS)
+// TODO(neva): Remove USE_NEVA_APPRUNTIME if mojo-ipcz turns out to be better on
+// memory and performance.
+#if BUILDFLAG(IS_CHROMEOS) || defined(USE_NEVA_APPRUNTIME)
 BASE_FEATURE(kMojoIpcz, base::FEATURE_DISABLED_BY_DEFAULT);
 #else
 BASE_FEATURE(kMojoIpcz, base::FEATURE_ENABLED_BY_DEFAULT);

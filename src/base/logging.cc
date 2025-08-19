@@ -702,7 +702,9 @@ void LogMessage::Flush() {
   base::ScopedClearLastError scoped_clear_last_error;
 
   size_t stack_start = stream_.view().length();
-#if !defined(OFFICIAL_BUILD) && !defined(__UCLIBC__) && !BUILDFLAG(IS_AIX)
+// NEVA: webOS does not want a symbolised stack trace appended to fatal logs.
+#if !defined(OFFICIAL_BUILD) && !defined(__UCLIBC__) && \
+    !BUILDFLAG(IS_AIX) && !defined(OS_WEBOS)
   // Include a stack trace on a fatal, unless a debugger is attached.
   if (severity_ == LOGGING_FATAL && !base::debug::BeingDebugged()) {
     base::debug::StackTrace stack_trace;

@@ -388,6 +388,11 @@ struct BASE_EXPORT SystemMemoryInfo {
   // This value is an approximation of the amount of physical memory that
   // can be used without the system needing to swap.
   ByteSize GetAvailablePhysicalMemory() const;
+
+#if defined(OS_WEBOS)
+  // NEVA: CMA carve-out reserved for the video/graphics pipeline.
+  ByteSize cma_device_alloc;
+#endif  // defined(OS_WEBOS)
 };
 
 // On Linux/Android/Chrome OS, system-wide memory consumption data is parsed
