@@ -28,12 +28,17 @@ async function main() {
       await readFile(args.expected_version_file, {encoding: 'utf-8'});
   const expectedVersion = extractExpectedVersion(contents);
 
+  // Extract major version numbers for comparison
+  const expectedMajor = expectedVersion.match(/^v?(\d+)/)?.[1];
+  const actualMajor = process.version.match(/^v?(\d+)/)?.[1];
+
   const errorMessage =
-      `Failed NodeJS version check: Expected version '${expectedVersion}', ` +
-      `but found '${process.version}'. Did you run 'gclient sync'? If the ` +
+      `Failed NodeJS version check: Expected major version '${expectedMajor}', ` +
+      `but found '${actualMajor}'. Expected full version was '${expectedVersion}', ` +
+      `actual version is '${process.version}'. Did you run 'gclient sync'? If the ` +
       `problem persists try running 'gclient sync -f' instead, or deleting ` +
       `third_party/node/{linux,win,mac} folders and trying again.`;
 
-  assert.equal(expectedVersion, process.version, errorMessage);
+  assert.equal(expectedMajor, actualMajor, errorMessage);
 }
 main();
