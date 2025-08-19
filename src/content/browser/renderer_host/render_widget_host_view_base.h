@@ -545,6 +545,11 @@ class CONTENT_EXPORT RenderWidgetHostViewBase
   void OnFrameTokenChangedForView(uint32_t frame_token,
                                   base::TimeTicks activation_time);
 
+#if defined(USE_NEVA_APPRUNTIME)
+  // For any swap that has been completed.
+  void OnSwapCompleted();
+#endif
+
   // Returns a reference to the current instance of TextInputManager. The
   // reference is obtained from RenderWidgetHostDelegate. The first time a non-
   // null reference is obtained, its value is cached in |text_input_manager_|
@@ -556,6 +561,11 @@ class CONTENT_EXPORT RenderWidgetHostViewBase
   // It is safer to use this method rather than directly dereferencing
   // |text_input_manager_|.
   TextInputManager* GetTextInputManager();
+
+#if defined(USE_NEVA_MEDIA)
+  virtual gfx::AcceleratedWidget GetAcceleratedWidget();
+#endif  // defined(USE_NEVA_MEDIA)
+
 
   virtual void DidNavigate();
 

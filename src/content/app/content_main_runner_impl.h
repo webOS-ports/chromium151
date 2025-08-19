@@ -18,6 +18,10 @@
 #include "content/public/common/main_function_params.h"
 #include "mojo/core/embedder/scoped_ipc_support.h"
 
+#if defined(USE_LTTNG)
+#include "base/native_library.h"
+#endif
+
 namespace base {
 class AtExitManager;
 }  // namespace base

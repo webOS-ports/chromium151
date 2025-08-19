@@ -97,6 +97,16 @@ extern const char kTraceAppSource[];
 // the one received from update manifest.
 extern const char kEnableCrxHashCheck[];
 
+///@name USE_NEVA_APPRUNTIME
+///@{
+extern const char kProcessPerGuestWebView[];
+///@}
+#if defined(OS_WEBOS)
+extern const char kWebOSAppId[];
+extern const char kWebOSLunaServiceName[];
+extern const char kWebOSDisplayId[];
+#endif
+
 // Mute extension errors while working with new manifest version.
 extern const char kAllowFutureManifestVersion[];
 

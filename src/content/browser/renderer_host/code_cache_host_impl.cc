@@ -115,6 +115,11 @@ bool CheckSecurityForAccessingCodeCacheData(const GURL& resource_url,
     return true;
   }
 
+#if defined(USE_FILESCHEME_CODECACHE)
+  if (content::neva::IsFileSchemeSupportedForCodeCache(resource_url))
+    return true;
+#endif
+
   if (operation == Operation::kWrite) {
     mojo::ReportBadMessage("Invalid URL scheme for code cache.");
   }
@@ -200,6 +205,10 @@ std::optional<GURL> GetOriginLock(ChildProcessId render_process_id) {
       process_lock.MatchesScheme(url::kHttpsScheme) ||
       process_lock.MatchesScheme(content::kChromeUIScheme) ||
       process_lock.MatchesScheme(content::kChromeUIUntrustedScheme) ||
+#if defined(USE_FILESCHEME_CODECACHE)
+      content::neva::IsFileSchemeSupportedForCodeCache(
+          process_lock.GetProcessLockURL()) ||
+#endif
       blink::CommonSchemeRegistry::IsExtensionScheme(
           process_lock.GetProcessLockURL().GetScheme())) {
     return process_lock.GetProcessLockURL();

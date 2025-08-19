@@ -32,5 +32,9 @@ bool ScopeToPrefName(ChromeSettingScope scope, std::string* result) {
   NOTREACHED();
 }
 
+#if defined(USE_NEVA_APPRUNTIME)
+const char kPrefPdfJsEnableScripting[] = "pdfjs.enableScripting";
+#endif
+
 }  // namespace pref_names
 }  // namespace extensions

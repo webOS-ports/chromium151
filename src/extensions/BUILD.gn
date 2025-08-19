@@ -7,6 +7,7 @@ import("//testing/test.gni")
 import("//tools/grit/grit_rule.gni")
 import("//tools/grit/repack.gni")
 import("//ui/base/ui_features.gni")
+import("//neva/neva.gni")
 
 assert(enable_extensions_core)
 assert(!is_fuchsia)
@@ -201,8 +202,6 @@ static_library("test_support") {
 
 # TODO(crbug.com/40425056): Rename to test_pak.
 repack("shell_and_test_pak") {
-  testonly = true
-
   sources = [
     "$root_gen_dir/content/content_resources.pak",
     "$root_gen_dir/content/shell/shell_resources.pak",
@@ -237,6 +236,13 @@ repack("shell_and_test_pak") {
     "//ui/resources",
     "//ui/strings",
   ]
+
+  if (use_neva_appruntime && enable_memorymanager_webapi) {
+    sources += [
+      "$root_gen_dir/injection/renderer/resources/injection_resources.pak",
+    ]
+    deps += [ "//neva/injection/renderer:resources" ]
+  }
 
   # The following resources are not used by desktop-android build.
   if (enable_extensions) {

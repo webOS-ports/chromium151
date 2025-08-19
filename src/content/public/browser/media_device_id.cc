@@ -53,6 +53,11 @@ void GetMediaDeviceIDForHMAC(
 }
 
 bool IsValidDeviceId(const std::string& device_id) {
+#if defined(USE_WEBOS_AUDIO)
+  if (media::AudioDeviceDescription::IsDisplayDefaultDevice(device_id))
+    return true;
+#endif
+
   return blink::IsValidMediaDeviceId(device_id);
 }
 

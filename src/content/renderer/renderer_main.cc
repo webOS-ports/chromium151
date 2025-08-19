@@ -90,6 +90,11 @@
 #include "mojo/public/cpp/bindings/lib/test_random_mojo_delays.h"
 #endif
 
+#if defined(USE_LTTNG)
+#include "base/native_library.h"
+#include "content/common/neva/lttng/lttng_init.h"
+#endif
+
 namespace content {
 namespace {
 
@@ -108,6 +113,10 @@ std::unique_ptr<base::MessagePump> CreateMainThreadMessagePump() {
 #if BUILDFLAG(IS_FUCHSIA)
   // Allow FIDL APIs on renderer main thread.
   message_pump = base::MessagePump::Create(base::MessagePumpType::IO);
+#elif defined(OS_WEBOS)
+  // The main message loop of the renderer services for webOS should be UI
+  // (luna bus require glib message pump).
+  message_pump = base::MessagePump::Create(base::MessagePumpType::UI);
 #else
   message_pump = base::MessagePump::Create(base::MessagePumpType::DEFAULT);
 #endif
@@ -346,6 +355,10 @@ int RendererMain(MainFunctionParams parameters) {
 #endif
   }
   platform.PlatformUninitialize();
+#if defined(USE_LTTNG)
+  if (lttng_native_library)
+    base::UnloadNativeLibrary(lttng_native_library);
+#endif
   return 0;
 }
 

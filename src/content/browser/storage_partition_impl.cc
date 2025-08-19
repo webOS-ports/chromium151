@@ -142,6 +142,7 @@
 #include "net/cookies/cookie_setting_override.h"
 #include "net/disk_cache/buildflags.h"
 #include "net/ssl/client_cert_store.h"
+#include "neva/pal_service/os_crypt.h"
 #include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom.h"
 #include "services/network/public/cpp/constants.h"
 #include "services/network/public/cpp/cors/origin_access_list.h"
@@ -3617,6 +3618,14 @@ void StoragePartitionImpl::GetQuotaSettings(
     return;
   }
 
+#if defined(USE_NEVA_APPRUNTIME)
+  if (GetContentClient()->browser()->HasQuotaSettings()) {
+    GetContentClient()->browser()->GetQuotaSettings(browser_context_, this,
+                                                    std::move(callback));
+    return;
+  }
+#endif
+
   storage::GetNominalDynamicSettings(
       GetPath(), browser_context_->IsOffTheRecord(),
       storage::GetDefaultDeviceInfoHelper(), std::move(callback));
@@ -3703,6 +3712,19 @@ void StoragePartitionImpl::InitNetworkContext() {
       network_context_client_receiver_.BindNewPipeAndPassRemote());
   network_context_owner_->network_context.set_disconnect_handler(base::BindOnce(
       &StoragePartitionImpl::InitNetworkContext, weak_factory_.GetWeakPtr()));
+
+  if (base::FeatureList::IsEnabled(features::kPreloadCookies)) {
+    mojo::Remote<::network::mojom::CookieManager> cookie_manager;
+    mojo::PendingRemote<::network::mojom::CookieManager> cookie_manager_remote;
+    network_context_->GetCookieManager(
+        cookie_manager_remote.InitWithNewPipeAndPassReceiver());
+    cookie_manager.Bind(std::move(cookie_manager_remote));
+    cookie_manager->GetAllCookies(base::NullCallback());
+  }
+
+  os_crypt_impl_ = std::make_unique<pal::OSCryptImpl>();
+  if (os_crypt_impl_->IsEncryptionAvailable())
+    network_context_->SetOSCrypt(os_crypt_impl_->CreatePendingRemoteAndBind());
 }
 
 network::mojom::URLLoaderFactoryParamsPtr

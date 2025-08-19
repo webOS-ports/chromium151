@@ -399,6 +399,17 @@ class AppWindow : public content::WebContentsDelegate,
     on_update_draggable_regions_callback_for_testing_ = std::move(callback);
   }
 
+#if defined(OS_WEBOS)
+  void SetApplicationId(const std::string& application_id) {
+    application_id_ = application_id;
+  }
+  std::string GetApplicationId() const { return application_id_; }
+
+  // Used by the neva project.
+  std::string GetDisplayId() const { return display_id_; }
+  void SetDisplayId(const std::string& id) { display_id_ = id; }
+#endif
+
   bool DidFinishFirstNavigation() { return did_finish_first_navigation_; }
 
  protected:
@@ -464,6 +475,9 @@ class AppWindow : public content::WebContentsDelegate,
 
   // content::WebContentsObserver implementation.
   void RenderFrameCreated(content::RenderFrameHost* frame_host) override;
+#if defined(OS_WEBOS)
+  void DidFirstVisuallyNonEmptyPaint() override;
+#endif
 
   // ExtensionFunctionDispatcher::Delegate implementation.
   WindowController* GetExtensionWindowController() override;
@@ -599,6 +613,14 @@ class AppWindow : public content::WebContentsDelegate,
 
   // Allows tests to wait for draggable regions to be sent from the renderer.
   base::OnceClosure on_update_draggable_regions_callback_for_testing_;
+
+#if defined(OS_WEBOS)
+  // Application Id that is sent to backend
+  std::string application_id_;
+
+  // display affinity sent to backend
+  std::string display_id_;
+#endif
 
   base::WeakPtrFactory<AppWindow> image_loader_ptr_factory_{this};
   base::WeakPtrFactory<AppWindow> weak_ptr_factory_{this};

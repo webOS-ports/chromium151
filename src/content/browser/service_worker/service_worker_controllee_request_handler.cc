@@ -45,6 +45,10 @@
 #include "components/offline_pages/core/request_header/offline_page_header.h"
 #endif  // BUILDFLAG(ENABLE_OFFLINE_PAGES)
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "neva/app_runtime/public/file_security_origin.h"
+#endif
+
 namespace content {
 
 namespace {
@@ -230,6 +234,7 @@ void ServiceWorkerControlleeRequestHandler::MaybeCreateLoader(
           weak_factory_.GetWeakPtr(), /*is_for_navigation=*/true,
           base::TimeTicks::Now()));
 }
+
 
 void ServiceWorkerControlleeRequestHandler::ContinueWithRegistration(
     bool is_for_navigation,

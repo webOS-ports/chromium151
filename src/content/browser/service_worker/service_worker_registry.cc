@@ -42,6 +42,10 @@
 #include "third_party/perfetto/include/perfetto/tracing/track_event_args.h"
 #include "url/origin.h"
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "neva/app_runtime/public/file_security_origin.h"
+#endif
+
 namespace content {
 
 namespace {
@@ -498,8 +502,24 @@ void ServiceWorkerRegistry::FindRegistrationForScope(
 
 void ServiceWorkerRegistry::FindRegistrationForId(
     int64_t registration_id,
-    const blink::StorageKey& key,
+    const blink::StorageKey& const_key,
     FindRegistrationCallback callback) {
+  blink::StorageKey key = const_key;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  // From FindServiceWorkerRegistration
+  // (content/browser/notifications/notification_event_dispatcher_impl.cc)
+  // blink::StorageKey may not contain host field in the origin if it is file
+  // scheme. Service worker needs host field for the file scheme as well.
+  // So we replace origin to file-security-origin
+  if (key.origin().scheme() == url::kFileScheme &&
+      key.origin().get_webapp_id()) {
+    key = blink::StorageKey::CreateFirstParty(
+        neva_app_runtime::CreateFileSecurityOriginForApp(
+            *key.origin().get_webapp_id()));
+  }
+#endif
+
   FindRegistrationForIdInternal(registration_id, key, std::move(callback));
 }
 
@@ -595,6 +615,13 @@ void ServiceWorkerRegistry::StoreRegistration(
   auto data = storage::mojom::ServiceWorkerRegistrationData::New();
   data->registration_id = registration->id();
   data->scope = registration->scope();
+#if defined(USE_NEVA_APPRUNTIME)
+  // type of above data->scope is string so webapp_id needs to be stored
+  // separately.
+  data->app_id = (registration->scope().get_webapp_id()
+                      ? *registration->scope().get_webapp_id()
+                      : std::string());
+#endif
   data->key = registration->key();
   data->script = version->script_url();
   data->script_type = version->script_type();
@@ -1009,10 +1036,22 @@ void ServiceWorkerRegistry::SetRegisteredStorageKeys(
 }
 
 bool ServiceWorkerRegistry::MaybeHasRegistrationForStorageKey(
-    const blink::StorageKey& key) {
+    const blink::StorageKey& const_key) {
   TRACE_EVENT("ServiceWorker",
               "ServiceWorkerRegistry::MaybeHasRegistrationForStorageKey");
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+
+  blink::StorageKey key = const_key;
+#if defined(USE_NEVA_APPRUNTIME)
+  // Other components check without the host part for the file scheme, but we
+  // use a file security origin for handling service workers. Moved here from
+  // ServiceWorkerContextCore in M151, which no longer owns this lookup.
+  if (key.origin().scheme() == url::kFileScheme &&
+      key.origin().get_webapp_id()) {
+    key = key.WithOrigin(neva_app_runtime::CreateFileSecurityOriginForApp(
+        *key.origin().get_webapp_id()));
+  }
+#endif
   // The following code implements a performance optimization: it retrieves
   // `storage_keys` from the `ServiceWorkerStorage` in the thread pool without
   // waiting for `DidGetRegisteredStorageKeys()` to be called. This can speed up
@@ -1199,8 +1238,15 @@ ServiceWorkerRegistry::GetOrCreateRegistration(
     return registration;
   }
 
+#if defined(USE_NEVA_APPRUNTIME)
+  // storage::mojom::ServiceWorkerRegistrationData uses string type for the
+  // scope so it needs to set app_id explicitly to pass app_id.
+  blink::mojom::ServiceWorkerRegistrationOptions options(
+      data.scope, data.script_type, data.update_via_cache, data.app_id);
+#else
   blink::mojom::ServiceWorkerRegistrationOptions options(
       data.scope, data.script_type, data.update_via_cache);
+#endif
   registration = ServiceWorkerRegistration::Create(
       options, data.key, data.registration_id, context_->AsWeakPtr(),
       data.ancestor_frame_type);

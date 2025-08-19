@@ -148,6 +148,11 @@ class CONTENT_EXPORT RenderWidgetHostView {
   // Whether the view is showing.
   virtual bool IsShowing() = 0;
 
+  // The methods manage to suspend and resume drawing by the compositor.
+  virtual void ResumeDrawing() {}
+  virtual void SuspendDrawing() {}
+
+
   // Retrieve the bounds of the View, in screen coordinates.
   virtual gfx::Rect GetViewBounds() = 0;
 

@@ -32,9 +32,12 @@
 #include "content/shell/browser/shell_permission_manager.h"
 #include "content/shell/common/shell_paths.h"
 #include "content/shell/common/shell_switches.h"
-#include "content/test/mock_background_sync_controller.h"
 #include "content/test/mock_reduce_accept_language_controller_delegate.h"
 #include "third_party/blink/public/common/origin_trials/trial_token_validator.h"
+
+#if !defined(USE_CBE)
+#include "content/test/mock_background_sync_controller.h"
+#endif
 
 namespace content {
 
@@ -149,11 +152,15 @@ BackgroundFetchDelegate* ShellBrowserContext::GetBackgroundFetchDelegate() {
 }
 
 BackgroundSyncController* ShellBrowserContext::GetBackgroundSyncController() {
+#if !defined(USE_CBE)
   if (!background_sync_controller_) {
     background_sync_controller_ =
         std::make_unique<MockBackgroundSyncController>();
   }
   return background_sync_controller_.get();
+#else
+  return nullptr;
+#endif
 }
 
 BrowsingDataRemoverDelegate*
@@ -169,12 +176,16 @@ ContentIndexProvider* ShellBrowserContext::GetContentIndexProvider() {
 
 ReduceAcceptLanguageControllerDelegate*
 ShellBrowserContext::GetReduceAcceptLanguageControllerDelegate() {
+#if !defined(USE_CBE)
   if (!reduce_accept_lang_controller_delegate_) {
     reduce_accept_lang_controller_delegate_ =
         std::make_unique<MockReduceAcceptLanguageControllerDelegate>(
             GetShellLanguage());
   }
   return reduce_accept_lang_controller_delegate_.get();
+#else
+  return nullptr;
+#endif
 }
 
 OriginTrialsControllerDelegate*

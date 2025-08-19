@@ -294,6 +294,10 @@ void SharedWorkerServiceImpl::ConnectToWorker(
     return;
   }
   auto partition_domain = site_instance->GetPartitionDomain(storage_partition_);
+#if defined(USE_NEVA_APPRUNTIME)
+  // info->url also is passed from renderer without webapp_id info.
+  info->url.set_webapp_id(render_frame_host->GetWebAppId());
+#endif
   bool is_opaque_origin_enabled =
       GetContentClient()->browser()->IsDataUrlInWebWorkerOpaqueOriginEnabled(
           render_frame_host->GetBrowserContext());

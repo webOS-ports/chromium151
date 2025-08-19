@@ -43,6 +43,12 @@
 #include "services/webnn/public/mojom/webnn_context_provider.mojom.h"
 #endif
 
+#if defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+#include "base/containers/queue.h"
+#include "gpu/ipc/common/surface_handle.h"
+#include "ipc/ipc_sender.h"
+#endif  // defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+
 namespace base {
 class Thread;
 }
@@ -66,6 +72,9 @@ class CATransactionGPUCoordinator;
 #endif
 
 class GpuProcessHost final : public BrowserChildProcessHostDelegate,
+#if defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+                             public IPC::Sender,
+#endif  // defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
                              public viz::GpuHostImpl::Delegate {
  public:
   static int GetGpuCrashCount();
@@ -101,6 +110,11 @@ class GpuProcessHost final : public BrowserChildProcessHostDelegate,
   static GpuProcessHost* FromID(int host_id);
   int host_id() const { return host_id_; }
   base::ProcessId process_id() const { return process_id_; }
+
+#if defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+  // IPC::Sender implementation.
+  bool Send(IPC::Message* msg) override;
+#endif  // defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
 
   // What kind of GPU process, e.g. sandboxed or unsandboxed.
   GpuProcessKind kind();
@@ -220,6 +234,15 @@ class GpuProcessHost final : public BrowserChildProcessHostDelegate,
       mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote)
       override;
 #endif
+
+#if defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+  void SendGpuProcessMessage(IPC::Message* message) override;
+  bool OnMessageReceived(const IPC::Message& message) override;
+  void OnChannelConnected(int32_t peer_pid) override;
+
+  // Qeueud messages to send when the process launches.
+  base::queue<IPC::Message*> queued_messages_;
+#endif  // defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
 
   bool LaunchGpuProcess();
 

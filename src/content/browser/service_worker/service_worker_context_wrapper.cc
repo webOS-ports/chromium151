@@ -591,9 +591,15 @@ void ServiceWorkerContextWrapper::RegisterServiceWorker(
                                   blink::ServiceWorkerStatusCode::kErrorAbort));
     return;
   }
+#if defined(USE_NEVA_APPRUNTIME)
+  blink::mojom::ServiceWorkerRegistrationOptions options_to_pass(
+      net::SimplifyUrlForRequest(options.scope), options.type,
+      options.update_via_cache, options.app_id);
+#else
   blink::mojom::ServiceWorkerRegistrationOptions options_to_pass(
       net::SimplifyUrlForRequest(options.scope), options.type,
       options.update_via_cache);
+#endif
 
   PolicyContainerPolicies policy_container_policies;
   policy_container_policies.is_web_secure_context =

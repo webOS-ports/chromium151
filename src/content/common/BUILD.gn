@@ -8,6 +8,7 @@ import("//content/public/common/zygote/features.gni")
 import("//ipc/features.gni")
 import("//media/media_options.gni")
 import("//mojo/public/tools/bindings/mojom.gni")
+import("//neva/neva.gni")
 import("//sandbox/features.gni")
 import("//services/network/public/cpp/features.gni")
 import("//testing/libfuzzer/fuzzer_test.gni")
@@ -436,6 +437,10 @@ mojom("mojo_bindings") {
   # This interface is internal to content.
   visibility = [ "//content/*" ]
 
+  if (use_neva_appruntime) {
+    visibility += [ "//neva/app_runtime" ]
+  }
+
   disable_variants = true
 
   sources = [
@@ -648,6 +653,10 @@ mojom("mojo_bindings") {
         ]
       },
     ]
+  }
+
+  if (use_neva_media) {
+    sources += [ "media/neva/frame_media_controller.mojom" ]
   }
 
   overridden_deps = [

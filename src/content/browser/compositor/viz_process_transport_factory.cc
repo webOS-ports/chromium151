@@ -106,6 +106,9 @@ class HostDisplayClient : public viz::HostDisplayClient {
     compositor_->OnCompleteSwapWithNewSize(size);
   }
 #endif  // BUILDFLAG(IS_LINUX) && BUILDFLAG(SUPPORTS_OZONE_X11)
+#if defined(USE_NEVA_APPRUNTIME)
+  void DidCompleteSwap() override { compositor_->OnCompleteSwap(); }
+#endif
 
 #if BUILDFLAG(IS_WIN)
   void AddChildWindowToBrowser(gpu::SurfaceHandle child_window) override {

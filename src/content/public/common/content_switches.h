@@ -95,6 +95,7 @@ CONTENT_EXPORT extern const char kDisableWebSecurity[];
 CONTENT_EXPORT extern const char kDisableZeroCopyDxgiVideo[];
 CONTENT_EXPORT extern const char kDomAutomationController[];
 extern const char kDisable2dCanvasClipAntialiasing[];
+CONTENT_EXPORT extern const char kEnableAccessibilityExploreByMouse[];
 CONTENT_EXPORT extern const char kEnableAggressiveDOMStorageFlushing[];
 CONTENT_EXPORT extern const char kEnableAutomation[];
 CONTENT_EXPORT extern const char kEnableBlinkFeatures[];
@@ -117,6 +118,7 @@ CONTENT_EXPORT extern const char kEnableServiceBinaryLauncher[];
 extern const char kEnableSkiaBenchmarking[];
 CONTENT_EXPORT extern const char kEnableSmoothScrolling[];
 CONTENT_EXPORT extern const char kEnableSpatialNavigation[];
+CONTENT_EXPORT extern const char kEnableCSSNavigation[];
 CONTENT_EXPORT extern const char kEnableStrictMixedContentChecking[];
 CONTENT_EXPORT extern const char kEnableTracingFraction[];
 CONTENT_EXPORT extern const char kEnableUserMediaScreenCapturing[];
@@ -192,6 +194,9 @@ CONTENT_EXPORT extern const char kSitePerProcess[];
 CONTENT_EXPORT extern const char kDisableSiteIsolation[];
 CONTENT_EXPORT extern const char kStartFullscreen[];
 CONTENT_EXPORT extern const char kStatsCollectionController[];
+#if defined(USE_NEVA_APPRUNTIME)
+extern const char kSkiaFontCacheCountLimit[];
+#endif
 extern const char kSkiaFontCacheLimitMb[];
 extern const char kSkiaResourceCacheLimitMb[];
 CONTENT_EXPORT extern const char kTargetDeviceScaleForTesting[];
@@ -283,6 +288,15 @@ CONTENT_EXPORT extern const char kRemoteDebuggingIoPipes[];
 #if defined(ENABLE_IPC_FUZZER)
 extern const char kIpcDumpDirectory[];
 extern const char kIpcFuzzerTestcase[];
+#endif
+
+#if defined(USE_NEVA_MEDIA)
+CONTENT_EXPORT extern const char kMaxActivatedMediaPlayers[];
+CONTENT_EXPORT extern const char kMaxTimeupdateEventFrequency[];
+#endif
+
+#if defined(USE_NEVA_APPRUNTIME)
+CONTENT_EXPORT extern const char kEnableV8CacheForWebappList[];
 #endif
 
 // DON'T ADD RANDOM STUFF HERE. Put it in the main section above in

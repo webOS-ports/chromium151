@@ -40,6 +40,7 @@
 #include "services/network/public/cpp/wrapper_shared_url_loader_factory.h"
 #include "third_party/abseil-cpp/absl/functional/overload.h"
 #include "third_party/blink/public/common/service_worker/service_worker_scope_match.h"
+#include "neva/app_runtime/public/file_security_origin.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_running_status_callback.mojom.h"
 
@@ -532,16 +533,35 @@ void ServiceWorkerClient::UpdateUrlsInternal(
     const blink::StorageKey& storage_key) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  const GURL url = creation_url.is_valid()
-                       ? net::SimplifyUrlForRequest(creation_url)
-                       : creation_url;
+  GURL url = creation_url.is_valid()
+                 ? net::SimplifyUrlForRequest(creation_url)
+                 : creation_url;
+  blink::StorageKey key = storage_key;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  // Scope file:// service workers per webOS application: rewrite the host to
+  // the app-specific one and derive the storage key origin from it. In M120
+  // this lived in ServiceWorkerControlleeRequestHandler::InitializeContainerHost(),
+  // which no longer exists upstream; UpdateUrlsInternal() is now the single
+  // funnel every URL update passes through.
+  if (url.SchemeIsFile() && url.get_webapp_id()) {
+    GURL::Replacements repl;
+    const std::string host =
+        neva_app_runtime::FileSchemeHostForApp(*url.get_webapp_id());
+    repl.SetHostStr(host.c_str());
+    url = url.ReplaceComponents(repl);
+    key = key.WithOrigin(neva_app_runtime::CreateFileSecurityOriginForApp(
+        *url.get_webapp_id()));
+  }
+#endif
+
   GURL previous_url = url_;
   creation_url_ = creation_url;
   // The url_ needs the URL fragment removed, but the creation URL needs to be
   // the original URL including the fragment.
   url_ = url;
   top_frame_origin_ = top_frame_origin;
-  key_ = storage_key;
+  key_ = key;
   service_worker_security_utils::CheckOnUpdateUrls(GetUrlForScopeMatch(), key_);
 
   if (previous_url != url) {

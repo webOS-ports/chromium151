@@ -175,6 +175,10 @@ inline constexpr char kEnterprisePromotionExpirationTime[] =
 inline constexpr char kHasDismissedEnterprisePromotion[] =
     "extensions.has_dismissed_enterprise_promotion";
 
+#if defined(USE_NEVA_APPRUNTIME)
+extern const char kPrefPdfJsEnableScripting[];
+#endif
+
 }  // namespace pref_names
 }  // namespace extensions
 

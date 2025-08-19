@@ -1245,6 +1245,11 @@ void PopulateBinderMapWithContext(
         &BindRenderFrameHostImpl<
             &RenderFrameHostImpl::BindInputInjectorReceiver>);
   }
+#if defined(USE_LOCAL_STORAGE_TRACKER)
+  map->Add<local_storage::mojom::LocalStorageTracker>(
+      base::BindRepeating(&RenderFrameHostImpl::GetLocalStorageTrackerMojoImpl,
+                          base::Unretained(host)));
+#endif
 
 #if BUILDFLAG(IS_ANDROID) || (BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_IOS_TVOS))
   map->Add<device::mojom::NFC>(

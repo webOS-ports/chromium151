@@ -79,6 +79,24 @@ void InitializeSkia() {
 
 #if !BUILDFLAG(IS_ANDROID)
   size_t font_cache_limit;
+#if defined(USE_NEVA_APPRUNTIME)
+  size_t font_cache_count_limit;
+
+  if (cmd.HasSwitch(switches::kSkiaFontCacheCountLimit)) {
+    if (base::StringToSizeT(
+            cmd.GetSwitchValueASCII(switches::kSkiaFontCacheCountLimit),
+            &font_cache_count_limit)) {
+      SkGraphics::SetFontCacheCountLimit(font_cache_count_limit);
+    }
+  }
+#endif  // USE_NEVA_APPRUNTIME
+
+#if defined(OS_WEBOS)
+  // Preserve being able to change limits from command line, but set
+  // same defaults as for Android.
+  font_cache_limit = base::SysInfo::IsLowEndDevice() ? kMB : 8 * kMB;
+  SkGraphics::SetFontCacheLimit(font_cache_limit);
+#endif
   if (cmd.HasSwitch(switches::kSkiaFontCacheLimitMb)) {
     if (base::StringToSizeT(
             cmd.GetSwitchValueASCII(switches::kSkiaFontCacheLimitMb),
@@ -96,6 +114,12 @@ void InitializeSkia() {
     }
   }
 #endif
+
+#if defined(OS_WEBOS)
+  VLOG(1) << "Font cache limit: " << SkGraphics::GetFontCacheLimit()
+          << " bytes";
+#endif
+
 
   InitSkiaEventTracer();
   base::trace_event::MemoryDumpManager::GetInstance()->RegisterDumpProvider(

@@ -127,6 +127,11 @@
 #include "url/origin.h"
 #include "v8/include/v8-forward.h"
 
+#if defined(USE_NEVA_MEDIA)
+#include "content/common/media/neva/frame_media_controller.mojom.h"
+#include "content/renderer/neva/frame_media_controller_impl.h"
+#endif
+
 #if BUILDFLAG(IS_ANDROID)
 #include "content/common/gin_java_bridge.mojom.h"
 #endif
@@ -380,6 +385,16 @@ class CONTENT_EXPORT RenderFrameImpl
   [[nodiscard]] gfx::Rect ConvertViewportToWindow(
       const gfx::Rect& rect) override;
   float GetDeviceScaleFactor() override;
+#if defined(USE_NEVA_APPRUNTIME)
+  void ResetStateToMarkNextPaint() override;
+
+  // APPRUNTIME has own procedure for regulating access to local resources.
+  bool IsAccessAllowedForURL(const blink::WebURL& url) override;
+#endif
+#if defined(USE_NEVA_MEDIA)
+  content::mojom::FrameVideoWindowFactory* GetFrameVideoWindowFactory()
+      override;
+#endif
   blink::scheduler::WebAgentGroupScheduler& GetAgentGroupScheduler() override;
 
   // blink::mojom::AutoplayConfigurationClient implementation:
@@ -803,6 +818,9 @@ class CONTENT_EXPORT RenderFrameImpl
   base::WeakPtr<RenderFrameImpl> GetWeakPtr();
 
  private:
+#if defined(USE_NEVA_MEDIA)
+  friend class neva::FrameMediaControllerImpl;
+#endif
   friend class RenderFrameImplTest;
   friend class RenderFrameObserver;
   friend class TestRenderFrame;
@@ -1480,6 +1498,12 @@ class CONTENT_EXPORT RenderFrameImpl
 
   // AndroidOverlay routing token from the browser, if we have one yet.
   std::optional<base::UnguessableToken> overlay_routing_token_;
+
+#if defined(USE_NEVA_MEDIA)
+  neva::FrameMediaControllerImpl frame_media_controller_impl_;
+  mojo::AssociatedRemote<content::mojom::FrameVideoWindowFactory>
+      frame_video_window_factory_;
+#endif
 
   // Used for devtools instrumentation and trace-ability. This token is
   // used to tag calls and requests in order to attribute them to the context

@@ -238,6 +238,10 @@ bool RenderFrameDevToolsAgentHost::IsDebuggerAttached(
 void RenderFrameDevToolsAgentHost::AddAllAgentHosts(
     DevToolsAgentHost::List* result) {
   for (WebContentsImpl* wc : WebContentsImpl::GetAllWebContents()) {
+#if defined(USE_NEVA_APPRUNTIME)
+    if (!wc->IsInspectablePage())
+      continue;
+#endif
     // Inner web contents such as guestviews are already handled by
     // ForEachRenderFrameHostImpl.
     // TODO(crbug.com/40202416): Remove this after migration is complete.

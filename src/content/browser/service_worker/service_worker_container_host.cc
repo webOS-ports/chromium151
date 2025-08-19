@@ -38,6 +38,10 @@
 #include "third_party/blink/public/mojom/service_worker/service_worker_registration_options.mojom.h"
 #include "third_party/perfetto/include/perfetto/tracing/track.h"
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "neva/app_runtime/public/file_security_origin.h"
+#endif
+
 namespace content {
 
 // Kill-switch for dropping the binding in CloneControllerServiceWorker.
@@ -129,6 +133,34 @@ void ServiceWorkerContainerHostForClient::Register(
     RegisterCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
+#if defined(USE_NEVA_APPRUNTIME)
+  // This is called from the renderer process
+  // WebServiceWorkerProviderImpl::RegisterServiceWorker
+  // (content/renderer/service_worker/web_service_worker_provider_impl.cc)
+  // script_url and options->scope converted from std::string
+  // so here we fill app_id to GURL of script_url, options->scope to use app_id
+  // during service worker registration.
+  // Also it replaces host part with file_security_origin if the scheme is file
+  // so that file_security_origin can be used as storagekey. It will help to
+  // handle service worker registration per app.
+  GURL script_url = script_url_const;
+
+  GURL::Replacements repl;
+  std::string host = neva_app_runtime::FileSchemeHostForApp(options->app_id);
+  repl.SetHostStr(host.c_str());
+
+  if (script_url_const.SchemeIsFile()) {
+    script_url = script_url.ReplaceComponents(repl);
+  }
+  script_url.set_webapp_id(options->app_id);
+
+  if (options->scope.SchemeIsFile()) {
+    options->scope = options->scope.ReplaceComponents(repl);
+  }
+  options->scope.set_webapp_id(options->app_id);
+#else
+  const GURL& script_url = script_url_const;
+#endif
   if (!CanServeContainerHostMethods(
           &callback, options->scope, script_url,
           base::StringPrintf(

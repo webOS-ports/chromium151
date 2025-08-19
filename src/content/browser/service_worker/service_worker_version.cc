@@ -73,6 +73,12 @@
 #include "third_party/blink/public/mojom/service_worker/service_worker.mojom.h"
 #include "third_party/perfetto/include/perfetto/tracing/track.h"
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "base/strings/stringprintf.h"
+#include "neva/pal_service/pal_service.h"
+#include "neva/pal_service/public/mojom/system_servicebridge.mojom.h"
+#endif
+
 namespace content {
 namespace {
 
@@ -1865,11 +1871,67 @@ void ServiceWorkerVersion::GetClientInternal(const std::string& client_uuid,
 
 void ServiceWorkerVersion::OpenNewTab(const GURL& url,
                                       OpenNewTabCallback callback) {
+#if defined(USE_NEVA_APPRUNTIME)
+  auto webapp_id = script_url_.get_webapp_id();
+  if (!webapp_id || webapp_id->empty()) {
+    LOG(INFO) << __func__ << " is called with the empty app_id";
+    return;
+  }
+
+  if (!remote_system_bridge_) {
+    mojo::Remote<pal::mojom::SystemServiceBridgeProvider> provider;
+    pal::GetPalService(content::GetUIThreadTaskRunner({}))
+        .BindSystemServiceBridgeProvider(provider.BindNewPipeAndPassReceiver());
+
+    provider->GetSystemServiceBridge(
+        remote_system_bridge_.BindNewPipeAndPassReceiver());
+
+    auto params = pal::mojom::ConnectionParams::New(
+        std::make_optional<std::string>("com.webos.chromium.service_worker"),
+        std::make_optional<std::string>(), -1);
+
+    remote_system_bridge_->Connect(
+        std::move(params),
+        base::BindOnce(
+            [](base::WeakPtr<ServiceWorkerVersion> version,
+               const std::string& webapp_id, const GURL& url,
+               OpenNewTabCallback callback,
+               mojo::PendingAssociatedReceiver<
+                   pal::mojom::SystemServiceBridgeClient> client) {
+              if (version)
+                version->LaunchWebApp(webapp_id, url, std::move(callback));
+            },
+            weak_factory_.GetWeakPtr(), *webapp_id, url, std::move(callback)));
+    return;
+  }
+
+  LaunchWebApp(*webapp_id, url, std::move(callback));
+#else
   // TODO(crbug.com/40177656): After StorageKey implements partitioning update
   // this to reject with InvalidAccessError if key_ is partitioned.
   OpenWindow(url, service_worker_client_utils::WindowType::NEW_TAB_WINDOW,
              std::move(callback));
+#endif
 }
+
+#if defined(USE_NEVA_APPRUNTIME)
+void ServiceWorkerVersion::LaunchWebApp(const std::string& webapp_id,
+                                        const GURL& url,
+                                        OpenNewTabCallback callback) {
+  if (!remote_system_bridge_) {
+    LOG(ERROR) << __func__ << " remote_system_bridge_ is not bound.";
+    return;
+  }
+
+  std::string payload = base::StringPrintf(
+      R"Payload({"id":"%s", "params": {"sw_clients_openwindow":"%s"}})Payload",
+      webapp_id.c_str(), url.spec().c_str());
+
+  remote_system_bridge_->Call("palm://com.webos.applicationManager/launch",
+                              payload);
+  std::move(callback).Run(true, nullptr, std::nullopt);
+}
+#endif
 
 void ServiceWorkerVersion::OpenPaymentHandlerWindow(
     const GURL& url,

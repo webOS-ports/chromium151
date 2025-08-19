@@ -7,6 +7,7 @@ import("//content/common/features.gni")
 import("//content/public/common/features.gni")
 import("//device/vr/buildflags/buildflags.gni")
 import("//media/media_options.gni")
+import("//neva/neva.gni")
 import("//third_party/protobuf/proto_library.gni")
 import("//third_party/webrtc/webrtc.gni")
 
@@ -116,6 +117,8 @@ source_set("browser_sources") {
     "console_message.cc",
     "console_message.h",
     "contacts_picker_properties.h",
+    "data_deleter.cc",
+    "data_deleter.h",
     "content_browser_client.cc",
     "content_browser_client.h",
     "content_index_context.h",
@@ -557,6 +560,7 @@ source_set("browser_sources") {
     "webui_config_map.h",
     "zoom_level_delegate.h",
   ]
+
   configs += [
     "//build/config:precompiled_headers",
     "//build/config/compiler:wexit_time_destructors",
@@ -646,6 +650,7 @@ source_set("browser_sources") {
     "//services/metrics/public/cpp:metrics_cpp",
     "//third_party/blink/public/common:buildflags",
     "//third_party/blink/public/common:headers",
+    "//third_party/blink/public/mojom:mojom_platform",
     "//ui/accessibility",
     "//ui/base",
     "//ui/base/clipboard",
@@ -660,6 +665,14 @@ source_set("browser_sources") {
     # include headers from each other.
     "//content/browser",
   ]
+
+  if (use_neva_media) {
+    sources += [ "neva/media_state_manager.h" ]
+  }
+
+  if (use_webos_audio) {
+    defines = [ "USE_WEBOS_AUDIO=1" ]
+  }
 
   if (enable_plugins) {
     sources += [

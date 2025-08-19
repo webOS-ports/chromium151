@@ -196,6 +196,9 @@ CONTENT_EXPORT BASE_DECLARE_FEATURE(kPrefetchDevtoolsUserAgentOverride);
 CONTENT_EXPORT BASE_DECLARE_FEATURE(
     kPreloadActivationReportWithExtensionInterception);
 CONTENT_EXPORT BASE_DECLARE_FEATURE(kPreloadingConfig);
+
+// Preload cookie database on NetworkContext creation.
+CONTENT_EXPORT BASE_DECLARE_FEATURE(kPreloadCookies);
 CONTENT_EXPORT BASE_DECLARE_FEATURE(
     kPrerenderMoreCorrectSpeculativeRFHCreation);
 CONTENT_EXPORT BASE_DECLARE_FEATURE(kPriorityOverridePendingViews);

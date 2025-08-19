@@ -105,6 +105,14 @@
 #include "content/public/browser/android/child_process_importance.h"
 #endif
 
+#if defined(USE_NEVA_APPRUNTIME)
+// M151 removed the content NotificationService; RenderProcessHost creation is
+// now observed through RenderProcessHostCreationObserver.
+#include "content/public/browser/render_process_host_creation_observer.h"
+#include "third_party/blink/public/mojom/peerconnection/peer_connection_tracker.mojom-shared.h"
+#endif
+
+
 namespace base {
 class FilePath;
 }  // namespace base
@@ -218,6 +226,9 @@ class CONTENT_EXPORT WebContentsImpl
       public ui::ColorProviderSourceObserver,
       public SlowWebPreferenceCacheObserver,
       public input::RenderWidgetHostInputEventRouter::Delegate,
+#if defined(USE_NEVA_APPRUNTIME)
+      public RenderProcessHostCreationObserver,
+#endif
       public base::trace_event::TraceSessionObserver {
  public:
   class FriendWrapper;
@@ -404,6 +415,27 @@ class CONTENT_EXPORT WebContentsImpl
   SurfaceEmbedConnector* GetSurfaceEmbedConnector() const override;
   NavigationControllerImpl& GetController() override;
   const NavigationControllerImpl& GetController() const override;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  // Notify the process creation of currently active RenderProcessHost
+  void RenderProcessCreated(RenderProcessHost* render_process_host) override;
+
+  // RenderProcessHostCreationObserver:
+  void OnRenderProcessHostCreated(RenderProcessHost* process_host) override;
+  bool IsInspectablePage() const override;
+  void SetInspectablePage(bool inspectable) override;
+  void DropAllPeerConnections(
+      blink::mojom::DropPeerConnectionReason reason) override;
+  bool DecidePolicyForErrorPage(bool is_main_frame,
+                                int error_code,
+                                const std::string& url,
+                                const std::string& error_text) override;
+  // RenderWidgetHostDelegate overrides
+  bool IsPinchToZoomEnabled() const override;
+  // WebContents overrides
+  void SetPinchToZoomEnabled(bool enabled) override;
+#endif
+
   BrowserContext* GetBrowserContext() override;
   base::WeakPtr<WebContents> GetWeakPtr() override;
   const UniqueToken& GetUniqueToken() const override;
@@ -1143,6 +1175,9 @@ class CONTENT_EXPORT WebContentsImpl
                              const gfx::Size& new_size) override;
   void OnVerticalScrollDirectionChanged(
       viz::VerticalScrollDirection scroll_direction) override;
+#if defined(USE_NEVA_APPRUNTIME)
+  void DidCompleteSwap() override;
+#endif
   int GetVirtualKeyboardResizeHeight() override;
   bool ShouldDoLearning() override;
 
@@ -1976,6 +2011,11 @@ class CONTENT_EXPORT WebContentsImpl
   void OnUpdateZoomLimits(RenderViewHostImpl* source,
                           int minimum_percent,
                           int maximum_percent);
+#if defined(USE_NEVA_APPRUNTIME)
+  void OnDidDropAllPeerConnections(
+      blink::mojom::DropPeerConnectionReason reason,
+      int request_id);
+#endif
   void OnShowValidationMessage(RenderViewHostImpl* source,
                                const gfx::Rect& anchor_in_root_view,
                                const std::u16string& main_text,
@@ -2528,6 +2568,7 @@ class CONTENT_EXPORT WebContentsImpl
   std::unique_ptr<ColorChooserHolder> color_chooser_holder_;
 #endif
 
+
   // All live RenderWidgetHostImpls that are created by this object and may
   // outlive it.
   base::flat_map<viz::FrameSinkId,
@@ -2665,6 +2706,12 @@ class CONTENT_EXPORT WebContentsImpl
 
   bool showing_context_menu_;
 
+#if defined(USE_NEVA_APPRUNTIME)
+  bool inspectable_page_ = true;
+
+  bool pinch_to_zoom_enabled_ = true;
+#endif
+
   base::flat_map<MediaPlayerId, gfx::Size> cached_video_sizes_;
 
   bool has_persistent_video_ = false;
@@ -2751,6 +2798,11 @@ class CONTENT_EXPORT WebContentsImpl
 
   // Stores the touchpad overscroll history navigation state for Accessibility.
   bool enable_touchpad_overscroll_history_navigation_ = false;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  int drop_peer_connection_request_id_ = 0;
+  int last_processed_drop_peer_connection_request_id_ = -1;
+#endif
 
   std::unique_ptr<PrerenderHostRegistry> prerender_host_registry_;
 

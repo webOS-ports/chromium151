@@ -4562,6 +4562,9 @@ NavigationControllerImpl::CreateNavigationEntryFromLoadParams(
       break;
 #endif
   }
+#if defined(USE_NEVA_APPRUNTIME)
+  entry->SetCanLoadLocalResources(params.can_load_local_resources);
+#endif
 
   // TODO(clamy): NavigationEntry is meant for information that will be kept
   // after the navigation ended and therefore is not appropriate for

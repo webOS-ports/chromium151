@@ -12,7 +12,7 @@
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) || defined(OS_WEBOS)
 #include "base/metrics/field_trial_params.h"
 #include "base/system/sys_info.h"
 #endif
@@ -22,7 +22,7 @@ namespace {
 
 std::optional<bool> g_force_network_service_process_in_or_out;
 
-#if BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) || defined(OS_WEBOS)
 // Using 1077 rather than 1024 because it helps ensure that devices with
 // exactly 1GB of RAM won't get included because of inaccuracies or off-by-one
 // errors.
@@ -53,7 +53,7 @@ bool IsInProcessNetworkServiceImpl() {
     return *g_force_network_service_process_in_or_out;
   }
 
-#if BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) || defined(OS_WEBOS)
   // Check RAM size before looking at kNetworkServiceInProcess flag
   // so that we can throttle the finch groups including control.
   if (base::SysInfo::AmountOfTotalPhysicalMemory().AsDeprecatedByteCount() <=

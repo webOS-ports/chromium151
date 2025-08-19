@@ -47,6 +47,23 @@ const char kShowComponentExtensionOptions[] =
     "show-component-extension-options";
 const char kTraceAppSource[] = "enable-trace-app-source";
 const char kEnableCrxHashCheck[] = "enable-crx-hash-check";
+///@name USE_NEVA_APPRUNTIME
+///@{
+// Create a new process per <webview> regardless of partition name.
+const char kProcessPerGuestWebView[] = "process-per-guest-webview";
+///@}
+
+#if defined(OS_WEBOS)
+// Pass application Id to browser
+const char kWebOSAppId[] = "webos-appid";
+
+// Pass luna service name to browser
+const char kWebOSLunaServiceName[] = "webos-luna-service-name";
+
+// Pass display Id to browser
+const char kWebOSDisplayId[] = "webos-displayid";
+#endif
+
 const char kAllowFutureManifestVersion[] = "allow-future-manifest-version";
 const char kExtensionTestApiOnWebPages[] = "extension-test-api-on-web-pages";
 const char kExtensionTestApiStandardizedBehavior[] =

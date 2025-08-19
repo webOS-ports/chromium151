@@ -58,6 +58,9 @@ class CONTENT_EXPORT MediaSessionServiceImpl
 
   void DidFinishNavigation();
   void FlushForTesting();
+#if defined(OS_WEBOS)
+  void ClearPositionState();
+#endif  // defined(OS_WEBOS)
 
   // blink::mojom::MediaSessionService implementation.
   void SetClient(

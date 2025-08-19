@@ -29,6 +29,10 @@
 #include "ui/accessibility/ax_mode.h"
 #include "ui/accessibility/ax_tree_update.h"
 
+#if defined(USE_NEVA_MEDIA)
+#include "content/public/common/neva/frame_video_window_factory.mojom.h"
+#endif
+
 class GURL;
 
 namespace base {
@@ -202,6 +206,14 @@ class CONTENT_EXPORT RenderFrame :
 
   // Set the accessibility mode to force creation of RenderAccessibility.
   virtual void SetAccessibilityModeForTest(ui::AXMode new_mode) = 0;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  virtual void ResetStateToMarkNextPaint() {}
+#endif
+#if defined(USE_NEVA_MEDIA)
+  virtual content::mojom::FrameVideoWindowFactory*
+  GetFrameVideoWindowFactory() = 0;
+#endif
 
   // Per-frame media playback options passed to each WebMediaPlayer.
   virtual const RenderFrameMediaPlaybackOptions&

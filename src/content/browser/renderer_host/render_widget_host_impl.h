@@ -391,6 +391,9 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   std::unique_ptr<input::RenderInputRouterIterator>
   GetEmbeddedRenderInputRouters() override;
   input::RenderWidgetHostInputEventRouter* GetInputEventRouter() override;
+#if defined(ENABLE_PINCH_TO_ZOOM)
+  bool IsGuest() override;
+#endif
   void ForwardDelegatedInkPoint(gfx::DelegatedInkPoint& delegated_ink_point,
                                 bool& ended_delegated_ink_trail) override;
   void ResetDelegatedInkPointPrediction(
@@ -856,6 +859,11 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   // virtual for testing.
   virtual blink::mojom::WidgetInputHandler* GetWidgetInputHandler();
 
+#if defined(USE_NEVA_APPRUNTIME)
+  // A swap has been completed
+  void DidCompleteSwap();
+#endif
+
   // RenderInputRouterClient overrides.
   void OnImeCompositionRangeChanged(
       const gfx::Range& range,
@@ -996,6 +1004,11 @@ class CONTENT_EXPORT RenderWidgetHostImpl
 
   void PassImeRenderWidgetHost(
       mojo::PendingRemote<blink::mojom::ImeRenderWidgetHost> pending_remote);
+
+#if defined(USE_NEVA_APPRUNTIME)
+  void ActivateRendererCompositor();
+  void DeactivateRendererCompositor();
+#endif
 
   // Updates the browser controls by directly IPCing onto the compositor thread.
   void UpdateBrowserControlsState(

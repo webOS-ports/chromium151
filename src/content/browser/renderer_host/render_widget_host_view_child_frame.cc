@@ -54,6 +54,10 @@
 #include "content/browser/renderer_host/input/stylus_handwriting_controller_win.h"
 #endif  // BUILDFLAG(IS_WIN)
 
+#if defined(ENABLE_PINCH_TO_ZOOM)
+#include "content/browser/renderer_host/render_view_host_delegate.h"
+#endif
+
 namespace content {
 
 // static
@@ -1060,6 +1064,25 @@ void RenderWidgetHostViewChildFrame::TakeFallbackContentFrom(
 blink::mojom::InputEventResultState
 RenderWidgetHostViewChildFrame::FilterInputEvent(
     const blink::WebInputEvent& input_event) {
+#if defined(ENABLE_PINCH_TO_ZOOM)
+  // Touchscreen pinch events may be targeted to a child in order to have the
+  // child's TouchActionFilter filter them. Upstream always consumes them here;
+  // for guests we let them through so pinch-to-zoom keeps working. M151 moved
+  // the rest of this method into ChildFrameInputHelper, so this survives as a
+  // pre-filter.
+  if (blink::WebInputEvent::IsPinchGestureEventType(input_event.GetType())) {
+    const blink::WebGestureEvent& gesture_event =
+        static_cast<const blink::WebGestureEvent&>(input_event);
+    if (gesture_event.SourceDevice() == blink::WebGestureDevice::kTouchscreen) {
+      auto* target_rvhi = RenderViewHostImpl::From(GetRenderWidgetHost());
+      // We only target the GesturePinch to GuestView now.
+      if (target_rvhi && target_rvhi->GetDelegate() &&
+          target_rvhi->GetDelegate()->IsGuest()) {
+        return blink::mojom::InputEventResultState::kNotConsumed;
+      }
+    }
+  }
+#endif
   return input_helper_->FilterInputEvent(input_event);
 }
 
@@ -1149,6 +1172,15 @@ void RenderWidgetHostViewChildFrame::OnDidUpdateVisualPropertiesComplete(
     frame_connector_->DidUpdateVisualProperties(metadata);
   host()->SynchronizeVisualProperties();
 }
+
+#if defined(USE_NEVA_MEDIA)
+gfx::AcceleratedWidget RenderWidgetHostViewChildFrame::GetAcceleratedWidget() {
+  auto* root_view = GetRootRenderWidgetHostView();
+  if (root_view)
+    return root_view->GetAcceleratedWidget();
+  return gfx::kNullAcceleratedWidget;
+}
+#endif  // defined(USE_NEVA_MEDIA)
 
 void RenderWidgetHostViewChildFrame::DidNavigate() {
   host()->SynchronizeVisualProperties();

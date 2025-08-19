@@ -44,6 +44,9 @@ class CONTENT_EXPORT DelegatedFrameHostClientAura
   viz::FrameEvictorClient::EvictIds CollectSurfaceIdsForEviction() override;
   bool ShouldShowStaleContentOnEviction() override;
   cc::DeadlinePolicy GetResizeDeadlinePolicy() const override;
+#if defined(USE_NEVA_APPRUNTIME)
+  void OnSwapCompleted() override;
+#endif
 
  private:
   raw_ptr<RenderWidgetHostViewAura> render_widget_host_view_;

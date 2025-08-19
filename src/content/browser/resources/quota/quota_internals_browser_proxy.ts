@@ -63,6 +63,10 @@ export class QuotaInternalsBrowserProxy {
       host: originUrl.host,
       port: urlPort(originUrl),
       nonceIfOpaque: null,
+      // NEVA: origin.mojom carries an optional webapp_id under
+      // use_neva_appruntime. This origin is synthesised from a URL typed into
+      // the quota internals page, so it belongs to no webOS application.
+      webappId: null,
     };
 
     this.handler.simulateStoragePressure(newOrigin);

@@ -16,6 +16,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/i18n/base_i18n_switches.h"
 #include "base/logging.h"
+#include "base/neva/base_switches.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/threading/thread.h"
@@ -465,6 +466,9 @@ bool UtilityProcessHost::StartProcess() {
       switches::kSchedulerBoostUrgent,
 #endif
       switches::kFakeBackgroundBlurTogglePeriod,
+#if defined(USE_NEVA_APPRUNTIME)
+      switches::kNevaCertificatesPath,
+#endif
 #if BUILDFLAG(USE_V4L2_CODEC)
       switches::kHardwareVideoDecodeFrameRate,
 #endif

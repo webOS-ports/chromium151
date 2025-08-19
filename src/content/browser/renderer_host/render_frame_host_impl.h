@@ -223,6 +223,15 @@
 #include "media/mojo/mojom/remoting.mojom-forward.h"
 #endif
 
+#if defined(USE_NEVA_MEDIA)
+#include "content/browser/media/neva/frame_video_window_factory_impl.h"
+#include "content/common/media/neva/frame_media_controller.mojom.h"
+#endif
+
+#if defined(USE_LOCAL_STORAGE_TRACKER)
+#include "components/local_storage_tracker/public/mojom/local_storage_tracker.mojom.h"
+#endif
+
 namespace blink {
 class AssociatedInterfaceRegistry;
 class DocumentPolicy;
@@ -292,6 +301,9 @@ class FrameTree;
 class FrameTreeNode;
 class GeolocationServiceImpl;
 class GuestPageHolderImpl;
+#if defined(USE_LOCAL_STORAGE_TRACKER)
+class LocalStorageTrackerMojoImpl;
+#endif
 class IdleManagerImpl;
 class NavigationEarlyHintsManager;
 class NavigationRequest;
@@ -1839,6 +1851,17 @@ class CONTENT_EXPORT RenderFrameHostImpl
   // Returns whether this document is a subframe of a MHTML document.
   bool IsMhtmlSubframe() const;
 
+#if defined(USE_NEVA_APPRUNTIME)
+  void DropAllPeerConnections(base::OnceClosure cb) override;
+  std::string GetWebAppId() override;
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
+#if defined(USE_NEVA_MEDIA)
+  // content::RendererFrameHost implementation
+  void SetSuppressed(bool is_suppressed) override;
+  gfx::AcceleratedWidget GetAcceleratedWidget() override;
+#endif
+
   ReloadType reload_type() { return reload_type_; }
 
   // Notifies the render frame that |frame_tree_node_| has received user
@@ -2836,6 +2859,12 @@ class CONTENT_EXPORT RenderFrameHostImpl
 
   // base::trace_event::TraceSessionObserver:
   void OnStart(const perfetto::DataSourceBase::StartArgs&) override;
+
+#if defined(USE_LOCAL_STORAGE_TRACKER)
+  void GetLocalStorageTrackerMojoImpl(
+      mojo::PendingReceiver<local_storage::mojom::LocalStorageTracker>
+          receiver);
+#endif
 
   // network::mojom::TrustTokenAccessObserver:
   void OnTrustTokensAccessed(
@@ -4293,6 +4322,17 @@ class CONTENT_EXPORT RenderFrameHostImpl
                                      const ukm::SourceId document_ukm_source_id,
                                      ukm::UkmRecorder* ukm_recorder);
 
+#if defined(USE_NEVA_MEDIA)
+  // Lazily initializes and returns the mojom::FrameMediaController
+  // interface for this frame.
+  mojom::FrameMediaController* GetFrameMediaController();
+  mojo::AssociatedRemote<mojom::FrameMediaController> frame_media_controller_;
+
+  FrameVideoWindowFactoryImpl frame_video_window_factory_impl_{this};
+  mojo::AssociatedReceiver<content::mojom::FrameVideoWindowFactory>
+      frame_video_window_factory_receiver_{&frame_video_window_factory_impl_};
+#endif
+
   // Initializes |policy_container_host_|. Constructor helper.
   //
   // |renderer_initiated_creation_of_main_frame| specifies whether this render
@@ -5666,6 +5706,10 @@ class CONTENT_EXPORT RenderFrameHostImpl
 
   // True if this rfh was created via a window creation with user activation.
   bool opener_had_user_gesture_ = false;
+
+#if defined(USE_LOCAL_STORAGE_TRACKER)
+  std::unique_ptr<LocalStorageTrackerMojoImpl> lst_responder_;
+#endif
 
   // WeakPtrFactories are the last members, to ensure they are destroyed before
   // all other fields of `this`.

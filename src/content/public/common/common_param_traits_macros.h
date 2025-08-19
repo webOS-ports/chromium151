@@ -12,6 +12,7 @@
 #include "content/public/common/webplugininfo_param_traits.h"
 #include "ipc/param_traits_macros.h"
 #include "services/network/public/cpp/network_ipc_param_traits.h"
+#include "third_party/blink/public/common/renderer_preferences/renderer_preferences.h"
 #include "ui/base/page_transition_types.h"
 
 #if BUILDFLAG(IS_MAC)
@@ -26,6 +27,13 @@ IPC_ENUM_TRAITS_VALIDATE(ui::PageTransition,
                          ((value &
                            ui::PageTransition::PAGE_TRANSITION_CORE_MASK) <=
                           ui::PageTransition::PAGE_TRANSITION_LAST_CORE))
+
+IPC_STRUCT_TRAITS_BEGIN(blink::RendererPreferences)
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  IPC_STRUCT_TRAITS_MEMBER(display_id)
+  ///@}
+IPC_STRUCT_TRAITS_END()
 
 #if BUILDFLAG(IS_MAC)
 

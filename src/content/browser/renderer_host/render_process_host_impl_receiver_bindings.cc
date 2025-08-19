@@ -6,6 +6,25 @@
 
 // clang-format off
 #include "content/browser/renderer_host/render_process_host_impl.h"
+
+#if defined(USE_NEVA_APPRUNTIME)
+#include "neva/pal_service/public/mojom/memorymanager.mojom.h"
+#include "neva/pal_service/public/mojom/sample.mojom.h"
+#include "neva/pal_service/public/mojom/system_servicebridge.mojom.h"
+#include "neva/pal_service/public/pal_service.h"
+#if defined(ENABLE_NETWORK_ERROR_PAGE_CONTROLLER_WEBAPI)
+#include "neva/pal_service/public/mojom/network_error_page_controller.mojom.h"
+#endif
+#if defined(ENABLE_BROWSER_SHELL)
+#include "neva/browser_shell_service/browser_shell_service.h"
+#include "neva/browser_shell_service/public/mojom/shell_service.mojom.h"
+#endif
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
+#if defined(USE_NEVA_MEDIA)
+#include "neva/neva_media_service/neva_media_service.h"
+#include "neva/neva_media_service/public/mojom/media_service_provider.mojom.h"
+#endif
 // clang-format on
 
 #include "components/discardable_memory/public/mojom/discardable_shared_memory_manager.mojom.h"
@@ -146,6 +165,65 @@ void RenderProcessHostImpl::RegisterMojoInterfaces() {
           },
           GetID()));
 
+#if defined(USE_NEVA_APPRUNTIME)
+  AddUIThreadInterface(
+      registry.get(),
+      base::BindRepeating(
+          [](mojo::PendingReceiver<pal::mojom::MemoryManager> receiver) {
+            pal::GetPalService(content::GetUIThreadTaskRunner({}))
+                .BindMemoryManager(std::move(receiver));
+          }));
+
+  AddUIThreadInterface(
+      registry.get(),
+      base::BindRepeating(
+          [](mojo::PendingReceiver<pal::mojom::Sample> receiver) {
+            pal::GetPalService(content::GetUIThreadTaskRunner({}))
+                .BindSample(std::move(receiver));
+          }));
+
+  AddUIThreadInterface(
+      registry.get(),
+      base::BindRepeating(
+          [](mojo::PendingReceiver<pal::mojom::SystemServiceBridgeProvider>
+                 receiver) {
+            pal::GetPalService(content::GetUIThreadTaskRunner({}))
+                .BindSystemServiceBridgeProvider(std::move(receiver));
+          }));
+
+#if defined(ENABLE_NETWORK_ERROR_PAGE_CONTROLLER_WEBAPI)
+  AddUIThreadInterface(
+      registry.get(),
+      base::BindRepeating(
+          [](mojo::PendingReceiver<pal::mojom::NetworkErrorPageController>
+                 receiver) {
+            pal::GetPalService(content::GetUIThreadTaskRunner({}))
+                .BindNetworkErrorPageController(std::move(receiver));
+          }));
+#endif  // defined(ENABLE_NETWORK_ERROR_PAGE_CONTROLLER_WEBAPI)
+
+#if defined(ENABLE_BROWSER_SHELL)
+  AddUIThreadInterface(
+      registry.get(),
+      base::BindRepeating(
+          [](mojo::PendingReceiver<browser_shell::mojom::ShellService>
+              receiver) {
+            browser_shell::BindShellServiceReceiver(std::move(receiver));
+          }));
+#endif  // defined(ENABLE_BROWSER_SHELL)
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
+#if defined(USE_NEVA_MEDIA)
+  AddUIThreadInterface(
+      registry.get(),
+      base::BindRepeating(
+          [](mojo::PendingReceiver<neva_media::mojom::MediaServiceProvider>
+                 receiver) {
+            neva_media::GetNevaMediaService(content::GetUIThreadTaskRunner({}))
+                .BindMediaServiceProvider(std::move(receiver));
+          }));
+#endif  // defined(USE_NEVA_MEDIA)
+
   AddUIThreadInterface(
       registry.get(),
       base::BindRepeating(
@@ -174,6 +252,13 @@ void RenderProcessHostImpl::RegisterMojoInterfaces() {
       base::BindRepeating(
           &RenderProcessHostImpl::CreateEmbeddedFrameSinkProvider,
           instance_weak_factory_.GetWeakPtr()));
+
+#if defined(ENABLE_PWA_MANAGER_WEBAPI)
+  AddUIThreadInterface(
+      registry.get(),
+      base::BindRepeating(&RenderProcessHostImpl::BindInstallableManager,
+                          instance_weak_factory_.GetWeakPtr()));
+#endif  // defined(ENABLE_PWA_MANAGER_WEBAPI)
 
   AddUIThreadInterface(
       registry.get(),

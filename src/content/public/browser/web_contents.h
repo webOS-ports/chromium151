@@ -70,6 +70,10 @@
 #include "third_party/jni_zero/jni_zero.h"
 #endif
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "third_party/blink/public/mojom/peerconnection/peer_connection_tracker.mojom-shared.h"
+#endif
+
 namespace base {
 class FilePath;
 }  // namespace base
@@ -501,6 +505,23 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
   // WebContents' main frame.
   virtual const GURL& GetLastCommittedURL() const = 0;
 
+#if defined(USE_NEVA_APPRUNTIME)
+  // Notify the process creation of currently active RenderProcessHost
+  // It's added for neva app_runtime API
+  virtual void RenderProcessCreated(RenderProcessHost* render_process_host) = 0;
+
+  virtual bool IsInspectablePage() const = 0;
+  virtual void SetInspectablePage(bool inspectable) = 0;
+  virtual void DropAllPeerConnections(
+      blink::mojom::DropPeerConnectionReason reason) = 0;
+  virtual bool DecidePolicyForErrorPage(bool is_main_frame,
+                                        int error_code,
+                                        const std::string& url,
+                                        const std::string& error_text) = 0;
+
+  // Set the potential to use pinch-to-zoom gesture in browser-shell.
+  virtual void SetPinchToZoomEnabled(bool enabled) = 0;
+#endif
   // Returns the primary main frame for the currently active page. Always
   // non-null except during WebContents destruction. This WebContents may
   // have additional main frames for prerendered pages, bfcached pages, etc.

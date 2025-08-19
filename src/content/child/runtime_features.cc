@@ -169,6 +169,10 @@ void SetRuntimeFeaturesFromChromiumFeatures() {
           {wf::EnableAudioOutputDevices,
            raw_ref(features::kAAudioPerStreamDeviceSelection)},
 #endif
+#if defined(USE_FILESCHEME_CODECACHE)
+          {wf::EnableLocalResourceCodeCache,
+           raw_ref(blink::features::kLocalResourceCodeCache)},
+#endif
           {wf::EnableBackgroundFetch, raw_ref(features::kBackgroundFetch)},
           {wf::EnableBoundaryEventDispatchTracksNodeRemoval,
            raw_ref(blink::features::kBoundaryEventDispatchTracksNodeRemoval)},

@@ -470,6 +470,28 @@ class CONTENT_EXPORT MediaDevicesManager
                           bool has_permission,
                           const MediaDeviceEnumeration& enumeration);
 
+#if defined(USE_WEBOS_AUDIO)
+  void EnumerateDevices(const std::string& requesting_display_id,
+                        const BoolDeviceTypes& requested_types,
+                        EnumerationCallback callback);
+  void DoEnumerateDevices(const std::string& requesting_display_id,
+                          MediaDeviceType type);
+  void EnumerateAudioDevices(const std::string& requesting_display_id,
+                             bool is_input);
+  void AudioDevicesEnumeratedForDisplay(
+      const std::string& requesting_display_id,
+      MediaDeviceType type,
+      media::AudioDeviceDescriptions device_descriptions);
+  void OnPermissionsCheckDoneForDisplay(
+      const std::string& requesting_display_id,
+      const MediaDevicesManager::BoolDeviceTypes& requested_types,
+      bool request_video_input_capabilities,
+      bool request_audio_input_capabilities,
+      EnumerateDevicesCallback callback,
+      MediaDeviceSaltAndOrigin salt_and_origin,
+      const MediaDevicesManager::BoolDeviceTypes& has_permissions);
+#endif
+
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
   void RegisterVideoCaptureDevicesChangedObserver();
   void OnDisconnectVideoSourceProviderTimer();

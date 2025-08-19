@@ -2698,6 +2698,15 @@ RenderWidgetHostImpl::GetInputEventRouter() {
   return delegate()->GetInputEventRouter();
 }
 
+#if defined(ENABLE_PINCH_TO_ZOOM)
+bool RenderWidgetHostImpl::IsGuest() {
+  // The guest flag lives on RenderViewHostDelegate, which //components/input
+  // cannot reach; answer on its behalf.
+  RenderViewHostImpl* rvh = RenderViewHostImpl::From(this);
+  return rvh && rvh->GetDelegate() && rvh->GetDelegate()->IsGuest();
+}
+#endif
+
 input::RenderWidgetHostViewInput* RenderWidgetHostImpl::GetPointerLockView() {
   return delegate()->GetPointerLockWidget()->GetView();
 }
@@ -4036,6 +4045,13 @@ void RenderWidgetHostImpl::DidProcessFrame(uint32_t frame_token,
                                            base::TimeTicks activation_time) {
   render_frame_metadata_provider_.DidProcessFrame(frame_token, activation_time);
 }
+
+#if defined(USE_NEVA_APPRUNTIME)
+void RenderWidgetHostImpl::DidCompleteSwap() {
+  if (delegate_)
+    delegate_->DidCompleteSwap();
+}
+#endif
 
 #if BUILDFLAG(IS_MAC)
 device::mojom::WakeLock* RenderWidgetHostImpl::GetWakeLock() {

@@ -95,4 +95,11 @@ message NotificationDatabaseDataProto {
   // Notification metadata map, where the key is the type of metadata and the
   // value is any string value of data, such as a serialized dictionary.
   map<string, string> serialized_metadata = 16;
+
+  // @@ USE_NEVA_APPRUNTIME
+  // Renumbered from 16 to 17 for M151: upstream claimed 16 for
+  // serialized_metadata. Notification databases written by the M120-based
+  // build store this value under tag 16 and will not round-trip.
+  optional string origin_webapp_id = 17;
+  // @@
 }

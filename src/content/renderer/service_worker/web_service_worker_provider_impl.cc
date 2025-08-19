@@ -58,6 +58,15 @@ WebServiceWorkerProviderImpl::WebServiceWorkerProviderImpl(
   context_->SetWebServiceWorkerProvider(weak_factory_.GetWeakPtr());
 }
 
+#if defined(USE_NEVA_APPRUNTIME)
+WebServiceWorkerProviderImpl::WebServiceWorkerProviderImpl(
+    ServiceWorkerProviderContext* context,
+    const std::string& application_id)
+    : WebServiceWorkerProviderImpl(context) {
+  application_id_ = application_id;
+}
+#endif
+
 WebServiceWorkerProviderImpl::~WebServiceWorkerProviderImpl() = default;
 
 void WebServiceWorkerProviderImpl::SetClient(
@@ -101,8 +110,13 @@ void WebServiceWorkerProviderImpl::RegisterServiceWorker(
   // ServiceWorkerContainer::RegisterServiceWorker() and pass it as an argument
   // in this function instead of blink::mojom::ScriptType and
   // blink::mojom::ServiceWorkerUpdateViaCache.
+#if defined(USE_NEVA_APPRUNTIME)
+  auto options = blink::mojom::ServiceWorkerRegistrationOptions::New(
+      pattern, script_type, update_via_cache, application_id_);
+#else
   auto options = blink::mojom::ServiceWorkerRegistrationOptions::New(
       pattern, script_type, update_via_cache);
+#endif
   TRACE_EVENT_INSTANT(
       "ServiceWorker", "WebServiceWorkerProviderImpl::RegisterServiceWorker",
       perfetto::Flow::FromPointer(callbacks.get(), "RegisterServiceWorker"),
