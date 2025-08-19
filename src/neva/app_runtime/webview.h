@@ -91,7 +91,7 @@ class WebView : public AppRuntimeWebContentsDelegate,
 
   static void SetFileAccessBlocked(bool blocked);
 
-  WebView(int width, int height, WebViewProfile* profile = nullptr);
+  WebView(int width, int height, WebViewProfile* profile = nullptr, std::unique_ptr<content::WebContents> web_contents = 0);
   ~WebView() override;
 
   void CreateRenderView();
@@ -193,6 +193,14 @@ class WebView : public AppRuntimeWebContentsDelegate,
       content::WebContents* source,
       const content::OpenURLParams& params) override;
 
+  void AddNewContents(content::WebContents* source,
+                      std::unique_ptr<content::WebContents> new_contents,
+                      const GURL& target_url,
+                      WindowOpenDisposition disposition,
+                      const blink::mojom::WindowFeatures& window_features,
+                      bool user_gesture,
+                      bool* was_blocked) override;
+
   void NavigationStateChanged(content::WebContents* source,
                               content::InvalidateTypes changed_flags) override;
   void CloseContents(content::WebContents* source) override;
@@ -292,6 +300,12 @@ class WebView : public AppRuntimeWebContentsDelegate,
   void DispatchNetError(const GURL& url, int error_code);
   void SwitchFullscreenModeForTab(content::WebContents* web_contents,
                                   bool enter_fullscreen);
+
+  content::WebContents *CreateWindowForContents(std::unique_ptr<content::WebContents> new_contents,
+                                                const GURL& target_url,
+                                                WindowOpenDisposition disposition,
+                                                const blink::mojom::WindowFeatures& window_features,
+                                                bool user_gesture);
 
   WebViewDelegate* webview_delegate_ = nullptr;
 

@@ -416,6 +416,9 @@ class CONTENT_EXPORT WebContentsImpl
   NavigationControllerImpl& GetController() override;
   const NavigationControllerImpl& GetController() const override;
 
+  const std::vector<std::string> GetAdditionalFeatures() override;
+  void SetAdditionalFeatures(std::vector<std::string> additional_features);
+
 #if defined(USE_NEVA_APPRUNTIME)
   // Notify the process creation of currently active RenderProcessHost
   void RenderProcessCreated(RenderProcessHost* render_process_host) override;
@@ -2549,6 +2552,8 @@ class CONTENT_EXPORT WebContentsImpl
 
   // Used to correctly handle integer zooming through a smooth scroll device.
   float zoom_scroll_remainder_;
+
+  std::vector<std::string> additional_features_;
 
   // The intrinsic size of the page.
   gfx::Size preferred_size_;

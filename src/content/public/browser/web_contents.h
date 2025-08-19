@@ -471,6 +471,9 @@ class WebContents : public PageNavigator, public base::SupportsUserData {
   // NavigationController).
   virtual content::BrowserContext* GetBrowserContext() = 0;
 
+  // Retrieve additional window features passed to window.open (webOS/LuneOS specific)
+  virtual const std::vector<std::string> GetAdditionalFeatures() = 0;
+
   // Returns a weak pointer.
   virtual base::WeakPtr<WebContents> GetWeakPtr() = 0;
 

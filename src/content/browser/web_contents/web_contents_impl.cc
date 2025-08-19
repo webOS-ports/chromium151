@@ -1712,6 +1712,13 @@ base::WeakPtr<WebContents> WebContentsImpl::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
 }
 
+const std::vector<std::string> WebContentsImpl::GetAdditionalFeatures() {
+  return additional_features_;
+}
+void WebContentsImpl::SetAdditionalFeatures(std::vector<std::string> additional_features) {
+  additional_features_ = additional_features;
+}
+
 const WebContents::UniqueToken& WebContentsImpl::GetUniqueToken() const {
   return web_contents_token_;
 }
@@ -5698,6 +5705,13 @@ FrameTree* WebContentsImpl::CreateNewWindow(
 
   // Sets the newly created WebContents WindowOpenDisposition.
   new_contents_impl->original_window_open_disposition_ = params.disposition;
+
+  // Additional window features passed to window.open (webOS/LuneOS specific)
+  std::vector<std::string> additional_features;
+  for (auto webStr : params.features->additional_features)
+    additional_features.push_back(std::string(base::StringPiece(webStr)));
+
+  new_contents_impl->SetAdditionalFeatures(additional_features);
 
   // If the new frame has a name, make sure any SiteInstances that can find
   // this named frame have proxies for it.  Must be called after

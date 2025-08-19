@@ -17,4 +17,9 @@ struct WindowFeatures {
     bool has_height = false;
 
     bool is_popup = false;
+
+    // Upstream notes that WebWindowFeatures::additional_features is not
+    // mirrored here because the browser never uses it. webOS/LuneOS apps do:
+    // window.open() extra features are forwarded to the OS, so mirror it.
+    array<string> additional_features;
 };

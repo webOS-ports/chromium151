@@ -137,8 +137,23 @@ WebWindowFeatures GetWindowFeaturesFromString(const String& feature_string,
       SECURITY_DCHECK(i <= length);
 
       // skip to first separator (end of value)
-      while (i < length && !IsWindowFeaturesSeparator(buffer[i]))
-        i++;
+      if (i < length && buffer[i] == '{') {
+          // json value: go to the matching '}'
+          int unmatchedBraceCount = 0;
+          while (i < length) {
+              if (buffer[i] == '{')
+                  unmatchedBraceCount++;
+              else if (buffer[i] == '}')
+                  unmatchedBraceCount--;
+              i++;
+              if (unmatchedBraceCount <= 0)
+                  break;
+          }
+      } else {
+          // classic case: skip to first separator
+          while (i < length && !IsWindowFeaturesSeparator(buffer[i]))
+            i++;
+      }
 
       value_end = i;
 
@@ -199,6 +214,9 @@ WebWindowFeatures GetWindowFeaturesFromString(const String& feature_string,
       status_bar = value;
     } else if (key_string == "scrollbars") {
       scrollbars = value;
+    } else if (key_string == "attributes") {
+      String additionalFeature = key_string + "=" + value_string;
+      window_features.additional_features.push_back(additionalFeature.Latin1().data());
     } else if (key_string == "resizable") {
       window_features.resizable = value;
     } else if (key_string == "noopener") {
@@ -233,6 +251,8 @@ WebWindowFeatures GetWindowFeaturesFromString(const String& feature_string,
         window_features.attribution_srcs->emplace_back(DecodeUrlEscapeSequences(
             original_case_value_string, DecodeUrlMode::kUtf8));
       }
+    } else if (value == 1) {
+      window_features.additional_features.push_back(key_string.ToString().Latin1().data());
     }
   }
 

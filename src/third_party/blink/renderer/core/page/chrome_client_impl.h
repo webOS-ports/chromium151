@@ -339,6 +339,9 @@ class CORE_EXPORT ChromeClientImpl final : public ChromeClient {
 
   void OnFirstContentfulPaint(const base::TimeDelta& duration) override;
 
+  // LuneOS: allow app windows far shorter than the upstream 100x100 floor.
+  gfx::Size MinimumWindowSize() const override { return gfx::Size(100, 5); }
+
  private:
   bool IsChromeClientImpl() const override { return true; }
 

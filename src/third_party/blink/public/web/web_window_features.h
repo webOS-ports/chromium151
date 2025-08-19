@@ -70,6 +70,9 @@ struct WebWindowFeatures {
   // TODO(apaseltiner): Investigate moving this field to a non-public struct
   // since it is only needed within //third_party/blink.
   std::optional<std::vector<WebString>> attribution_srcs;
+
+  // LuneOS: extra window.open() features forwarded to the OS.
+  std::vector<std::string> additional_features;
 };
 
 }  // namespace blink

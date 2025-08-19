@@ -75,10 +75,40 @@ void WebViewBase::SetFileAccessBlocked(bool blocked) {
   NOTIMPLEMENTED();
 }
 
-WebViewBase::WebViewBase(bool alt_storage_path, int width, int height) {
+WebViewBase::WebViewBase(neva_app_runtime::WebView *webview, bool alt_storage_path, int width, int height) {
+  webview_ = webview;
+  if (!webview_) {
+    // If screen is rotated then initial size might be different and default
+    // values may lead to incorrectly scaled view for the first rendered frame.
+    // That is why the default values are subject to the overriding.
+    if (display::Screen::GetScreen()->GetNumDisplays() > 0) {
+      gfx::Size displaySize =
+          display::Screen::GetScreen()->GetPrimaryDisplay().bounds().size();
+      width = displaySize.width();
+      height = displaySize.height();
+    }
+
+    webview_ = new neva_app_runtime::WebView(width, height);
+  }
+
+  webview_->SetDelegate(this);
+  webview_->SetControllerDelegate(this);
+}
+
+WebViewBase::WebViewBase(bool alt_storage_path, int width, int height):
+  WebViewBase(nullptr, alt_storage_path, width, height) {}
+
+WebViewBase::~WebViewBase() {
+  webview_->SetDelegate(nullptr);
+  delete webview_;
+}
+
+content::WebContents *WebViewBase::CreateWindowForContents(std::unique_ptr<content::WebContents> new_contents, const std::string& newUrl, int initial_height)
+{
   // If screen is rotated then initial size might be different and default
   // values may lead to incorrectly scaled view for the first rendered frame.
   // That is why the default values are subject to the overriding.
+  int width = 1920, height = 1080;
   if (display::Screen::GetScreen()->GetNumDisplays() > 0) {
     gfx::Size displaySize =
         display::Screen::GetScreen()->GetPrimaryDisplay().bounds().size();
@@ -86,14 +116,14 @@ WebViewBase::WebViewBase(bool alt_storage_path, int width, int height) {
     height = displaySize.height();
   }
 
-  webview_ = new neva_app_runtime::WebView(width, height);
-  webview_->SetDelegate(this);
-  webview_->SetControllerDelegate(this);
-}
+  // take into account the height preferred by the new content
+  if (initial_height > 0) height = initial_height;
 
-WebViewBase::~WebViewBase() {
-  webview_->SetDelegate(nullptr);
-  delete webview_;
+  std::vector<std::string> additional_features;
+  if(new_contents) additional_features = new_contents->GetAdditionalFeatures();
+
+  neva_app_runtime::WebView *webview = new neva_app_runtime::WebView(width, height, nullptr, std::move(new_contents));
+  return CreateWindowForWebView(newUrl, webview, height, additional_features);
 }
 
 void WebViewBase::Initialize(const std::string& app_id,
