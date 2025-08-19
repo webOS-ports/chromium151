@@ -107,8 +107,8 @@ class WebOSSystemInjection : public gin::Wrappable<WebOSSystemInjection>,
   void AddBannerMessage(gin::Arguments* args);
   void RemoveBannerMessage(const std::string& param);
   void ClearBannerMessages();
-  void SimulateMouseClick(const std::string& result0,
-                          const std::string& result1,
+  void SimulateMouseClick(int pageX,
+                          int pageY,
                           bool result2);
   void UseSimulatedMouseClicks(bool param);
   void Paste();

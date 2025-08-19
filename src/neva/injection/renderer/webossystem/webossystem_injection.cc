@@ -417,8 +417,8 @@ void WebOSSystemInjection::UseSimulatedMouseClicks(bool param) {
 }
 
 void WebOSSystemInjection::SimulateMouseClick(
-    const std::string& result0, const std::string& result1, bool result2) {
-  std::vector<std::string> arguments = { result0, result1 };
+    int pageX, int pageY, bool result2) {
+  std::vector<std::string> arguments = { std::to_string(pageX), std::to_string(pageY) };
   arguments.push_back(result2 ? "true" : "false");
   SendCommand("simulateMouseClick", arguments);
 }
@@ -433,8 +433,6 @@ void WebOSSystemInjection::RemoveBannerMessage(const std::string& param) {
 }
 
 void WebOSSystemInjection::AddBannerMessage(gin::Arguments* args) {
-  if (args->Length() < 5)
-    return;
 
   std::vector<std::string> arguments;
   auto context = args->GetHolderCreationContext();
