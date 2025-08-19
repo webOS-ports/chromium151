@@ -378,6 +378,13 @@ class COMPONENT_EXPORT(INPUT) RenderWidgetHostInputEventRouter final
       const std::optional<gfx::PointF>& target_location,
       bool is_emulated);
 
+#if defined(ENABLE_PINCH_TO_ZOOM)
+  // Dispatch |gesture_event| to |touchscreen_gesture_target_|.
+  bool MaybeDispatchPinchGestureEventToContentArea(
+      const blink::WebGestureEvent& gesture_event,
+      const ui::LatencyInfo& latency);
+#endif
+
   // TODO(crbug.com/41380487): Remove once this issue no longer occurs.
   void ReportBubblingScrollToSameView(
       const blink::WebGestureEvent& event,

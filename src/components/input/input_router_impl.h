@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include <deque>
 #include <memory>
 
 #include "base/component_export.h"
@@ -262,6 +263,12 @@ class COMPONENT_EXPORT(INPUT) InputRouterImpl
 
   // True if the router accepts input events.
   bool active_ = false;
+
+  // NEVA: when set, key events are handled one at a time - the next event is
+  // only sent after the previous one is ACKed.
+  bool throttle_key_events_ = false;
+  using KeyQueue = std::deque<NativeWebKeyboardEventWithLatencyInfo>;
+  KeyQueue key_queue_;
 
   // Whether the TouchScrollStarted event has been sent for the current
   // gesture scroll yet.

@@ -9,4 +9,8 @@ namespace viz {
 const uint32_t kDefaultActivationDeadlineInFrames = 4u;
 const base::TimeDelta kMaxTimeUntilNextGlitch = base::Seconds(3);
 
+#if defined(USE_NEVA_APPRUNTIME)
+const uint32_t kDefaultVizFMPTimeout = 1000u;
+#endif
+
 }  // namespace viz

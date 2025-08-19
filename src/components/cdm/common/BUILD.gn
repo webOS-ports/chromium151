@@ -4,6 +4,7 @@
 
 import("//build/buildflag_header.gni")
 import("//components/cdm/common/playready.gni")
+import("//neva/neva.gni")
 import("//third_party/widevine/cdm/widevine.gni")
 
 buildflag_header("buildflags") {
@@ -22,6 +23,9 @@ static_library("common") {
     "//components/cdm/*",
     "//content/shell/*",
     "//fuchsia_web/*",
+
+    # NEVA: app_runtime is an embedder in the same sense as the entries above.
+    "//neva/*",
   ]
 
   deps = [
@@ -48,6 +52,10 @@ static_library("common") {
 
   if (enable_playready) {
     sources += [ "playready_cdm_common.h" ]
+  }
+
+  if (use_neva_cdm) {
+    deps += [ "//components/cdm/common/neva" ]
   }
 
   if (enable_library_cdms) {

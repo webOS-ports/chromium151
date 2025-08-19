@@ -3,8 +3,12 @@
 # found in the LICENSE file.
 
 import("//printing/buildflags/buildflags.gni")
+import("//neva/neva.gni")
 
-assert(enable_print_preview)
+# NEVA: neva sets enable_print_preview=false but never builds any //chrome
+# target, while M151 references print_preview unconditionally from many
+# places. Relax the assert so the GN graph stays parseable.
+assert(enable_print_preview || use_neva_appruntime)
 
 static_library("pwg_encoder") {
   sources = [

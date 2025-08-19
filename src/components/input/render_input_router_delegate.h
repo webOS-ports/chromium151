@@ -35,6 +35,15 @@ class COMPONENT_EXPORT(INPUT) RenderInputRouterDelegate {
 
   virtual RenderWidgetHostInputEventRouter* GetInputEventRouter() = 0;
 
+#if defined(ENABLE_PINCH_TO_ZOOM)
+  // NEVA: whether the widget this delegate belongs to hosts a guest page.
+  // Pinch gestures are routed to a guest's content area rather than being
+  // consumed by the embedder. //components/input sits below //content and
+  // cannot see RenderViewHostImpl, so the embedder answers this instead.
+  // Defaults to false so implementations outside content need not care.
+  virtual bool IsGuest();
+#endif
+
   // Forwards |delegated_ink_point| to viz over IPC to be drawn as part of
   // delegated ink trail, resetting the |ended_delegated_ink_trail| flag.
   virtual void ForwardDelegatedInkPoint(

@@ -235,6 +235,14 @@ static void LogStrategyEnumUMA(OverlayStrategy strategy) {
 OverlayProcessorUsingStrategy::OverlayProcessorUsingStrategy()
     : max_overlays_config_(features::MaxOverlaysConsidered()) {}
 
+#if defined(USE_NEVA_MEDIA)
+OverlayProcessorUsingStrategy::OverlayProcessorUsingStrategy(
+    gpu::SurfaceHandle surface_handle)
+    : OverlayProcessorInterface(),
+      max_overlays_config_(features::MaxOverlaysConsidered()),
+      neva_processor_(surface_handle) {}
+#endif
+
 OverlayProcessorUsingStrategy::~OverlayProcessorUsingStrategy() = default;
 
 gfx::Rect OverlayProcessorUsingStrategy::GetAndResetOverlayDamage() {
@@ -293,7 +301,19 @@ void OverlayProcessorUsingStrategy::ProcessForOverlays(
                                     render_passes, &surface_damage_rect_list,
                                     primary_plane, candidates,
                                     damage_rect);
+#if defined(USE_NEVA_MEDIA)
+    // NEVA: punch-hole / VideoHole overlay pass.
+    // TODO(neva): RenderPassList became AggregatedRenderPassList upstream;
+    // confirm NevaLayerOverlay still behaves as before.
+    neva_processor_.Process(resource_provider,
+                            gfx::RectF(render_passes->back()->output_rect),
+                            render_passes, &overlay_damage_rect_, damage_rect);
+  } else {
+    neva_processor_.ClearOverlayState();
   }
+#else
+  }
+#endif
 
   if (primary_plane) {
     render_pass->has_transparent_background |= !primary_plane->is_opaque;

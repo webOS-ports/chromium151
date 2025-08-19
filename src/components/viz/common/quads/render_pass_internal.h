@@ -39,7 +39,12 @@ class VIZ_COMMON_EXPORT RenderPassInternal {
   // Replaces a quad in |quad_list| with a |SolidColorDrawQuad|.
   void ReplaceExistingQuadWithSolidColor(QuadList::Iterator at,
                                          SkColor4f color,
+#if defined(USE_NEVA_MEDIA)
+                                         SkBlendMode blend_mode,
+                                         bool force_draw_transparent = false);
+#else
                                          SkBlendMode blend_mode);
+#endif  // defined(USE_NEVA_MEDIA)
 
   // Replaces a quad in `quad_list` with a SolidColorDrawQuad with a transparent
   // hole. This will either be:

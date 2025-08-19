@@ -79,4 +79,10 @@ void HostDisplayClient::SetPreferredRefreshRate(float refresh_rate) {
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
+#if defined(USE_NEVA_APPRUNTIME)
+void HostDisplayClient::DidCompleteSwap() {
+  NOTIMPLEMENTED();
+}
+#endif
+
 }  // namespace viz

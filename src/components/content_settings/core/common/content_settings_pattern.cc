@@ -253,7 +253,11 @@ bool ContentSettingsPattern::Builder::Canonicalize(PatternParts* parts) {
   // Canonicalize the scheme part.
   parts->scheme = base::ToLowerASCII(parts->scheme);
 
-  if (parts->scheme == url::kFileScheme && !parts->is_path_wildcard) {
+  if (parts->scheme == url::kFileScheme && !parts->is_path_wildcard
+#if defined(USE_NEVA_APPRUNTIME)
+      && parts->host.empty()
+#endif
+  ) {
     // TODO(crbug.com/40150835): Remove this loop once GURL canonicalization is
     // idempotent (see crbug.com/1128999).
     while (true) {
@@ -321,7 +325,11 @@ bool ContentSettingsPattern::Builder::Validate(const PatternParts& parts) {
   }
 
   // file:// URL patterns have an empty host and port.
-  if (parts.scheme == url::kFileScheme) {
+  if (parts.scheme == url::kFileScheme
+#if defined(USE_NEVA_APPRUNTIME)
+      && parts.host.empty()
+#endif
+  ) {
     if (parts.has_domain_wildcard || !parts.host.empty() || !parts.port.empty())
       return false;
     if (parts.is_path_wildcard)
@@ -350,6 +358,9 @@ bool ContentSettingsPattern::Builder::Validate(const PatternParts& parts) {
 
   // Test if the scheme is supported or a wildcard.
   if (!parts.is_scheme_wildcard && parts.scheme != url::kHttpScheme &&
+#if defined(USE_NEVA_APPRUNTIME)
+      parts.scheme != url::kFileScheme &&
+#endif
       parts.scheme != url::kHttpsScheme) {
     return false;
   }
@@ -494,6 +505,24 @@ ContentSettingsPattern ContentSettingsPattern::FromURLToSchemefulSitePattern(
       ->Build();
 }
 
+#if defined(USE_NEVA_APPRUNTIME)
+// static
+ContentSettingsPattern ContentSettingsPattern::FromURLForApplication(
+    const GURL& url) {
+  ContentSettingsPattern::Builder builder;
+  const GURL* local_url = &url;
+  if (local_url->SchemeIsFile()) {
+    builder.WithSchemeWildcard()
+        ->WithHost(std::string(local_url->host()))
+        ->WithDomainWildcard()
+        ->WithPortWildcard();
+    return builder.Build();
+  } else {
+    return FromURLNoWildcard(url);
+  }
+}
+#endif
+
 // static
 ContentSettingsPattern ContentSettingsPattern::FromString(
     std::string_view pattern_spec) {
@@ -620,7 +649,11 @@ bool ContentSettingsPattern::Matches(const GURL& url) const {
   // filesystem:file:///temporary/... are equivalent.
   // TODO(msramek): The file scheme should not behave differently when nested
   // inside the filesystem scheme. Investigate and fix.
-  if (!parts_.is_scheme_wildcard && local_url->scheme() == url::kFileScheme) {
+  if (!parts_.is_scheme_wildcard &&
+#if defined(USE_NEVA_APPRUNTIME)
+      parts_.host.empty() &&
+#endif
+      local_url->scheme() == url::kFileScheme) {
     return parts_.is_path_wildcard || parts_.path == local_url->path();
   }
 

@@ -131,6 +131,10 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
             model_loader_remote);
 #endif
 
+#if defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+    virtual void SendGpuProcessMessage(IPC::Message* message) = 0;
+#endif  // defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+
    protected:
     virtual ~Delegate() = default;
   };

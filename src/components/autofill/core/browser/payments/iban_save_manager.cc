@@ -38,6 +38,12 @@
 #include "components/sync/base/data_type.h"
 #include "components/sync/service/sync_user_settings.h"
 
+// TODO(neva): Remove the following lines wrapped by __cplusplus direcitve
+// when Neva GCC starts supporting C++20
+#if (__cplusplus < 202002L)
+#include "base/ranges/algorithm.h"
+#endif
+
 namespace autofill {
 
 using PaymentsRpcResult = payments::PaymentsAutofillClient::PaymentsRpcResult;

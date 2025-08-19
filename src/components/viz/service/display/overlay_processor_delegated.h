@@ -34,6 +34,9 @@ class VIZ_SERVICE_EXPORT OverlayProcessorDelegated
  public:
   OverlayProcessorDelegated(
       std::unique_ptr<ui::OverlayCandidatesOzone> overlay_candidates,
+#if defined(USE_NEVA_MEDIA)
+      gpu::SurfaceHandle surface_handle,
+#endif
       std::vector<OverlayStrategy> available_strategies,
       std::unique_ptr<PixmapProvider> pixmap_provider);
   OverlayProcessorDelegated(const OverlayProcessorDelegated&) = delete;

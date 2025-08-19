@@ -51,6 +51,9 @@ class CookieOSCryptoDelegate : public net::CookieCryptoDelegate {
 
   // net::CookieCryptoDelegate implementation:
   void Init(base::OnceClosure callback) override;
+  // This delegate exists precisely to encrypt via the OS, so it always says
+  // yes; the neva delegate is the one that can decline.
+  bool ShouldEncrypt() override { return true; }
   bool EncryptString(const std::string& plaintext,
                      std::string* ciphertext) override;
   bool DecryptString(const std::string& ciphertext,

@@ -19,6 +19,7 @@
 #include "components/input/input_disposition_handler.h"
 #include "components/input/input_event_ack_state.h"
 #include "components/input/input_router_client.h"
+#include "components/input/switches.h"
 #include "components/input/utils.h"
 #include "components/input/web_touch_event_traits.h"
 #include "services/tracing/public/cpp/perfetto/flow_event_utils.h"
@@ -74,6 +75,13 @@ std::unique_ptr<blink::WebCoalescedInputEvent> ScaleEvent(
       std::vector<std::unique_ptr<WebInputEvent>>(), latency_info);
 }
 
+bool IsKeyEventThrottlingEnabled() {
+  const base::CommandLine& command_line =
+      *base::CommandLine::ForCurrentProcess();
+
+  return command_line.HasSwitch(switches::kEnableKeyEventThrottling);
+}
+
 }  // namespace
 
 InputRouterImpl::InputRouterImpl(
@@ -83,6 +91,7 @@ InputRouterImpl::InputRouterImpl(
     const Config& config)
     : client_(client),
       disposition_handler_(disposition_handler),
+      throttle_key_events_(IsKeyEventThrottlingEnabled()),
       touch_scroll_started_sent_(false),
       wheel_event_queue_(this),
       touch_event_queue_(this, config.touch_config),
@@ -151,7 +160,38 @@ void InputRouterImpl::SendKeyboardEvent(
     const NativeWebKeyboardEventWithLatencyInfo& key_event,
     KeyboardEventCallback event_result_callback,
     DispatchToRendererCallback& dispatch_callback) {
+  // NEVA: when key throttling is on, coalesce repeated key-downs so the next
+  // event is only sent after the previous one is ACKed. Adapted from the webOS
+  // WebKit implementation.
+  if (throttle_key_events_) {
+    if (key_event.event.GetType() == WebInputEvent::Type::kKeyUp &&
+        key_queue_.size() > 1) {
+      KeyQueue new_key_queue;
+      // Preserve the last sent event.
+      new_key_queue.push_back(key_queue_.front());
+      key_queue_.pop_front();
+
+      int key = key_event.event.windows_key_code;
+      while (!key_queue_.empty()) {
+        NativeWebKeyboardEventWithLatencyInfo q = key_queue_.front();
+        key_queue_.pop_front();
+        if ((q.event.GetType() == WebInputEvent::Type::kKeyDown ||
+             q.event.GetType() == WebInputEvent::Type::kRawKeyDown) &&
+            q.event.windows_key_code == key) {
+          continue;
+        }
+        new_key_queue.push_back(q);
+      }
+      key_queue_.swap(new_key_queue);
+    }
+    key_queue_.push_back(key_event);
+  }
+
   gesture_event_queue_.StopFling();
+
+  if (throttle_key_events_ && key_queue_.size() > 1)
+    return;
+
   blink::mojom::WidgetInputHandler::DispatchEventCallback callback =
       base::BindOnce(&InputRouterImpl::KeyboardEventHandled, weak_this_,
                      key_event, std::move(event_result_callback));
@@ -757,6 +797,28 @@ void InputRouterImpl::KeyboardEventHandled(
   if (source != blink::mojom::InputEventResultSource::kBrowser)
     client_->DecrementInFlightEventCount(source);
   event.latency.AddNewLatencyFrom(latency);
+
+  if (throttle_key_events_) {
+    key_queue_.pop_front();
+    if (!key_queue_.empty()) {
+      NativeWebKeyboardEventWithLatencyInfo key_event = key_queue_.front();
+      key_event.latency.AddNewLatencyFrom(latency);
+      blink::mojom::WidgetInputHandler::DispatchEventCallback callback =
+          base::BindOnce(&InputRouterImpl::KeyboardEventHandled, weak_this_,
+                         key_event, std::move(event_result_callback));
+      // M151 added the dispatch-to-renderer callback. This drain of the neva
+      // key-event throttling queue is a fresh dispatch, so it takes a fresh
+      // callback from the client rather than a no-op, keeping the dispatched/
+      // not-dispatched signal intact for throttled keys.
+      ScopedDispatchToRendererCallback dispatch_callback(
+          client_->GetDispatchToRendererCallback());
+      FilterAndSendWebInputEvent(key_event.event, key_event.latency,
+                                 std::move(callback),
+                                 dispatch_callback.callback);
+      return;
+    }
+  }
+
   std::move(event_result_callback).Run(event, source, state);
 
   // WARNING: This InputRouterImpl can be deallocated at this point

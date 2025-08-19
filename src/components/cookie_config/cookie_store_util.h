@@ -9,14 +9,11 @@
 
 #include "base/component_export.h"
 #include "base/memory/scoped_refptr.h"
+#include "net/extras/sqlite/cookie_crypto_delegate.h"
 
 namespace base {
 class SequencedTaskRunner;
 }
-
-namespace net {
-class CookieCryptoDelegate;
-}  // namespace net
 
 namespace os_crypt_async {
 class OSCryptAsync;

@@ -42,6 +42,12 @@ class VIZ_SERVICE_EXPORT DisplayScheduler
                    base::SingleThreadTaskRunner* task_runner,
                    PendingSwapParams pending_swap_params,
                    HintSessionFactory* hint_session_factory = nullptr,
+#if defined(USE_NEVA_APPRUNTIME)
+                   // Doesn't matter if these are here because if only three
+                   // first params are given then they are unit tests
+                   bool use_viz_fmp_with_timeout = false,
+                   uint32_t viz_fmp_timeout = 0,
+#endif
                    bool wait_for_all_surfaces_before_draw = false);
 
   DisplayScheduler(const DisplayScheduler&) = delete;
@@ -75,6 +81,16 @@ class VIZ_SERVICE_EXPORT DisplayScheduler
   void OnDisplayDamaged(SurfaceId surface_id, BeginFrameId frame_id) override;
   void OnRootFrameMissing(bool missing) override;
   void OnPendingSurfacesChanged() override;
+#if defined(USE_NEVA_APPRUNTIME)
+  void OnSurfaceActivated(bool is_first_contentful_paint,
+                          bool did_reset_container_state,
+                          bool seen_first_contentful_paint) override;
+  void NotifyPendingActivation(bool is_first_contentful_paint,
+                               bool did_reset_container_state,
+                               bool seen_first_contentful_paint) override;
+  void RenderProcessGone() override;
+  void SetFirstActivateTimeout(base::TimeDelta timeout) override;
+#endif
 
   // DynamicBeginFrameDeadlineOffsetSource:
   base::TimeDelta GetDeadlineOffset(base::TimeDelta interval) const override;
@@ -160,6 +176,11 @@ class VIZ_SERVICE_EXPORT DisplayScheduler
       base::flat_set<base::PlatformThreadId> animation_thread_ids,
       base::flat_set<base::PlatformThreadId> renderer_main_thread_ids);
 
+#if defined(USE_NEVA_APPRUNTIME)
+  void NotifyFirstSurfaceActivation();
+  void NotifyFirstSetVisibleActivationTimeout();
+#endif
+
   BeginFrameObserver begin_frame_observer_;
   raw_ptr<BeginFrameSource> begin_frame_source_;
   raw_ptr<base::SingleThreadTaskRunner> task_runner_;
@@ -183,6 +204,15 @@ class VIZ_SERVICE_EXPORT DisplayScheduler
   int next_swap_id_;
   int pending_swaps_;
   const PendingSwapParams pending_swap_params_;
+#if defined(USE_NEVA_APPRUNTIME)
+  bool use_viz_fmp_with_timeout_;
+  uint32_t viz_fmp_timeout_;
+  bool seen_first_surface_activation_ = false;
+  bool first_surface_activated_ = false;
+  bool pending_first_surface_activation_ = false;
+  base::CancelableOnceClosure notify_first_activation_eventually_task_;
+  base::TimeDelta activate_eventually_timeout_;
+#endif
   bool wait_for_all_surfaces_before_draw_;
   const bool allow_multiple_swaps_per_vsync_ = false;
   const bool use_platform_preferred_deadlines_ = true;

@@ -227,6 +227,12 @@ class VIZ_COMMON_EXPORT CompositorFrameMetadata {
   // coordinate space of the root render pass.
   TrackedElementRects tracked_element_rects;
 
+#if defined(USE_NEVA_APPRUNTIME)
+  bool is_first_contentful_paint = false;
+  bool did_reset_container_state = false;
+  bool seen_first_contentful_paint = false;
+#endif
+
  private:
   CompositorFrameMetadata(const CompositorFrameMetadata& other);
   CompositorFrameMetadata operator=(const CompositorFrameMetadata&) = delete;

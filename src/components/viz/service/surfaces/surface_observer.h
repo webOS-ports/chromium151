@@ -76,6 +76,13 @@ class VIZ_SERVICE_EXPORT SurfaceObserver : public base::CheckedObserver {
   // A matching `OnRemovedSurfaceReference` can be added if there are use cases.
   virtual void OnAddedSurfaceReference(const SurfaceId& parent_id,
                                        const SurfaceId& child_id) {}
+
+#if defined(USE_NEVA_APPRUNTIME)
+  virtual void OnSurfaceActivatedEx(const SurfaceId& parent_id,
+                                    bool is_first_contentful_paint,
+                                    bool did_reset_container_state,
+                                    bool seen_first_contentful_paint) {}
+#endif
 };
 
 }  // namespace viz

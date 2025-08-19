@@ -18,6 +18,8 @@
 #include "base/trace_event/trace_event.h"
 #include "components/input/cursor_manager.h"
 #include "components/input/features.h"
+#include "components/input/render_input_router.h"
+#include "components/input/render_input_router_delegate.h"
 #include "components/input/touch_emulator.h"
 #include "components/viz/common/features.h"
 #include "components/viz/common/hit_test/hit_test_data_provider.h"
@@ -28,6 +30,11 @@
 #include "ui/base/cursor/cursor.h"
 #include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/gfx/geometry/dip_util.h"
+
+#if defined(ENABLE_PINCH_TO_ZOOM)
+#include "content/browser/renderer_host/render_view_host_delegate.h"
+#include "content/browser/renderer_host/render_view_host_impl.h"
+#endif
 
 namespace {
 
@@ -1582,6 +1589,12 @@ void RenderWidgetHostInputEventRouter::DispatchTouchscreenGestureEvent(
     const ui::LatencyInfo& latency,
     const std::optional<gfx::PointF>& target_location,
     bool is_emulated) {
+#if defined(ENABLE_PINCH_TO_ZOOM)
+  if (MaybeDispatchPinchGestureEventToContentArea(gesture_event, latency)) {
+    return;
+  }
+#endif
+
   TRACE_EVENT2(
       "input",
       "RenderWidgetHostInputEventRouter::DispatchTouchscreenGestureEvent",
@@ -1775,6 +1788,50 @@ void RenderWidgetHostInputEventRouter::DispatchTouchscreenGestureEvent(
     ClearTouchscreenGestureTarget();
   }
 }
+
+#if defined(ENABLE_PINCH_TO_ZOOM)
+bool RenderWidgetHostInputEventRouter ::
+    MaybeDispatchPinchGestureEventToContentArea(
+        const blink::WebGestureEvent& gesture_event,
+        const ui::LatencyInfo& latency) {
+  if (!touchscreen_gesture_target_ ||
+      !blink::WebInputEvent::IsPinchGestureEventType(gesture_event.GetType())) {
+    return false;
+  }
+
+  // M151 moved this router out of //content into //components/input, which
+  // sits below content and cannot name RenderViewHostImpl or
+  // RenderWidgetHostImpl. The same walk - target view -> its widget -> that
+  // widget's delegate -> the delegate's input event router - is available
+  // through RenderInputRouter, and the guest question is answered by the
+  // embedder via RenderInputRouterDelegate::IsGuest().
+  RenderInputRouter* target_router =
+      touchscreen_gesture_target_->GetViewRenderInputRouter();
+  if (!target_router || !target_router->delegate()) {
+    return false;
+  }
+
+  if (!target_router->delegate()->IsGuest()) {
+    return false;
+  }
+
+  RenderWidgetHostInputEventRouter* input_event_router =
+      target_router->delegate()->GetInputEventRouter();
+  if (!input_event_router) {
+    return false;
+  }
+
+  if (gesture_event.GetType() ==
+      blink::WebInputEvent::Type::kGesturePinchBegin) {
+    input_event_router->touchscreen_pinch_state_.DidStartPinchInRoot();
+  }
+  touchscreen_gesture_target_->ProcessGestureEvent(gesture_event, latency);
+  if (gesture_event.GetType() == blink::WebInputEvent::Type::kGesturePinchEnd) {
+    input_event_router->touchscreen_pinch_state_.DidStopPinch();
+  }
+  return true;
+}
+#endif
 
 void RenderWidgetHostInputEventRouter::RouteTouchscreenGestureEvent(
     RenderWidgetHostViewInput* root_view,

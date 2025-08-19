@@ -238,6 +238,17 @@ void ServiceWorkerStorage::FindRegistrationForClientUrl(
     FindRegistrationForClientUrlDataCallback callback) {
   TRACE_EVENT("ServiceWorker",
               "ServiceWorkerStorage::FindRegistrationForClientUrl");
+
+#if defined(USE_NEVA_APPRUNTIME)
+  // NOTE: per-app service workers need a host part for the file scheme; it is
+  // used to clean up the registration when the app is deleted.
+  if (client_url.SchemeIsFile() &&
+      (!client_url.has_host() || key.origin().host().empty())) {
+    LOG(ERROR) << __func__
+               << " service worker needs a host part for the file scheme";
+  }
+#endif
+
   DCHECK(!client_url.has_ref());
   switch (state_) {
     case STORAGE_STATE_DISABLED:

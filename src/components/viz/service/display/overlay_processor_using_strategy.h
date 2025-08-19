@@ -37,6 +37,10 @@
 #include "ui/gfx/color_space.h"
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
+#if defined(USE_NEVA_MEDIA)
+#include "components/viz/service/display/neva/neva_layer_overlay.h"
+#endif
+
 namespace viz {
 
 class DisplayResourceProvider;
@@ -48,6 +52,9 @@ class VIZ_SERVICE_EXPORT OverlayProcessorUsingStrategy
  public:
   using CandidateList = OverlayCandidateList;
 
+#if defined(USE_NEVA_MEDIA)
+  OverlayProcessorUsingStrategy(gpu::SurfaceHandle surface_handle);
+#endif
   OverlayProcessorUsingStrategy(const OverlayProcessorUsingStrategy&) = delete;
   OverlayProcessorUsingStrategy& operator=(
       const OverlayProcessorUsingStrategy&) = delete;
@@ -270,6 +277,10 @@ class VIZ_SERVICE_EXPORT OverlayProcessorUsingStrategy
 
   // These variables are used only for UMA purposes.
   uint64_t frame_sequence_number_ = 0;
+
+#if defined(USE_NEVA_MEDIA)
+  NevaLayerOverlayProcessor neva_processor_;
+#endif
 
   // These values are used for tracking how much we can downscale with overlays
   // and is used for when we require an overlay so we can determine how much we

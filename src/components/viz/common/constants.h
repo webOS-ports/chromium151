@@ -23,6 +23,10 @@ VIZ_COMMON_EXPORT extern const uint32_t kDefaultActivationDeadlineInFrames;
 // then it won't be considered a simple cadence and thus won't be throttled.
 VIZ_COMMON_EXPORT extern const base::TimeDelta kMaxTimeUntilNextGlitch;
 
+#if defined(USE_NEVA_APPRUNTIME)
+VIZ_COMMON_EXPORT extern const uint32_t kDefaultVizFMPTimeout;
+#endif
+
 }  // namespace viz
 
 #endif  // COMPONENTS_VIZ_COMMON_CONSTANTS_H_

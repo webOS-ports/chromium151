@@ -11,6 +11,7 @@
 #include "base/atomic_sequence_num.h"
 #include "base/byte_size.h"
 #include "base/command_line.h"
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
@@ -182,9 +183,17 @@ uint64_t GetDefaultMaxBytes() {
 #endif
 
   // Use 1/8th of discardable memory on low-end devices.
-  if (base::SysInfo::IsLowEndDevice())
+  if (base::SysInfo::IsLowEndDevice()) {
+#if defined(OS_WEBOS)
+    default_max_bytes = 16 * kMegabyte;
+#else
     default_max_bytes /= 8;
 #endif
+  }
+#endif  // BUILDFLAG(IS_CASTOS) || BUILDFLAG(IS_CAST_ANDROID)
+
+  VLOG(1) << "Discardable memory limit before checking environment: "
+          << default_max_bytes << " bytes";
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   base::FilePath shmem_dir;

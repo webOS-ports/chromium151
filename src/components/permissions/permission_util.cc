@@ -577,6 +577,12 @@ ContentSettingsType PermissionUtil::PermissionTypeToContentSettingsType(
     PermissionType permission) {
   ContentSettingsType content_setting =
       PermissionTypeToContentSettingsTypeSafe(permission);
+
+  if (content_setting == ContentSettingsType::DEFAULT) {
+    VLOG(1) << __func__ << " PermissionType " << int(permission)
+            << " is an unknown content setting for permission";
+  }
+
   DCHECK_NE(content_setting, ContentSettingsType::DEFAULT)
       << "Unknown content setting for permission "
       << static_cast<int>(permission);

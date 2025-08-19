@@ -39,6 +39,14 @@ using blink::WebGestureEvent;
 using blink::WebInputEvent;
 
 namespace input {
+
+#if defined(ENABLE_PINCH_TO_ZOOM)
+// NEVA: default for embedders that have no notion of guest pages. content's
+// RenderWidgetHostImpl overrides this.
+bool RenderInputRouterDelegate::IsGuest() {
+  return false;
+}
+#endif
 namespace {
 
 using ::perfetto::protos::pbzero::ChromeLatencyInfo2;

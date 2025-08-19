@@ -13,6 +13,9 @@ namespace input::switches {
 // Manager can be used to terminate the offending process in this case.
 const char kDisableHangMonitor[] = "disable-hang-monitor";
 
+// NEVA: see the header.
+const char kEnableKeyEventThrottling[] = "enable-key-event-throttling";
+
 // Disables compositor-accelerated touch-screen pinch gestures.
 const char kDisablePinch[] = "disable-pinch";
 

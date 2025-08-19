@@ -202,9 +202,17 @@ bool AllowColorSpaceCombination(
 // initialized by InitializeStrategies.
 OverlayProcessorOzone::OverlayProcessorOzone(
     std::unique_ptr<ui::OverlayCandidatesOzone> overlay_candidates,
+#if defined(USE_NEVA_MEDIA)
+    gpu::SurfaceHandle surface_handle,
+#endif
     std::vector<OverlayStrategy> available_strategies,
     std::unique_ptr<PixmapProvider> pixmap_provider)
-    : overlay_candidates_(std::move(overlay_candidates)),
+#if defined(USE_NEVA_MEDIA)
+    : OverlayProcessorUsingStrategy(surface_handle),
+#else
+    : OverlayProcessorUsingStrategy(),
+#endif
+      overlay_candidates_(std::move(overlay_candidates)),
       available_strategies_(std::move(available_strategies)),
       pixmap_provider_(std::move(pixmap_provider)) {
   for (OverlayStrategy strategy : available_strategies_) {

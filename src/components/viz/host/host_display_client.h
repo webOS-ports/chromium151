@@ -60,6 +60,10 @@ class VIZ_HOST_EXPORT HostDisplayClient : public mojom::DisplayClient {
   void SetPreferredRefreshRate(float refresh_rate) override;
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
+#if defined(USE_NEVA_APPRUNTIME)
+  void DidCompleteSwap() override;
+#endif
+
   mojo::Receiver<mojom::DisplayClient> receiver_{this};
 #if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_WIN)
   gfx::AcceleratedWidget widget_;
