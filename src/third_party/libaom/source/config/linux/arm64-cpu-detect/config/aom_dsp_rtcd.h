@@ -1637,6 +1637,9 @@ void aom_dsp_rtcd(void);
 
 #ifdef RTCD_C
 #include "aom_ports/arm.h"
+/* TODO(neva): Remove the !OS_WEBOS guards below once webOS/OSE
+ * supports i8mm. The NEON i8mm paths are unused there today.
+ */
 static void setup_rtcd_internal(void)
 {
     int flags = aom_arm_cpu_caps();
@@ -1645,10 +1648,10 @@ static void setup_rtcd_internal(void)
 
     aom_convolve8_horiz = aom_convolve8_horiz_neon;
     if (flags & HAS_NEON_DOTPROD) aom_convolve8_horiz = aom_convolve8_horiz_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) aom_convolve8_horiz = aom_convolve8_horiz_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) aom_convolve8_horiz = aom_convolve8_horiz_neon_i8mm;
     aom_convolve8_vert = aom_convolve8_vert_neon;
     if (flags & HAS_NEON_DOTPROD) aom_convolve8_vert = aom_convolve8_vert_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) aom_convolve8_vert = aom_convolve8_vert_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) aom_convolve8_vert = aom_convolve8_vert_neon_i8mm;
     aom_get_blk_sse_sum = aom_get_blk_sse_sum_neon;
     if (flags & HAS_SVE) aom_get_blk_sse_sum = aom_get_blk_sse_sum_sve;
     aom_get_var_sse_sum_16x16_dual = aom_get_var_sse_sum_16x16_dual_neon;
@@ -1793,7 +1796,7 @@ static void setup_rtcd_internal(void)
     if (flags & HAS_NEON_DOTPROD) aom_sad_skip_64x64x4d = aom_sad_skip_64x64x4d_neon_dotprod;
     aom_scaled_2d = aom_scaled_2d_neon;
     if (flags & HAS_NEON_DOTPROD) aom_scaled_2d = aom_scaled_2d_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) aom_scaled_2d = aom_scaled_2d_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) aom_scaled_2d = aom_scaled_2d_neon_i8mm;
     aom_sse = aom_sse_neon;
     if (flags & HAS_NEON_DOTPROD) aom_sse = aom_sse_neon_dotprod;
     aom_sub_pixel_variance128x128 = aom_sub_pixel_variance128x128_neon;

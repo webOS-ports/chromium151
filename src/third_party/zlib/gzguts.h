@@ -3,14 +3,6 @@
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
-#ifdef _LARGEFILE64_SOURCE
-#  ifndef _LARGEFILE_SOURCE
-#    define _LARGEFILE_SOURCE 1
-#  endif
-#  undef _FILE_OFFSET_BITS
-#  undef _TIME_BITS
-#endif
-
 #ifdef HAVE_HIDDEN
 #  define ZLIB_INTERNAL __attribute__((visibility ("hidden")))
 #else

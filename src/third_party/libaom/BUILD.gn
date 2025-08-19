@@ -12,6 +12,8 @@ import("//third_party/libaom/libaom_test_srcs.gni")
 import("//third_party/libaom/options.gni")
 import("//third_party/nasm/nasm_assemble.gni")
 
+import("//neva/neva.gni")
+
 # Sets the architecture name for building libaom.
 if (current_cpu == "x86") {
   cpu_arch_full = "ia32"
@@ -258,8 +260,6 @@ if (current_cpu == "arm64" || current_cpu == "arm64e") {
     if (!is_win || is_clang) {
       cflags = [ "-march=armv8.2-a+dotprod+i8mm" ]
     }
-    sources = aom_av1_common_intrin_neon_i8mm
-    sources += aom_dsp_common_intrin_neon_i8mm
   }
 
   # There are known problems with LLVM-based compilers targeting Windows for
@@ -351,6 +351,11 @@ static_library("libaom") {
       ":libaom_intrinsics_neon_dotprod",
       ":libaom_intrinsics_neon_i8mm",
     ]
+    # TODO(neva): remove once webOS/OSE supports i8mm.
+    if (is_webos) {
+      deps -= [ ":libaom_intrinsics_neon_i8mm" ]
+    }
+
     if (!is_win) {
       deps += [
         ":libaom_intrinsics_sve",

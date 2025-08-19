@@ -6,6 +6,7 @@ import("//build/buildflag_header.gni")
 import("//build/config/chrome_build.gni")
 import("//build/toolchain/toolchain.gni")
 import("//media/media_options.gni")
+import("//neva/neva.gni")
 import("//third_party/widevine/cdm/widevine.gni")
 
 if (bundle_widevine_cdm) {

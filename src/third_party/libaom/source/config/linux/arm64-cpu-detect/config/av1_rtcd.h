@@ -504,6 +504,9 @@ void av1_rtcd(void);
 
 #ifdef RTCD_C
 #include "aom_ports/arm.h"
+/* TODO(neva): Remove the !OS_WEBOS guards below once webOS/OSE
+ * supports i8mm. The NEON i8mm paths are unused there today.
+ */
 static void setup_rtcd_internal(void)
 {
     int flags = aom_arm_cpu_caps();
@@ -516,33 +519,33 @@ static void setup_rtcd_internal(void)
     if (flags & HAS_SVE) av1_block_error_lp = av1_block_error_lp_sve;
     av1_convolve_2d_scale = av1_convolve_2d_scale_neon;
     if (flags & HAS_NEON_DOTPROD) av1_convolve_2d_scale = av1_convolve_2d_scale_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) av1_convolve_2d_scale = av1_convolve_2d_scale_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) av1_convolve_2d_scale = av1_convolve_2d_scale_neon_i8mm;
     av1_convolve_2d_sr = av1_convolve_2d_sr_neon;
     if (flags & HAS_NEON_DOTPROD) av1_convolve_2d_sr = av1_convolve_2d_sr_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) av1_convolve_2d_sr = av1_convolve_2d_sr_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) av1_convolve_2d_sr = av1_convolve_2d_sr_neon_i8mm;
     if (flags & HAS_SVE2) av1_convolve_2d_sr = av1_convolve_2d_sr_sve2;
     av1_convolve_x_sr = av1_convolve_x_sr_neon;
     if (flags & HAS_NEON_DOTPROD) av1_convolve_x_sr = av1_convolve_x_sr_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) av1_convolve_x_sr = av1_convolve_x_sr_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) av1_convolve_x_sr = av1_convolve_x_sr_neon_i8mm;
     av1_convolve_y_sr = av1_convolve_y_sr_neon;
     if (flags & HAS_NEON_DOTPROD) av1_convolve_y_sr = av1_convolve_y_sr_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) av1_convolve_y_sr = av1_convolve_y_sr_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) av1_convolve_y_sr = av1_convolve_y_sr_neon_i8mm;
     av1_dist_wtd_convolve_2d = av1_dist_wtd_convolve_2d_neon;
     if (flags & HAS_NEON_DOTPROD) av1_dist_wtd_convolve_2d = av1_dist_wtd_convolve_2d_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) av1_dist_wtd_convolve_2d = av1_dist_wtd_convolve_2d_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) av1_dist_wtd_convolve_2d = av1_dist_wtd_convolve_2d_neon_i8mm;
     av1_dist_wtd_convolve_x = av1_dist_wtd_convolve_x_neon;
     if (flags & HAS_NEON_DOTPROD) av1_dist_wtd_convolve_x = av1_dist_wtd_convolve_x_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) av1_dist_wtd_convolve_x = av1_dist_wtd_convolve_x_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) av1_dist_wtd_convolve_x = av1_dist_wtd_convolve_x_neon_i8mm;
     av1_dist_wtd_convolve_y = av1_dist_wtd_convolve_y_neon;
     if (flags & HAS_NEON_DOTPROD) av1_dist_wtd_convolve_y = av1_dist_wtd_convolve_y_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) av1_dist_wtd_convolve_y = av1_dist_wtd_convolve_y_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) av1_dist_wtd_convolve_y = av1_dist_wtd_convolve_y_neon_i8mm;
     av1_filter_intra_predictor = av1_filter_intra_predictor_neon;
-    if (flags & HAS_NEON_I8MM) av1_filter_intra_predictor = av1_filter_intra_predictor_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) av1_filter_intra_predictor = av1_filter_intra_predictor_neon_i8mm;
     av1_get_crc32c_value = av1_get_crc32c_value_c;
     if (flags & HAS_ARM_CRC32) av1_get_crc32c_value = av1_get_crc32c_value_arm_crc32;
     av1_resize_and_extend_frame = av1_resize_and_extend_frame_neon;
     if (flags & HAS_NEON_DOTPROD) av1_resize_and_extend_frame = av1_resize_and_extend_frame_neon_dotprod;
-    if (flags & HAS_NEON_I8MM) av1_resize_and_extend_frame = av1_resize_and_extend_frame_neon_i8mm;
+    if (flags & HAS_NEON_I8MM && !OS_WEBOS) av1_resize_and_extend_frame = av1_resize_and_extend_frame_neon_i8mm;
     av1_wedge_sign_from_residuals = av1_wedge_sign_from_residuals_neon;
     if (flags & HAS_SVE) av1_wedge_sign_from_residuals = av1_wedge_sign_from_residuals_sve;
     av1_wedge_sse_from_residuals = av1_wedge_sse_from_residuals_neon;
