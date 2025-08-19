@@ -4,6 +4,10 @@
 
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
 
+#include <tuple>
+
+#include <EGL/eglext.h>
+
 #include <content-type-v1-client-protocol.h>
 #include <extended-drag-unstable-v1-client-protocol.h>
 #include <presentation-time-client-protocol.h>
@@ -27,7 +31,9 @@
 #include "ui/events/devices/keyboard_device.h"
 #include "ui/events/devices/touchscreen_device.h"
 #include "ui/gfx/geometry/point.h"
+#if defined(WAYLAND_GBM)
 #include "ui/gfx/linux/scoped_gbm_device.h"
+#endif
 #include "ui/ozone/common/features.h"
 #include "ui/ozone/platform/wayland/common/wayland_util.h"
 #include "ui/ozone/platform/wayland/host/fractional_scale_manager.h"
@@ -902,8 +908,23 @@ struct wl_callback* WaylandConnection::GetSyncCallback() {
 }
 
 gl::EGLDisplayPlatform WaylandConnection::GetNativeDisplay() {
+#if defined(OS_WEBOS)
+  // NEVA: tag the display as Wayland instead of leaving platform=0.
+  //
+  // Passing a wl_display with no platform enum leaves Mesa to guess, and on
+  // webOS it guesses surfaceless: the resulting EGLDisplay initialises fine
+  // (EGL 1.5, vendor "Mesa Project") but exposes ZERO configs, so every
+  // eglChooseConfig fails with "No suitable EGL configs found" and nothing is
+  // ever composited - apps load and activate but never appear. Naming the
+  // platform makes eglGetPlatformDisplay pick the Wayland platform, which does
+  // have configs.
+  return gl::EGLDisplayPlatform(
+      reinterpret_cast<EGLNativeDisplayType>(display()),
+      EGL_PLATFORM_WAYLAND_KHR);
+#else
   return gl::EGLDisplayPlatform(
       reinterpret_cast<EGLNativeDisplayType>(display()));
+#endif  // defined(OS_WEBOS)
 }
 
 struct wl_registry* WaylandConnection::GetRegistry() {
@@ -912,6 +933,7 @@ struct wl_registry* WaylandConnection::GetRegistry() {
 
 void WaylandConnection::SetRenderNodePath(base::ScopedFD& drm_fd,
                                           const char* render_node_path) {
+#if defined(WAYLAND_GBM)
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kRenderNodeOverride)) {
     TRACE_EVENT("wayland", "scoped attempt of gbm_create_device");
@@ -923,6 +945,16 @@ void WaylandConnection::SetRenderNodePath(base::ScopedFD& drm_fd,
       }
     }
   }
+#else
+  // Without gbm there is nothing to probe with, so leave the render node
+  // unset; it can still be forced with --render-node-override. Halium devices
+  // land here: their EGL/GLES come from libhybris rather than mesa, so no
+  // libgbm is staged, and M151 started calling gbm_create_device() from this
+  // host file unconditionally even though the gbm sources and the
+  // //ui/gfx/linux:gbm dep next to them are gated on use_wayland_gbm.
+  std::ignore = drm_fd;
+  std::ignore = render_node_path;
+#endif  // defined(WAYLAND_GBM)
 }
 
 }  // namespace ui

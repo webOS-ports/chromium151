@@ -31,7 +31,12 @@ class HTMLMediaElement {
  public:
   HTMLMediaElement();
 
-  ScriptValue getStartDate(ScriptState* script_state) const;
+  // ScriptObject, not ScriptValue: the IDL declares "object getStartDate()"
+  // and M151 tightened bindings::IsReturnTypeCompatible so IDLObject only
+  // accepts ScriptObject. The non-stub neva implementation next door was
+  // updated during the M151 migration; this one was missed because it is only
+  // compiled with use_neva_media=false, which no build had until Halium.
+  ScriptObject getStartDate(ScriptState* script_state) const;
   const String mediaId() const;
 
   // Neva audio focus extensions
@@ -45,12 +50,12 @@ template <typename original_t>
 HTMLMediaElement<original_t>::HTMLMediaElement() {}
 
 template <typename original_t>
-ScriptValue HTMLMediaElement<original_t>::getStartDate(
+ScriptObject HTMLMediaElement<original_t>::getStartDate(
     ScriptState* script_state) const {
   // getStartDate() returns a Date instance.
   // M151 removed platform/bindings/to_v8.h. Build the Date directly, as
   // upstream now does in v8_binding_for_core.h.
-  return ScriptValue(
+  return ScriptObject(
       script_state->GetIsolate(),
       v8::Date::New(script_state->GetContext(),
                     std::numeric_limits<double>::quiet_NaN())

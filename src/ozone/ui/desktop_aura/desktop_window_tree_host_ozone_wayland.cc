@@ -17,6 +17,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ozone/ui/desktop_aura/desktop_window_tree_host_ozone_wayland.h"
+#include "base/notimplemented.h"
 
 #include <string>
 

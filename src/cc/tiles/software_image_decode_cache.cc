@@ -170,8 +170,16 @@ SoftwareImageDecodeCache::SoftwareImageDecodeCache(
         base::SingleThreadTaskRunner::GetCurrentDefault());
   }
 #if defined(USE_NEVA_APPRUNTIME)
+  // NEVA: same constraint as the neva listener in LayerTreeHostImpl -
+  // MemoryPressureListenerRegistry::AddObserver CHECKs that registration
+  // happens on the main thread, and this cache is constructed on the compositor
+  // impl thread (ProxyImpl::InitializeLayerTreeFrameSinkOnImpl ->
+  // LayerTreeHostImpl::CreateTileManagerResources -> ImageDecodeCacheHolder).
+  // AsyncMemoryPressureListenerRegistration registers on the main thread
+  // internally and forwards to this sequence, which is what M151 requires.
   memory_pressure_listener_registration_.emplace(
-      base::MemoryPressureListenerTag::kSoftwareImageDecodeCache, this);
+      FROM_HERE, base::MemoryPressureListenerTag::kSoftwareImageDecodeCache,
+      this);
 #endif  // defined(USE_NEVA_APPRUNTIME)
 }
 
@@ -661,7 +669,7 @@ void SoftwareImageDecodeCache::OnMemoryPressure(
     case base::MEMORY_PRESSURE_LEVEL_MODERATE:
       break;
 #else   // defined(OS_WEBOS)
-      max_items_in_cache_ = GetNormalMaxItemsInCacheForSoftware();
+      max_items_in_cache_ = kNormalMaxItemsInCacheForSoftware;
       break;
     case base::MEMORY_PRESSURE_LEVEL_MODERATE:
 #endif  // !defined(OS_WEBOS)

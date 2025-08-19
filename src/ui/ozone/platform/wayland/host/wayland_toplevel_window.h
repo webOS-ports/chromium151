@@ -23,6 +23,7 @@
 #include "ui/platform_window/extensions/workspace_extension_delegate.h"
 #include "ui/platform_window/wm/wm_move_loop_handler.h"
 #include "ui/platform_window/wm/wm_move_resize_handler.h"
+#include "ui/ozone/platform/wayland/host/shell_toplevel_wrapper.h"
 
 namespace views::corewm {
 enum class TooltipTrigger;
@@ -47,7 +48,7 @@ class WaylandToplevelWindow : public WaylandWindow,
   WaylandToplevelWindow& operator=(const WaylandToplevelWindow&) = delete;
   ~WaylandToplevelWindow() override;
 
-  XdgToplevel* xdg_toplevel() const { return xdg_toplevel_.get(); }
+  ShellToplevelWrapper* xdg_toplevel() const { return xdg_toplevel_.get(); }
 
   // Sets the window's origin.
   void SetOrigin(const gfx::Point& origin);
@@ -223,7 +224,24 @@ class WaylandToplevelWindow : public WaylandWindow,
   // Try to announce the appmenu associated with this toplevel, if there's any.
   void TryAnnounceAppmenu();
 
-  std::unique_ptr<XdgToplevel> xdg_toplevel_;
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  // NEVA: webOS drives window state from wl_webos_shell state events through
+  // HandleStateChanged(), not from xdg_surface.configure. M151 moved the
+  // upstream state_/previous_state_ members into the delegate's State struct,
+  // reached via the configure/latch machinery, which does not apply to that
+  // path. These keep the M120 bookkeeping HandleStateChanged() needs so the
+  // delegate still gets OnWindowStateChanged(old, new).
+  // VERIFY ON DEVICE: this runs parallel to GetPlatformWindowState(); if the
+  // two disagree in practice, the webOS path should feed the upstream
+  // machinery instead.
+  PlatformWindowState state_ = PlatformWindowState::kUnknown;
+  PlatformWindowState previous_state_ = PlatformWindowState::kUnknown;
+  ///@}
+
+  // NEVA: typed as the interface so WaylandExtensions::CreateShellToplevel()
+  // can substitute the webOS shell surface. Holds an XdgToplevel otherwise.
+  std::unique_ptr<ShellToplevelWrapper> xdg_toplevel_;
 
   // True if it's maximized before requesting the window state change from the
   // client.

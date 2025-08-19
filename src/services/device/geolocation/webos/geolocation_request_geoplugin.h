@@ -17,6 +17,7 @@
 #ifndef SERVICES_DEVICE_GEOLOCATION_WEBOS_GEOLOCATION_REQUEST_GEOPLUGIN_H_
 #define SERVICES_DEVICE_GEOLOCATION_WEBOS_GEOLOCATION_REQUEST_GEOPLUGIN_H_
 
+#include <optional>
 #include "services/device/public/mojom/geoposition.mojom.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 
@@ -34,11 +35,11 @@ class GeolocationRequestGeoplugin {
       const scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
   ~GeolocationRequestGeoplugin();
   void GeopluginRequest(GeopluginRequestCallback callback);
-  void OnGeopluginResponse(std::unique_ptr<std::string> data);
+  void OnGeopluginResponse(std::optional<std::string> data);
 
  private:
   mojom::GeopositionResultPtr ParseServerResponse(
-      std::unique_ptr<std::string> response_body);
+      std::optional<std::string> response_body);
   std::unique_ptr<network::SimpleURLLoader> url_loader_;
 
   GeopluginRequestCallback callback_;

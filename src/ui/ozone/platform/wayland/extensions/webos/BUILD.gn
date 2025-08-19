@@ -69,6 +69,9 @@ source_set("webos") {
 
   deps = [
     "//skia",
+    # NEVA: webos_text_model_wrapper includes zwp_text_input_v1.h, which pulls
+    # in the generated text-input-unstable-v1 client protocol header.
+    "//third_party/wayland-protocols:text_input_protocol",
     "//ui/ozone/platform/wayland/mojom",
   ]
 
@@ -82,6 +85,24 @@ source_set("webos") {
       "host/webos_foreign_video_window_manager.cc",
       "host/webos_foreign_video_window_manager.h",
     ]
+  }
+  # The neva changes to this target include generated headers whose
+  # producing targets were not reachable from here. Nothing ordered them
+  # against this compile, so a clean build could reach these objects
+  # before the generators ran; an incremental build never notices because
+  # the headers are left over from an earlier pass.
+  deps += [ "//build/config/linux/dbus:buildflags" ]
+  if (use_neva_media) {
+    # Only under use_neva_media, and not merely because the sources that
+    # need these headers are the webos_foreign_video_window ones above:
+    # //ui/ozone/common/neva:mojom publicly depends on
+    # //ui/platform_window:mojom, and ui/platform_window/BUILD.gn only
+    # declares that target inside its own if (use_neva_media). An
+    # unconditional dep here makes gn gen fail with "Unresolved
+    # dependencies" on any config that turns neva media off - which is
+    # every machine without the gstreamer/neva-media PACKAGECONFIG,
+    # e.g. tissot-halium.
+    deps += [ "//ui/ozone/common/neva:mojom" ]
   }
 }
 

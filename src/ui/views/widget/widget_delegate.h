@@ -32,6 +32,11 @@ class ForceInstalledDeprecatedAppsDialogView;
 class ForceInstalledPreinstalledDeprecatedAppDialogView;
 class HoverDetectionBubbleView;
 class ImmersiveModeControllerMacInteractiveTest;
+
+namespace neva_app_runtime {
+class ShellWindow;
+class WebAppWindow;
+}  // namespace neva_app_runtime
 class JavaScriptTabModalDialogViewViews;
 class LoginHandlerViewsDialog;
 class MediaGalleriesDialogTest;
@@ -364,6 +369,11 @@ class VIEWS_EXPORT WidgetDelegate {
     // DO NOT ADD TO THIS LIST!
     // These existing cases are "grandfathered in", but there shouldn't be more.
     // See comments atop `SetOwnedByWidget()`.
+    // NEVA: see the note on the WidgetDelegateView friend declaration -
+    // WebAppWindow predates this restriction and its restructure is
+    // deferred past the 120 -> 151 uprev.
+    friend class neva_app_runtime::WebAppWindow;
+    friend class neva_app_runtime::ShellWindow;
     friend class ::AutoPipSettingView;
     friend class ::DigitalIdentityMultiStepDialogDelegate;
 #if !BUILDFLAG(IS_CHROMEOS)
@@ -455,6 +465,11 @@ class VIEWS_EXPORT WidgetDelegate {
     // DO NOT ADD TO THIS LIST!
     // These existing cases are "grandfathered in", but there shouldn't be more.
     // See comments atop `RegisterDeleteDelegateCallback()`.
+    // NEVA: see the note on the WidgetDelegateView friend declaration -
+    // WebAppWindow predates this restriction and its restructure is
+    // deferred past the 120 -> 151 uprev.
+    friend class neva_app_runtime::WebAppWindow;
+    friend class neva_app_runtime::ShellWindow;
     friend class ::DesktopMediaPickerDialogView;
     friend class ::MediaGalleriesDialogViews;
     friend class ::PresentationReceiverWindowView;
@@ -910,6 +925,13 @@ class VIEWS_EXPORT WidgetDelegateView : public WidgetDelegate, public View {
   // DO NOT ADD TO THIS LIST!
   // These existing cases are "grandfathered in", but there shouldn't be more.
   // See comments atop class.
+  // NEVA: neva_app_runtime::WebAppWindow is a WidgetDelegateView that predates
+  // this restriction (it was a plain public base in M120). Upstream's guidance
+  // is to split the WidgetDelegate and View halves apart; that is a real
+  // refactor of the webOS window stack and deliberately not done as part of the
+  // 120 -> 151 uprev. See neva/app_runtime/webapp_window.h.
+  friend class neva_app_runtime::WebAppWindow;
+  friend class neva_app_runtime::ShellWindow;
   friend class ::ImmersiveModeControllerMacInteractiveTest;
   friend class ::PresentationReceiverWindowView;
   friend class ::ProfilePickerView;

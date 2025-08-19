@@ -73,14 +73,22 @@ component("platform_window") {
     "neva/ui_utils.h",
     "neva/window_group_configuration.cc",
     "neva/window_group_configuration.h",
-    "neva/window_group_configuration_param_traits.cc",
-    "neva/window_group_configuration_param_traits.h",
-    "neva/window_group_configuration_param_traits_macros.h",
     "neva/window_group_ipc_export.h",
     "neva/xinput_types.h",
   ]
 
-  deps += [ "//ipc" ]
+  # NEVA: the WindowGroupConfiguration IPC ParamTraits exist only to serialise
+  # over LG's legacy ozone-wayland IPC channel (//ozone:ozone_wayland, selected
+  # by ozone_platform_wayland_external). M151 deleted the legacy IPC message
+  # system, so they are built only when that platform is.
+  if (ozone_platform_wayland_external) {
+    sources += [
+      "neva/window_group_configuration_param_traits.cc",
+      "neva/window_group_configuration_param_traits.h",
+      "neva/window_group_configuration_param_traits_macros.h",
+    ]
+    deps += [ "//ipc" ]
+  }
 
   #@}
 

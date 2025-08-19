@@ -44,7 +44,7 @@ namespace {
 
 void GetWebOSLocalizedErrorStrings(int error_code,
                                    const GURL& failed_url,
-                                   base::Value::Dict& error_strings) {
+                                   base::DictValue& error_strings) {
   error_strings.Set("textdirection", base::i18n::IsRTL() ? "rtl" : "ltr");
 
   std::u16string failed_url_string(url_formatter::FormatUrl(
@@ -130,7 +130,7 @@ void WebOSContentRendererClient::PrepareErrorPage(
     if (template_html.empty()) {
       LOG(ERROR) << "unable to load template.";
     } else {
-      base::Value::Dict error_strings;
+      base::DictValue error_strings;
       neva_app_runtime::AppRuntimeLocalizedError::GetErrorStrings(
           error.reason(), error_strings);
 
@@ -143,8 +143,8 @@ void WebOSContentRendererClient::PrepareErrorPage(
         error_strings.Set(
             "exit_app_button_text",
             l10n_util::GetStringUTF16(IDS_NET_ERROR_CLOSE_TAB_BUTTON_TEXT));
-      // "t" is the id of the template's root node.
-      *error_html = webui::GetTemplatesHtml(template_html, error_strings, "t");
+      *error_html =
+          webui::GetI18nTemplateHtml(template_html, error_strings);
 
       // viewport width and height
       int viewport_width =

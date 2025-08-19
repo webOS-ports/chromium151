@@ -22,7 +22,6 @@
 
 #include "base/logging.h"
 #include "ui/ozone/platform/wayland/extensions/webos/host/webos_shell_surface_wrapper.h"
-#include "ui/ozone/platform/wayland/host/shell_popup_wrapper.h"
 
 namespace ui {
 
@@ -166,11 +165,6 @@ WaylandExtensionsWebosImpl::CreateShellToplevel(WaylandWindow* window) {
                                                       connection_);
   }
 
-  return nullptr;
-}
-
-std::unique_ptr<ShellPopupWrapper> WaylandExtensionsWebosImpl::CreateShellPopup(
-    WaylandWindow* window) {
   return nullptr;
 }
 

@@ -226,7 +226,20 @@ if (is_linux || is_chromeos) {
   vendor = "-unknown"
 
   is_host = current_toolchain == host_toolchain || current_toolchain == host_system_allocator_toolchain || toolchain_for_rust_host_build_tools
-  if (!is_host && rust_target_triple_vendor_for_target != "") {
+
+  # Only stamp OE's vendor on a toolchain actually building for the target CPU.
+  # OE generates a rustc target spec for the target triple only
+  # (aarch64-webos-linux-gnu here); nothing provides x86_64-webos-linux-gnu. The
+  # v8 snapshot toolchain builds mksnapshot to run on the build host, so it is
+  # x64 on an arm64 build, yet it is none of host_toolchain,
+  # host_system_allocator_toolchain or toolchain_for_rust_host_build_tools, so
+  # the is_host test above misses it and //build/rust/std died with
+  #   error loading target specification: could not find specification for
+  #   target "x86_64-webos-linux-gnu"
+  # Comparing against target_cpu keeps the native build unchanged, where the
+  # target toolchain's current_cpu already equals target_cpu.
+  if (!is_host && current_cpu == target_cpu &&
+      rust_target_triple_vendor_for_target != "") {
     vendor = rust_target_triple_vendor_for_target
   }
 

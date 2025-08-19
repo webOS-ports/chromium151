@@ -16,6 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ozone/wayland/shell/shell_surface.h"
+#include "base/notimplemented.h"
 
 #include "ozone/wayland/display.h"
 #include "ozone/wayland/seat.h"

@@ -20,8 +20,7 @@
 #include "base/logging.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "content/public/common/content_plugin_info.h"
-#include "ppapi/shared_impl/ppapi_permissions.h"
+#include "content/public/common/webplugininfo.h"
 #include "webos/webview_base.h"
 
 #if defined(ENABLE_PLAYREADY_CDM)
@@ -31,7 +30,7 @@
 namespace webos {
 
 void WebOSContentClient::AddPlugins(
-    std::vector<content::ContentPluginInfo>* plugins) {
+    std::vector<content::WebPluginInfo>* plugins) {
   base::FilePath path;
 #if defined(ENABLE_PLAYREADY_CDM) && defined(ENABLE_PEPPER_CDMS)
   static bool skip_playready_cdm_file_check = false;
@@ -42,7 +41,7 @@ void WebOSContentClient::AddPlugins(
   std::string playready_lib_file("/libplayreadycdmadapter.so");
   path = base::FilePath(playready_lib_path + playready_lib_file);
   if (skip_playready_cdm_file_check || base::PathExists(path)) {
-    content::ContentPluginInfo playready_cdm;
+    content::WebPluginInfo playready_cdm;
     playready_cdm.is_out_of_process = true;
     playready_cdm.path = path;
     playready_cdm.name = kPlayReadyCdmDisplayName;
@@ -75,9 +74,6 @@ void WebOSContentClient::AddPlugins(
         base::ASCIIToUTF16(codec_string));
 
     playready_cdm.mime_types.push_back(playready_cdm_mime_type);
-    playready_cdm.permissions = ppapi::PERMISSION_DEV |
-                                ppapi::PERMISSION_PRIVATE;
-
     plugins->push_back(playready_cdm);
 
     skip_playready_cdm_file_check = true;

@@ -265,7 +265,7 @@ TEST_F(URLUtilTest, ReplaceScheme) {
             CheckReplaceScheme("myscheme:example.com/ hello # world ", "http"));
 }
 
-TEST_F(URLUtilTest, DecodeURLEscapeSequences) {
+TEST_F(URLUtilTest, DecodeUrlEscapeSequences) {
   struct DecodeCase {
     const char* input;
     const char* output;

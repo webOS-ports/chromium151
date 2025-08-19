@@ -142,7 +142,9 @@ const char kAccessControlRequestMethod[] = "Access-Control-Request-Method";
 }  // namespace header_names
 
 // See https://fetch.spec.whatwg.org/#cors-check.
-base::expected<void, CorsErrorStatus> CheckAccess(
+namespace {
+
+base::expected<void, CorsErrorStatus> CheckAccessInternal(
     const GURL& response_url,
     const std::optional<std::string>& allow_origin_header,
     const std::optional<std::string>& allow_credentials_header,
@@ -219,6 +221,30 @@ base::expected<void, CorsErrorStatus> CheckAccess(
     }
   }
   return base::ok();
+}
+
+}  // namespace
+
+base::expected<void, CorsErrorStatus> CheckAccess(
+    const GURL& response_url,
+    const std::optional<std::string>& allow_origin_header,
+    const std::optional<std::string>& allow_credentials_header,
+    mojom::CredentialsMode credentials_mode,
+    const url::Origin& origin,
+    bool non_strict_mode) {
+  auto check_result =
+      CheckAccessInternal(response_url, allow_origin_header,
+                          allow_credentials_header, credentials_mode, origin);
+
+  // NEVA: a webapp may be granted a CORS/CORB exception by the browser, in
+  // which case an otherwise failing access check is allowed through. In M120
+  // this lived in CheckAccessAndReportMetrics(), which M151 removed.
+  if (non_strict_mode && !check_result.has_value() &&
+      neva::CorsCorbException::ApplyException(check_result.error())) {
+    check_result = base::expected<void, CorsErrorStatus>();
+  }
+
+  return check_result;
 }
 
 bool ShouldCheckCors(const GURL& request_url,

@@ -19,7 +19,7 @@
 
 #include <string>
 
-#include "base/strings/string_piece.h"
+#include <string_view>
 #include "base/values.h"
 
 namespace webos {
@@ -27,8 +27,8 @@ namespace webos {
 // A helper function that generates a string of HTML to be loaded.  The
 // string includes the HTML and the javascript code necessary to generate the
 // full page with support for both i18n Templates and JsTemplates.
-std::string GetTemplatesHtml(const base::StringPiece& html_template,
-                             const base::Value::Dict& json,
+std::string GetTemplatesHtml(const std::string_view& html_template,
+                             const base::DictValue& json,
                              int err_code,
                              int viewport_width,
                              int viewport_height);

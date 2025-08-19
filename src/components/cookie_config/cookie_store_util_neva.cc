@@ -46,6 +46,19 @@ void CookieNevaCryptoDelegate::SetDefaultCryptoDelegate(
   default_delegate_ = std::move(default_delegate);
 }
 
+void CookieNevaCryptoDelegate::Init(base::OnceClosure callback) {
+  // The PAL OSCrypt remote needs no initialisation - SetOSCrypt() binds it
+  // whenever the browser has one. The default delegate does need it, and it
+  // backs every operation the PAL path does not serve, so hand the callback
+  // on when one is set. Init may be called more than once; forwarding keeps
+  // every callback serviced either way.
+  if (default_delegate_) {
+    default_delegate_->Init(std::move(callback));
+    return;
+  }
+  std::move(callback).Run();
+}
+
 bool CookieNevaCryptoDelegate::ShouldEncrypt() {
   if (HasOSCrypt())
     return true;

@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 
 #include "components/services/storage/dom_storage/local_storage_impl.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/functional/callback_helpers.h"
 
 #include <inttypes.h>
 
@@ -193,34 +195,34 @@ class LocalStorageImpl::StorageAreaHolder final
   bool has_bindings() const { return has_bindings_; }
 
 #if defined(USE_NEVA_APPRUNTIME)
+  // M151: the database hands back parsed DomStorageDatabase::Metadata, so the
+  // old path of reading raw kMetaPrefix rows and decoding the
+  // LocalStorageStorageKeyMetaData protobuf is gone.
   void OnGotMetaDataForStorageKey(
       GetUsageCallback callback,
-      std::vector<DomStorageDatabase::KeyValuePair> data) {
+      StatusOr<DomStorageDatabase::Metadata> all_metadata) {
     std::vector<mojom::StorageUsageInfoPtr> result;
     size_t total_size = 0;
-    for (const auto& row : data) {
-      std::optional<blink::StorageKey> storage_key =
-          ExtractStorageKeyFromMetaDataKey(row.key);
-      if (!storage_key) {
-        continue;
+    if (all_metadata.has_value()) {
+      for (const DomStorageDatabase::MapMetadata& usage_metadata :
+           all_metadata->map_metadata) {
+        if (!usage_metadata.last_modified || !usage_metadata.total_size) {
+          continue;
+        }
+        const blink::StorageKey& storage_key =
+            usage_metadata.map_locator.storage_key();
+        const auto origin = storage_key.origin();
+
+        if (!origin.IsSameOriginWith(storage_key_.origin()) &&
+            !origin.DomainIs(GetTLD1DomainFromOrigin(storage_key_.origin()))) {
+          continue;
+        }
+
+        const size_t size_bytes = usage_metadata.total_size->InBytes();
+        result.emplace_back(mojom::StorageUsageInfo::New(
+            storage_key, size_bytes, *usage_metadata.last_modified));
+        total_size += size_bytes;
       }
-      auto origin = storage_key->origin();
-
-      if (!origin.IsSameOriginWith(storage_key_.origin()) &&
-          !origin.DomainIs(GetTLD1DomainFromOrigin(storage_key_.origin()))) {
-        continue;
-      }
-
-      storage::LocalStorageStorageKeyMetaData row_data;
-      if (!row_data.ParseFromArray(row.value.data(), row.value.size())) {
-        continue;
-      }
-
-      result.push_back(mojom::StorageUsageInfo::New(
-          storage_key.value(), row_data.size_bytes(),
-          base::Time::FromInternalValue(row_data.last_modified())));
-
-      total_size += row_data.size_bytes();
     }
 
     if (total_size > context_->storage_size_limit_)
@@ -725,15 +727,10 @@ void LocalStorageImpl::RetrieveStorageUsageForStorageKey(
   if (!database_) {
     return;
   }
-  database_->RunDatabaseTask(
-      base::BindOnce([](const DomStorageDatabase& db) {
-        std::vector<DomStorageDatabase::KeyValuePair> data;
-        db.GetPrefixed(base::span(kMetaPrefix), &data);
-        return data;
-      }),
-      base::BindOnce(
-          &LocalStorageImpl::StorageAreaHolder::OnGotMetaDataForStorageKey,
-          base::Unretained(areas_[storage_key].get()), std::move(callback)));
+  // M151: ReadAllMetadata() replaces the RunDatabaseTask + GetPrefixed pair.
+  database_->ReadAllMetadata(base::BindOnce(
+      &LocalStorageImpl::StorageAreaHolder::OnGotMetaDataForStorageKey,
+      base::Unretained(areas_[storage_key].get()), std::move(callback)));
 }
 #endif
 

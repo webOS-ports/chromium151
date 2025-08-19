@@ -132,6 +132,12 @@ declare_args() {
   # extra cxx flags for clang build
   clang_extra_cxxflags = ""
 
+  # C counterpart of clang_extra_cxxflags. Needed for cross builds: the webos
+  # clang_toolchain()s invoke the native clang binary directly, so the target
+  # triple has to be injected, and injecting it only on the C++ side leaves
+  # .c files compiling for the build host's architecture.
+  clang_extra_cflags = ""
+
   # flag for using libstdc++ instead of libc++ for clang
   clang_use_stdlib = false
 

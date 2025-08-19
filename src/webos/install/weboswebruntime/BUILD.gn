@@ -42,6 +42,7 @@ copy("weboswebruntime") {
     ":headers",
     ":pkgconfig",
     ":debugging_buildflags_header",
+    ":fuzzing_buildflags_header",
     ":partition_alloc_buildflags_header",
     ":target_buildflags_header",
     ":tracing_buildflags_header"
@@ -52,7 +53,14 @@ copy("weboswebruntime") {
   if (use_lttng) {
     deps += [ ":lttng_provider" ]               # for libchromium_lttng_provider.so
   }
-  if (use_perfetto_client_library) {
+  # M151 finished the migration to perfetto's client library and dropped the
+  # use_perfetto_client_library arg from build_overrides/build.gni. M120 defined
+  # it as (is_linux || is_android || (use_blink && is_ios)) && !is_castos, so it
+  # was true here and libtest_trace_processor.so was part of the image. The
+  # surviving arg with the same effective condition is use_perfetto_trace_processor
+  # (= !is_cronet_build), which is what gates //base/test's own dependency on
+  # :test_trace_processor.
+  if (use_perfetto_trace_processor) {
     deps += [ ":test_trace_processor" ]
   }
 }
@@ -85,7 +93,7 @@ if (use_cbe) {
   }
 }
 
-if (use_perfetto_client_library) {
+if (use_perfetto_trace_processor) {
   copy("test_trace_processor") {
     testonly = true
     sources = [
@@ -136,6 +144,16 @@ copy("debugging_buildflags_header") {
 
 copy("partition_alloc_buildflags_header") {
   sources = partition_alloc_buildflags_header
+  outputs = []
+
+  foreach(file, rebase_path(sources, root_gen_dir)) {
+    outputs += [ "$image_path/$includedir/webruntime/" + file ]
+  }
+  deps = generated_headers_deps
+}
+
+copy("fuzzing_buildflags_header") {
+  sources = fuzzing_buildflags_header
   outputs = []
 
   foreach(file, rebase_path(sources, root_gen_dir)) {

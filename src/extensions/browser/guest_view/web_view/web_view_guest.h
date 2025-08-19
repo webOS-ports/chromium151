@@ -268,6 +268,10 @@ class WebViewGuest : public guest_view::GuestView<WebViewGuest> {
       blink::RendererPreferences& preferences) final;
 
   // WebContentsDelegate implementation.
+  // NEVA: pinch-to-zoom handling; the definition in the .cc had no matching
+  // declaration after the uprev because GuestViewBase no longer declares it.
+  bool PreHandleGestureEvent(content::WebContents* source,
+                             const blink::WebGestureEvent& event) override;
   void CloseContents(content::WebContents* source) final;
   bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
                          const content::ContextMenuParams& params) final;

@@ -155,7 +155,7 @@ class CC_EXPORT SoftwareImageDecodeCache
   ImageLRUCache decoded_images_ GUARDED_BY(lock_);
 
 #if defined(USE_NEVA_APPRUNTIME)
-  std::optional<base::MemoryPressureListenerRegistration>
+  std::optional<base::AsyncMemoryPressureListenerRegistration>
       memory_pressure_listener_registration_;
 #endif  // defined(USE_NEVA_APPRUNTIME)
 

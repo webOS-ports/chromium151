@@ -43,12 +43,12 @@ void WaylandWindowAgl::SetAglActivateApp(const std::string& app) {
 }
 
 void WaylandWindowAgl::SetAglAppId(const std::string& title) {
-  if (!shell_toplevel()) {
+  if (!xdg_toplevel()) {
     LOG(ERROR) << "Shell toplevel is not created";
     return;
   }
 
-  shell_toplevel()->SetAppId(title);
+  xdg_toplevel()->SetAppId(title);
   connection()->Flush();
 }
 

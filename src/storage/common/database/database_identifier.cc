@@ -89,7 +89,9 @@ DatabaseIdentifier DatabaseIdentifier::CreateFromOrigin(const GURL& origin) {
 
 #if defined(OS_WEBOS)
   if (origin.SchemeIsFile())
-    return DatabaseIdentifier(origin.scheme(), origin.host(), 0,
+    // M151: GURL::scheme()/host() return std::string_view.
+    return DatabaseIdentifier(std::string(origin.scheme()),
+                              std::string(origin.host()), 0,
                               false /* unique */, false /* file */);
 #endif
 

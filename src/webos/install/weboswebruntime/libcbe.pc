@@ -8,4 +8,4 @@ Version: 1.0.0
 Description: webruntime - Library
 Libs: -L${libdir} -lcbe
 Libs.private:
-Cflags: -I${includedir}/webruntime
+Cflags: -I${includedir}/webruntime -I${includedir}/webruntime/base/allocator/partition_allocator/src

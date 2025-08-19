@@ -4,6 +4,7 @@
 //
 
 #include "ozone/ui/webui/select_file_dialog_impl_webui.h"
+#include "base/notimplemented.h"
 
 #include <deque>
 #include <string>

@@ -4,6 +4,7 @@
 
 import("//build/config/ui.gni")
 import("//mojo/public/tools/bindings/mojom.gni")
+import("//neva/neva.gni")
 
 component("input") {
   defines = [ "IS_INPUT_IMPL" ]
@@ -86,6 +87,14 @@ component("input") {
   ]
   public_deps = [ "//ui/base/mojom:ui_base_types" ]
   deps = [
+    # NEVA: render_widget_host_input_event_router.cc reaches into
+    # //content/browser (render_view_host_impl.h), which pulls in the
+    # generated content/common/agent_scheduling_group.mojom.h. The
+    # include was added by the neva components patch but the
+    # corresponding GN dep was not, so a clean build fails with
+    #   fatal error: 'content/common/agent_scheduling_group.mojom.h'
+    #   file not found
+    # Incremental builds hide it: content generates the header anyway.
     ":mojom",
     "//base",
     "//cc",
@@ -146,6 +155,36 @@ component("input") {
       "CoreGraphics.framework",
       "Foundation.framework",
     ]
+  }
+  if (use_neva_appruntime) {
+    # The neva input-event-router changes include content/browser headers from
+    # this target, and those pull in a long tail of generated headers. The
+    # content/browser include itself is a layering violation gn check flags and
+    # that cannot be fixed with a dep, because //content/browser already depends
+    # on this target. The generated headers, though, come from leaf mojom and
+    # buildflag targets that can be depended on without creating a cycle.
+    # Without these edges, whether the headers exist by the time this target
+    # compiles is down to build order - which is why it only fails on a clean
+    # build and never on an incremental one.
+    deps += [
+      "//components/language_detection/content/common:common",
+      "//components/local_storage_tracker/public/mojom:mojom",
+      "//components/services/quarantine/public/mojom:mojom",
+      "//components/services/storage/privileged/mojom:mojom",
+      "//components/services/storage/public/mojom:mojom",
+      "//content/common:buildflags",
+      "//content/common:mojo_bindings",
+      "//content/public/common:buildflags",
+      "//content/public/common:interfaces",
+      "//content/services/auction_worklet/public/mojom:mojom",
+      "//media/mojo/mojom:mojom",
+      "//media/mojo/mojom:remoting",
+      "//services/cert_verifier/public/mojom:mojom",
+      "//tools/v8_context_snapshot:buildflags",
+    ]
+    if (use_neva_media) {
+      deps += [ "//content/public/common:frame_video_window_factory_mojom" ]
+    }
   }
 }
 

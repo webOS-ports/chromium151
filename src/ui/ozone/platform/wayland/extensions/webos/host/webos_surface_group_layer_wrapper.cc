@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ui/ozone/platform/wayland/extensions/webos/host/webos_surface_group_layer_wrapper.h"
+#include "base/notimplemented.h"
 
 #include <wayland-webos-surface-group-client-protocol.h>
 

@@ -15,11 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "services/network/public/cpp/neva/cors_corb_exception.h"
+#include "base/logging.h"
 
 #include <set>
 
 #include "base/check_op.h"
-#include "base/containers/contains.h"
 #include "base/no_destructor.h"
 #include "base/stl_util.h"
 #include "services/network/public/mojom/cors.mojom-shared.h"
@@ -55,7 +55,7 @@ void CorsCorbException::RemoveForProcess(int process_id) {
 // static
 bool CorsCorbException::ShouldAllowExceptionForProcess(int process_id) {
   std::set<int>& processes = GetExceptionProcesses();
-  return base::Contains(processes, process_id);
+  return processes.contains(process_id);
 }
 
 // static
@@ -89,7 +89,7 @@ void CorsCorbException::RemoveForURL(const GURL& url) {
 // static
 bool CorsCorbException::ShouldAllowExceptionForURL(const GURL& url) {
   std::set<GURL>& urls = GetExceptionUrlsSet();
-  return base::Contains(urls, url);
+  return urls.contains(url);
 }
 
 }  // namespace neva

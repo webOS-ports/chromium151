@@ -26,20 +26,18 @@ const base::FilePath::CharType kLocalStorageTrackerDataFileName[] =
 LocalStorageTrackerDatabase::LocalStorageTrackerDatabase(
     const base::FilePath& data_file_name)
     : data_file_name_(data_file_name.Append(kLocalStorageTrackerDataFileName)),
-      db_({// Note that we don't set exclusive locking here. That's done by
-           // BeginExclusiveMode below which is called later (we have to be in
-           // shared mode to start out for the in-memory backend to read the
-           // data).
-           // TODO(1153459) Remove this dependency on normal locking mode.
-           .exclusive_locking = false,
-           // Set the database page size to something a little larger to give us
-           // better performance (we're typically seek rather than bandwidth
-           // limited). Must be a power of 2 and a max of 65536.
-           .page_size = 4096,
-           // Set the cache size. The page size, plus a little extra, times this
-           // value, tells us how much memory the cache will use maximum.
-           // 1000 * 4kB = 4MB
-           .cache_size = 100}) {}
+      // M151: DatabaseOptions became a builder with setters rather than an
+      // aggregate, and sql::Database requires a Tag alongside it.
+      db_(sql::DatabaseOptions()
+              // Not exclusive here: BeginExclusiveMode is called later, and
+              // the in-memory backend has to start in shared mode to read.
+              .set_exclusive_locking(false)
+              // Larger page size: this workload is seek- rather than
+              // bandwidth-limited. Power of 2, max 65536.
+              .set_page_size(4096)
+              // 100 * 4kB cache.
+              .set_cache_size(100),
+          sql::Database::Tag("NevaLocalStorageTracker")) {}
 
 bool LocalStorageTrackerDatabase::AddAccess(const AccessData& access) {
   sql::Statement statement(
@@ -187,7 +185,8 @@ sql::InitStatus LocalStorageTrackerDatabase::Init() {
     LOG(ERROR) << "Invalid DB path=" << data_file_name_.AsUTF8Unsafe();
     return sql::INIT_FAILURE;
   }
-  db_.set_histogram_tag("LGE_LocalStorageTracker");
+  // M151: the histogram tag is supplied via sql::Database::Tag at
+  // construction; set_histogram_tag() no longer exists.
 
   // Note that we don't set exclusive locking here. That's done by
   // BeginExclusiveMode below which is called later (we have to be in shared
@@ -203,7 +202,7 @@ sql::InitStatus LocalStorageTrackerDatabase::Init() {
     return sql::INIT_FAILURE;
 
   // Prime the cache.
-  db_.Preload();
+  // M151 removed sql::Database::Preload().
   if (!CreateAppsTable() || !CreateOriginsTable() ||
       !CreateLocalStorageAccessTable()) {
     return sql::INIT_FAILURE;

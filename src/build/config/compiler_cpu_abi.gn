@@ -26,6 +26,56 @@ cpu_abi_cflags = []
 cpu_abi_ldflags = []
 cpu_abi_defines = []
 
+# Restore the target triple that oe's
+# 0001-Drop-GN-compiler-settings-conflicting-with-OE.patch removes.
+#
+# That patch drops it because OE normally compiles through a cross wrapper that
+# already knows its target. webruntime-clang does not: its clang_toolchain()s
+# invoke recipe-sysroot-native/usr/bin/clang directly, so with the triple gone
+# clang assumes the build host. Invisible while host == target, fatal when
+# cross-compiling:
+#   - '-mbranch-protection=' rejected for target 'x86_64-unknown-linux-gnu'
+#   - bits/timesize.h taking the 32-bit branch and failing on 'bits/timesize-32.h'
+#     inside bindgen, because __WORDSIZE came out wrong
+#
+# It has to live here rather than in the toolchain's extra_cflags: bindgen builds
+# its clang arguments from the target config (see filter_clang_args.py), so flags
+# added at the toolchain level never reach it.
+#
+# Deliberately the plain GNU triple, not OE's ${TARGET_SYS}: naming a triple that
+# matches the GCC install inside the sysroot makes clang prepend that GCC's
+# libstdc++ headers, which then collide with the libc++ this build uses.
+if (is_clang && !is_android && !is_fuchsia && !is_chromeos_device &&
+    current_os == "linux") {
+  if (current_cpu == "arm64") {
+    cpu_abi_cflags += [ "--target=aarch64-linux-gnu" ]
+    cpu_abi_ldflags += [ "--target=aarch64-linux-gnu" ]
+  } else if (current_cpu == "arm") {
+    cpu_abi_cflags += [ "--target=arm-linux-gnueabihf" ]
+    cpu_abi_ldflags += [ "--target=arm-linux-gnueabihf" ]
+
+    # 32-bit ARM additionally needs the baseline architecture spelled out.
+    # aarch64-linux-gnu implies armv8-a, but arm-linux-gnueabihf implies only
+    # __ARM_ARCH 6 with Thumb1, so without this the whole build silently
+    # compiles for ARMv6 instead of the Cortex-A8 it is aimed at. It also
+    # breaks third_party/zlib: crc32_simd.c marks its functions
+    # __attribute__((target("crc"))), which only widens an ARMv7-or-better
+    # baseline -- on the ARMv6/Thumb1 default the CRC32 intrinsics have no
+    # encoding and instruction selection aborts with
+    #   fatal error: Cannot select: intrinsic %llvm.arm.crc32b
+    # zlib's own -march=armv8-a+crc does not save us: it sits behind
+    # `if (!is_win && !is_clang)`.
+    #
+    # This belongs in cpu_abi_cflags rather than the toolchain's extra_cflags
+    # so that targets keep the last word: config cflags are emitted before
+    # per-target ones, so anything raising its own -march still overrides it.
+    if (arm_arch != "") {
+      cpu_abi_cflags += [ "-march=$arm_arch" ]
+      cpu_abi_ldflags += [ "-march=$arm_arch" ]
+    }
+  }
+}
+
 if (is_chromeos_device && is_chromeos) {
   if (current_cpu == "x64") {
     cros_target = "--target=x86_64-cros-linux-gnu"

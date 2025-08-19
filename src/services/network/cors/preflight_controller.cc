@@ -289,7 +289,9 @@ std::unique_ptr<PreflightResult> CreatePreflightResult(
     const ResourceRequest& original_request,
     bool tainted,
     base::WeakPtr<mojo::Remote<mojom::DevToolsObserver>> devtools_observer,
-    std::optional<CorsErrorStatus>* detected_error_status) {
+    std::optional<CorsErrorStatus>* detected_error_status,
+    // NEVA: the 120->151 merge dropped this parameter but kept its use below.
+    bool non_strict_mode = false) {
   CHECK(detected_error_status);
 
   auto check_result = CheckPreflightAccess(
@@ -451,8 +453,11 @@ class PreflightController::PreflightLoader final {
 
     std::optional<CorsErrorStatus> detected_error_status;
     std::unique_ptr<PreflightResult> result =
-        CreatePreflightResult(final_url, head, original_request_, tainted_,
-                              devtools_observer_, &detected_error_status);
+        CreatePreflightResult(
+            final_url, head, original_request_, tainted_, devtools_observer_,
+            &detected_error_status,
+            neva::CorsCorbException::ShouldAllowExceptionForProcess(
+                process_id_));
 
     if (!result) {
       std::move(completion_callback_)
@@ -547,6 +552,13 @@ class PreflightController::PreflightLoader final {
   const bool acam_preflight_spec_conformant_;
   mojo::Remote<mojom::URLLoaderNetworkServiceObserver>
       url_loader_network_service_observer_;
+
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  // NEVA: the constructor takes and initialises this, but the 120->151 merge
+  // dropped the declaration. Used for the CORS/CORB process exception.
+  uint32_t process_id_;
+  ///@}
 };
 
 // static

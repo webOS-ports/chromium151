@@ -125,30 +125,30 @@ void WebAppWindow::OnMouseEvent(ui::MouseEvent* event) {
   int flags = event->flags();
 
   switch (event->type()) {
-    case ui::EventType::ET_MOUSE_PRESSED: {
+    case ui::EventType::kMousePressed: {
       WebOSMouseEvent ev(WebOSEvent::MouseButtonPress, x, y, flags);
       if (HandleEvent(&ev))
         event->StopPropagation();
       break;
     }
-    case ui::EventType::ET_MOUSE_RELEASED: {
+    case ui::EventType::kMouseReleased: {
       WebOSMouseEvent ev(WebOSEvent::Type::MouseButtonRelease, x, y, flags);
       if (HandleEvent(&ev))
         event->StopPropagation();
       break;
     }
-    case ui::EventType::ET_MOUSE_MOVED: {
+    case ui::EventType::kMouseMoved: {
       WebOSMouseEvent ev(WebOSEvent::Type::MouseMove, x, y);
       if (HandleEvent(&ev))
         event->StopPropagation();
       break;
     }
-    case ui::EventType::ET_MOUSE_ENTERED: {
+    case ui::EventType::kMouseEntered: {
       WebOSMouseEvent ev(WebOSEvent::Type::Enter, x, y);
       HandleEvent(&ev);
       break;
     }
-    case ui::EventType::ET_MOUSE_EXITED: {
+    case ui::EventType::kMouseExited: {
       /* "Leave" sending is blocked. This is a temporary workaround
       caused by "Leave" handling in enact/spotlight/src/spotlight.js
       and used until it will be fixed (see more details in WRQ-1854)
@@ -157,7 +157,7 @@ void WebAppWindow::OnMouseEvent(ui::MouseEvent* event) {
       HandleEvent(&ev);*/
       break;
     }
-    case ui::EventType::ET_MOUSEWHEEL: {
+    case ui::EventType::kMousewheel: {
       ui::MouseWheelEvent* wheel_event =
           static_cast<ui::MouseWheelEvent*>(event);
       WebOSMouseWheelEvent ev(WebOSEvent::Type::Wheel, x, y,
@@ -175,12 +175,12 @@ void WebAppWindow::OnKeyEvent(ui::KeyEvent* event) {
   CheckKeyFilter(event);
 
   switch (event->type()) {
-    case ui::EventType::ET_KEY_PRESSED:
+    case ui::EventType::kKeyPressed:
       if (OnWebOSKeyPressed(event->key_code())) {
         event->StopPropagation();
       }
       break;
-    case ui::EventType::ET_KEY_RELEASED:
+    case ui::EventType::kKeyReleased:
       if (OnWebOSKeyReleased(event->key_code())) {
         event->StopPropagation();
       }

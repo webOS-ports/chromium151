@@ -130,6 +130,16 @@ _NATIVE_ALLOWLIST = {
     'media.mojom.KeyType',
     'media.mojom.MatrixID',
     'media.mojom.MediaContainerName',
+    # NEVA: LG's neva media pipeline declares these as [Native] enums, mirrored
+    # from the C++ types in media/base/neva. They predate this check exactly as
+    # the upstream media.mojom entries around them do; converting them to real
+    # mojom enums would mean hand-writing EnumTraits for each and keeping them
+    # in step with the C++ definitions, with no functional gain.
+    'media.mojom.MediaEventType',
+    'media.mojom.MediaPlayerType',
+    'media.mojom.MediaTrackType',
+    'media.mojom.PlayerEvent',
+    'media.mojom.SuspendReason',
     'media.mojom.MediaContentType',
     'media.mojom.MediaLogRecord',
     'media.mojom.MediaStatusState',

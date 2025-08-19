@@ -3381,7 +3381,7 @@ URLRequestContextOwner NetworkContext::MakeURLRequestContext(
 }
 
 scoped_refptr<SessionCleanupCookieStore>
-NetworkContext::MakeSessionCleanupCookieStore() {
+NetworkContext::MakeSessionCleanupCookieStore() const {
   base::FilePath cookie_path;
   if (!GetFullDataFilePath(
           params_->file_paths,

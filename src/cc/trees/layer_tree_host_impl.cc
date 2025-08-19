@@ -702,10 +702,17 @@ LayerTreeHostImpl::LayerTreeHostImpl(
       settings.top_controls_hide_threshold);
 
 #if defined(USE_NEVA_APPRUNTIME)
-  // NEVA: drive the low-end tile memory policy from memory pressure. M151
-  // dropped its own listener here, but base::MemoryPressureListener remains.
+  // NEVA: drive the low-end tile memory policy from memory pressure.
+  //
+  // M151 requires memory pressure listeners to be registered on the main
+  // thread (CHECK in MemoryPressureListenerRegistry::AddObserver), but
+  // LayerTreeHostImpl is constructed on the compositor impl thread. Upstream
+  // provides AsyncMemoryPressureListenerRegistration exactly for this: it
+  // registers on the main thread internally and forwards notifications back to
+  // the owning sequence, so the webOS tile-memory-pressure tuning in
+  // OnMemoryPressure() runs under threaded compositing too.
   memory_pressure_listener_registration_.emplace(
-      base::MemoryPressureListenerTag::kLayerTreeHostImpl, this);
+      FROM_HERE, base::MemoryPressureListenerTag::kLayerTreeHostImpl, this);
 
   base::CommandLine& cmd_line = *base::CommandLine::ForCurrentProcess();
   if (cmd_line.HasSwitch(

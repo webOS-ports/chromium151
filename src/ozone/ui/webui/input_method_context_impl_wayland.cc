@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "ozone/ui/webui/input_method_context_impl_wayland.h"
+#include "base/notimplemented.h"
 
 #include "base/logging.h"
 #include "base/notreached.h"

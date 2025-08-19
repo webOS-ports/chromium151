@@ -109,7 +109,7 @@ GURL PermissionContextBase::convertToApplicationURL(const GURL& origin) {
   // so that always requesting domain becomes sub domain of the app-id.
   // e.i. file://[app-id]-[file_security_origin]
   if (origin.get_webapp_id()) {
-    std::string host = origin.host();
+    std::string host(origin.host());
     std::string file_security_origin =
         neva_app_runtime::FileSchemeHostForApp(*origin.get_webapp_id());
     if (host.empty())

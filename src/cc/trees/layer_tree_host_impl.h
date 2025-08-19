@@ -1219,7 +1219,7 @@ class CC_EXPORT LayerTreeHostImpl : public TileManagerClient,
   // base::MemoryPressureListener:
   void OnMemoryPressure(base::MemoryPressureLevel level) override;
 
-  std::optional<base::MemoryPressureListenerRegistration>
+  std::optional<base::AsyncMemoryPressureListenerRegistration>
       memory_pressure_listener_registration_;
   base::MemoryPressureLevel memory_pressure_level_ =
       base::MEMORY_PRESSURE_LEVEL_NONE;

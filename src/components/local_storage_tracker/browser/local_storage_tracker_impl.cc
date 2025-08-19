@@ -185,7 +185,7 @@ std::set<GURL> LocalStorageTrackerImpl::GetSubOrigins(const GURL& origin) {
   std::string domain_registry =
       net::registry_controlled_domains::GetDomainAndRegistry(
           origin, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
-  std::string host = origin.host();
+  std::string host(origin.host());
   if (domain_registry.empty() || domain_registry == host) {
     return sub_origins;
   }
@@ -201,7 +201,7 @@ std::set<GURL> LocalStorageTrackerImpl::GetSubOrigins(const GURL& origin) {
   while (pos != std::string::npos && pos < max_pos) {
     GURL::Replacements replacements;
     std::size_t subdomain_pos = pos + 1;
-    replacements.SetHostStr(base::StringPiece(host).substr(
+    replacements.SetHostStr(std::string_view(host).substr(
         subdomain_pos, host.length() - subdomain_pos));
     sub_origins.insert(sub_origin.ReplaceComponents(replacements));
     pos = host.find('.', subdomain_pos);

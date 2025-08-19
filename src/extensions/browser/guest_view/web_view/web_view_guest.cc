@@ -147,7 +147,7 @@ class WebViewGuestWebViewControllerDelegate
   std::string RunFunction(const std::string& name,
                           const std::vector<std::string>&) override {
     if (name == kInitialize) {
-      base::Value(base::Value::Dict().Set(kIdentifier, GetIdentifier()))
+      base::Value(base::DictValue().Set(kIdentifier, GetIdentifier()))
           .GetString();
     } else if (name == kIdentifier) {
       return GetIdentifier();
@@ -950,7 +950,8 @@ bool WebViewGuest::PreHandleGestureEvent(WebContents* source,
     return false;
   }
 #endif
-  return !allow_scaling_ && GuestViewBase::PreHandleGestureEvent(source, event);
+  return !allow_scaling_ &&
+         content::WebContentsDelegate::PreHandleGestureEvent(source, event);
 }
 
 void WebViewGuest::LoadAbort(bool is_top_level,
@@ -1270,13 +1271,14 @@ void WebViewGuest::UpdateUserAgentMetadata() {
 #if defined(USE_NEVA_APPRUNTIME)
   if (neva_user_agent::IsUserAgentClientHintsEnabled()) {
     blink::UserAgentOverride ua_override;
-    ua_override.ua_string_override = user_agent_override;
+    ua_override.ua_string_override = retained_ua_string_override;
     ua_override.ua_metadata_override =
         neva_user_agent::GetDefaultUserAgentMetadata();
     web_contents()->SetUserAgentOverride(ua_override, false);
   } else {
     web_contents()->SetUserAgentOverride(
-        blink::UserAgentOverride::UserAgentOnly(user_agent_override), false);
+        blink::UserAgentOverride::UserAgentOnly(retained_ua_string_override),
+        false);
   }
 #else
   web_contents()->SetUserAgentOverride(
@@ -1376,7 +1378,7 @@ WebViewGuest::WebViewGuest(content::RenderFrameHost* owner_rfh)
           ExtensionsAPIClient::Get()->CreateWebViewGuestDelegate(this)),
       is_spatial_navigation_enabled_(
           base::CommandLine::ForCurrentProcess()->HasSwitch(
-              switches::kEnableSpatialNavigation)) {
+              ::switches::kEnableSpatialNavigation)) {
   if (IsOwnedByControlledFrameEmbedder()) {
     page_load_metrics::MetricsWebContentsObserver::RecordFeatureUsage(
         owner_rfh, blink::mojom::WebFeature::kHTMLControlledFrameElement);
@@ -1843,7 +1845,8 @@ void WebViewGuest::CanDownload(const GURL& url,
   base::FilePath pdf_file_name(url.ExtractFileName());
   if (url.SchemeIsHTTPOrHTTPS() &&
       pdf_file_name.MatchesExtension(std::string(".pdf"))) {
-    NavigateGuest(std::string(kPdfJsViewerHtmlURL) + url.spec(), true);
+    NavigateGuest(std::string(kPdfJsViewerHtmlURL) + url.spec(),
+                  /*navigation_handle_callback=*/{}, true);
 
     if (!callback.is_null()) {
       std::move(callback).Run(true);

@@ -24,12 +24,10 @@ namespace ui {
 class COMPONENT_EXPORT(UI_BASE_IME_LINUX) InputMethodAuraLinuxNeva
     : public InputMethodAuraLinux {
  public:
-  explicit InputMethodAuraLinuxNeva(
-      ImeKeyEventDispatcher* ime_key_event_dispatcher
-#if defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
-      , unsigned handle
-#endif
-  );
+  // M151 made the widget a required parameter of InputMethodAuraLinux; it is
+  // no longer conditional on the legacy wayland_external backend.
+  InputMethodAuraLinuxNeva(ImeKeyEventDispatcher* ime_key_event_dispatcher,
+                           gfx::AcceleratedWidget widget);
   ~InputMethodAuraLinuxNeva() override = default;
 
   // Overriden from ui::NevaLinuxInputMethodContextDelegate

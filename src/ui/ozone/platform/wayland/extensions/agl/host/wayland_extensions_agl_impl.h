@@ -44,8 +44,6 @@ class WaylandExtensionsAglImpl : public WaylandExtensions,
   std::unique_ptr<ShellToplevelWrapper> CreateShellToplevel(
       WaylandWindow* window) override;
 
-  std::unique_ptr<ShellPopupWrapper> CreateShellPopup(
-      WaylandWindow* window) override;
 
   std::unique_ptr<WaylandWindow> CreateWaylandWindow(
       PlatformWindowDelegate* delegate,

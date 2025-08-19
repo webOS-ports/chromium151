@@ -597,7 +597,7 @@ void SurfaceManager::SurfaceActivatedEx(Surface* surface,
                                         bool is_first_contentful_paint,
                                         bool did_reset_container_state,
                                         bool seen_first_contentful_paint) {
-  CHECK(thread_checker_.CalledOnValidThread());
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   for (auto& observer : observer_list_)
     observer.OnSurfaceActivatedEx(

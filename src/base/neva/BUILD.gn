@@ -35,6 +35,12 @@ static_library("neva") {
     # generated base/fuzzing_buildflags.h.
     "//base:fuzzing_buildflags",
     # M151: //base:logging_buildflags was removed upstream.
+    # base/synchronization/lock_impl.h includes the generated
+    # synchronization_buildflags.h. Incremental builds masked this - the header
+    # was already present in the out dir from an earlier pass - but a clean
+    # build fails with "'base/synchronization/synchronization_buildflags.h'
+    # file not found" while compiling neva_paths.cc.
+    "//base:synchronization_buildflags",
     "//base:tracing_buildflags",
   ]
 }

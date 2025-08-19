@@ -27,7 +27,6 @@
 #include "ui/ozone/platform/wayland/host/extended_input_wrapper.h"
 #include "ui/ozone/platform/wayland/host/input_manager_wrapper.h"
 #include "ui/ozone/platform/wayland/host/input_panel_manager.h"
-#include "ui/ozone/platform/wayland/host/shell_popup_wrapper.h"
 #include "ui/ozone/platform/wayland/host/shell_surface_wrapper.h"
 #include "ui/ozone/platform/wayland/host/surface_group_compositor_wrapper.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
@@ -74,11 +73,6 @@ bool WaylandExtensionsAglImpl::HasShellObject() const {
 
 std::unique_ptr<ShellToplevelWrapper>
 WaylandExtensionsAglImpl::CreateShellToplevel(WaylandWindow* window) {
-  return nullptr;
-}
-
-std::unique_ptr<ShellPopupWrapper> WaylandExtensionsAglImpl::CreateShellPopup(
-    WaylandWindow* window) {
   return nullptr;
 }
 

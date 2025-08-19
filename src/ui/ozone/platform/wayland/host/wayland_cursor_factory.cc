@@ -175,7 +175,7 @@ scoped_refptr<PlatformCursor> WaylandCursorFactory::GetDefaultCursor(
                        weak_factory_.GetWeakPtr(), async_cursor, type, scale));
 #if defined(OS_WEBOS)
   } else {
-    auto async_cursor = current_theme->cache[type];
+    auto async_cursor = current_theme->cache()[type];
     // If the callback was invoked but didn't give any bitmap for the cursor
     // then return null to step into the next fallback logic.
     // TODO(neva): However, there is no compensation logic for the failure of

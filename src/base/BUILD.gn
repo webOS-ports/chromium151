@@ -2638,6 +2638,10 @@ component("base") {
     configs -= [ "//build/config/compiler:default_optimization" ]
     configs += [ "//build/config/compiler:optimize_max" ]
   }
+
+  if (use_lttng && current_toolchain == default_toolchain) {
+    deps += [ "//base/trace_event/neva/lttng:chromium_lttng_provider" ]
+  }
 }
 
 # This meta-target is equivalent to //base, but for rust code. It's separate
@@ -4125,7 +4129,9 @@ test("base_unittests") {
     "//testing/buildbot/filters:base_unittests_filters",
   ]
 
-  if (is_win || is_linux) {
+  # NEVA: keep this in step with the !is_webos guard on the helper itself in
+  # base/allocator/BUILD.gn - see the comment there.
+  if ((is_win || is_linux) && !is_webos) {
     data_deps += [ "//base/allocator:system_allocator_test_helper" ]
     sources += [ "allocator/system_allocator_unittest.cc" ]
   }

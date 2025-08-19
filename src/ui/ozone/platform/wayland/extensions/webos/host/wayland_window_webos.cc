@@ -17,6 +17,7 @@
 
 #include "ui/ozone/platform/wayland/extensions/webos/host/wayland_window_webos.h"
 
+#include "ui/events/event.h"
 #include "ui/display/screen.h"
 #include "ui/ozone/platform/wayland/extensions/webos/host/wayland_extensions_webos.h"
 #include "ui/ozone/platform/wayland/extensions/webos/host/webos_input_manager_wrapper.h"
@@ -258,7 +259,7 @@ void WaylandWindowWebos::SetCursorVisibility(bool visible) {
 
 void WaylandWindowWebos::SetGroupKeyMask(KeyMask key_mask) {
   auto webos_shell_surface =
-      static_cast<WebosShellSurfaceWrapper*>(shell_toplevel());
+      static_cast<WebosShellSurfaceWrapper*>(xdg_toplevel());
 
   if (webos_shell_surface) {
     webos_shell_surface->SetGroupKeyMask(key_mask);
@@ -268,7 +269,7 @@ void WaylandWindowWebos::SetGroupKeyMask(KeyMask key_mask) {
 
 void WaylandWindowWebos::SetKeyMask(KeyMask key_mask, bool set) {
   auto webos_shell_surface = static_cast<WebosShellSurfaceWrapper*>(
-      shell_toplevel());
+      xdg_toplevel());
 
   if (webos_shell_surface) {
     webos_shell_surface->SetKeyMask(key_mask, set);
@@ -278,7 +279,7 @@ void WaylandWindowWebos::SetKeyMask(KeyMask key_mask, bool set) {
 
 void WaylandWindowWebos::SetInputArea(const std::vector<gfx::Rect>& region) {
   auto webos_shell_surface = static_cast<WebosShellSurfaceWrapper*>(
-      shell_toplevel());
+      xdg_toplevel());
 
   if (webos_shell_surface) {
     webos_shell_surface->SetInputRegion(region);
@@ -289,7 +290,7 @@ void WaylandWindowWebos::SetInputArea(const std::vector<gfx::Rect>& region) {
 void WaylandWindowWebos::SetWindowProperty(const std::string& name,
                                            const std::string& value) {
   auto webos_shell_surface = static_cast<WebosShellSurfaceWrapper*>(
-      shell_toplevel());
+      xdg_toplevel());
 
   if (webos_shell_surface) {
     webos_shell_surface->SetWindowProperty(name, value);
@@ -299,7 +300,7 @@ void WaylandWindowWebos::SetWindowProperty(const std::string& name,
 
 void WaylandWindowWebos::SetLocationHint(gfx::LocationHint value) {
   auto webos_shell_surface =
-      static_cast<WebosShellSurfaceWrapper*>(shell_toplevel());
+      static_cast<WebosShellSurfaceWrapper*>(xdg_toplevel());
 
   if (webos_shell_surface) {
     webos_shell_surface->SetLocationHint(value);

@@ -14,6 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#include <optional>
 #include "services/device/geolocation/webos/geolocation_request_geoplugin.h"
 
 #include "base/json/json_reader.h"
@@ -85,7 +86,7 @@ void GeolocationRequestGeoplugin::GeopluginRequest(
 }
 
 void GeolocationRequestGeoplugin::OnGeopluginResponse(
-    std::unique_ptr<std::string> data) {
+    std::optional<std::string> data) {
   int net_error = url_loader_->NetError();
   int status_code = 0;
   if (url_loader_->ResponseInfo()) {
@@ -118,14 +119,15 @@ void GeolocationRequestGeoplugin::OnGeopluginResponse(
 }
 
 mojom::GeopositionResultPtr GeolocationRequestGeoplugin::ParseServerResponse(
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   if (!response_body) {
     LOG(ERROR) << __func__ << ", Geoplugin response was empty !";
     return mojom::GeopositionResult::NewError(mojom::GeopositionError::New());
   }
 
   auto response_result =
-      base::JSONReader::ReadAndReturnValueWithError(*response_body);
+      base::JSONReader::ReadAndReturnValueWithError(
+          *response_body, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!response_result.has_value()) {
     LOG(ERROR) << __func__
                << ", JSONReader failed to parse geoplugin response: "
@@ -137,7 +139,7 @@ mojom::GeopositionResultPtr GeolocationRequestGeoplugin::ParseServerResponse(
     return mojom::GeopositionResult::NewError(mojom::GeopositionError::New());
   }
 
-  const base::Value::Dict& response_dict = response_result->GetDict();
+  const base::DictValue& response_dict = response_result->GetDict();
   double latitude = 0;
   double longitude = 0;
   const auto latitude_double =

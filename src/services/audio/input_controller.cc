@@ -568,9 +568,6 @@ void InputController::Pause() {
   event_handler_->OnLog("AIC::DoPause");
 
   stream_->Stop();
-
-  if (user_input_monitor_)
-    user_input_monitor_->DisableKeyPressMonitoring();
 }
 
 void InputController::Resume() {
@@ -578,9 +575,6 @@ void InputController::Resume() {
   SCOPED_UMA_HISTOGRAM_TIMER("Media.AudioInputController.RecordTime");
 
   event_handler_->OnLog("AIC::DoResume");
-
-  if (user_input_monitor_)
-    user_input_monitor_->EnableKeyPressMonitoring();
 
   stream_->Start(audio_callback_.get());
 }

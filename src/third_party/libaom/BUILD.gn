@@ -260,6 +260,19 @@ if (current_cpu == "arm64" || current_cpu == "arm64e") {
     if (!is_win || is_clang) {
       cflags = [ "-march=armv8.2-a+dotprod+i8mm" ]
     }
+
+    # LG's neva patch emptied this target as the other half of dropping i8mm
+    # on webOS, which left it defined but producing no objects. libaom's rtcd
+    # table is generated from HAVE_NEON_I8MM=1 in
+    # source/config/linux/arm64-cpu-detect/config/aom_config.h and the SVE2
+    # convolve code calls the i8mm entry points directly, so the symbols have
+    # to exist: without these two lists the arm64 link fails with
+    #   mold: error: undefined symbol: av1_convolve_2d_sr_neon_i8mm
+    #   mold: error: undefined symbol: kMatMul6PermuteTbl
+    # Restoring the sources is what actually fixes it - re-adding the dep
+    # alone does nothing while the target is empty.
+    sources = aom_av1_common_intrin_neon_i8mm
+    sources += aom_dsp_common_intrin_neon_i8mm
   }
 
   # There are known problems with LLVM-based compilers targeting Windows for
@@ -351,11 +364,23 @@ static_library("libaom") {
       ":libaom_intrinsics_neon_dotprod",
       ":libaom_intrinsics_neon_i8mm",
     ]
-    # TODO(neva): remove once webOS/OSE supports i8mm.
-    if (is_webos) {
-      deps -= [ ":libaom_intrinsics_neon_i8mm" ]
-    }
-
+    # No webOS carve-out here. LG's neva patch used to do
+    #   if (is_webos) { deps -= [ ":libaom_intrinsics_neon_i8mm" ] }
+    # with a TODO to drop it once webOS supports i8mm, but removing targets
+    # while leaving the config alone does not link: libaom's rtcd table is
+    # generated from the HAVE_* flags in
+    # source/config/linux/arm64-cpu-detect/config/aom_config.h, which set
+    # HAVE_NEON_I8MM/HAVE_SVE/HAVE_SVE2 to 1, so it emits references to every
+    # symbol they enable - av1_convolve_2d_sr_neon_i8mm, kMatMul6PermuteTbl,
+    # aom_sum_squares_i16_sve and friends. Windows only gets away with
+    # excluding sve/sve2 because its config sets those flags to 0.
+    # Deps and config have to agree, so build them all.
+    #
+    # Nothing is lost on our hardware: these are selected at runtime by
+    # aom_arm_cpu_caps(), and i8mm is Armv8.6-A while SVE2 is Armv9-A, so none
+    # of tissot (A53, Armv8.0), sargo (A75/A55, Armv8.2) or pinetab2 (A55,
+    # Armv8.2) can reach those paths. They cost build time and a little binary
+    # size, not correctness.
     if (!is_win) {
       deps += [
         ":libaom_intrinsics_sve",
