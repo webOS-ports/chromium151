@@ -355,6 +355,7 @@ def main():
   rustc_args = remaining_args[:ldflags_separator]
   ldflags = remaining_args[ldflags_separator + 1:rustenv_separator]
   rustenv = remaining_args[rustenv_separator + 1:sources_separator]
+  rustenv += ["RUSTC_BOOTSTRAP=1"]
 
   abs_build_root = os.getcwd().replace('\\', '/') + '/'
   is_windows = sys.platform == 'win32' or args.target_windows

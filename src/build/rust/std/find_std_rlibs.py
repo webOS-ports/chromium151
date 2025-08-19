@@ -17,7 +17,7 @@ import re
 from collections import defaultdict
 
 EXPECTED_STDLIB_INPUT_REGEX = re.compile(r"([0-9a-z_]+)(?:-([0-9]+))?$")
-RLIB_NAME_REGEX = re.compile(r"lib([0-9a-z_]+)-([0-9a-f]+)\.rlib$")
+RLIB_NAME_REGEX = re.compile(r"lib([0-9a-z_]+)(-([0-9a-f]+))?\.rlib$")
 
 
 def main():
@@ -61,6 +61,8 @@ def main():
   rustlib_dir = os.path.relpath(rustlib_dir, os.path.realpath(os.curdir))
 
 
+  lib_output_dir = os.path.join(args.output, 'lib')
+
   # Copy the rlibs to a predictable location. Whilst we're doing so,
   # also write a .d file so that ninja knows it doesn't need to do this
   # again unless the source rlibs change.
@@ -72,7 +74,7 @@ def main():
     # output rlibs for that purpose. If any of the input rlibs change, ninja
     # will run this script again and we'll copy them all afresh.
     depfile.write(
-        "%s:" % (os.path.join(args.output, "lib%s.rlib" % args.depfile_target)))
+        "%s:" % (os.path.join(lib_output_dir, "lib%s.rlib" % args.depfile_target)))
 
     def copy_file(infile, outfile):
       depfile.write(f" {infile}")
@@ -108,7 +110,7 @@ def main():
       # the correct file path to our linker invocations, we don't need
       # that, and it would prevent us having the predictable filenames
       # which we need for statically computable gn dependency rules.
-      (crate_name, metadata) = RLIB_NAME_REGEX.match(f).group(1, 2)
+      (crate_name, metadata) = RLIB_NAME_REGEX.match(f).group(1, 3)
 
       # Use the number of times we've seen this name to disambiguate the output
       # filenames. Since we sort the input filenames including the metadata,
@@ -126,13 +128,17 @@ def main():
       output_filename = f"lib{concise_name}.rlib"
 
       infile = os.path.join(rustlib_dir, f)
-      outfile = os.path.join(args.output, output_filename)
+      outfile = os.path.join(lib_output_dir, output_filename)
       copy_file(infile, outfile)
 
     for f in extra_libs:
       infile = os.path.join(rustlib_dir, f)
-      outfile = os.path.join(args.output, f)
+      outfile = os.path.join(lib_output_dir, f)
       copy_file(infile, outfile)
+
+    infile = os.path.join(os.environ['RUST_TARGET_PATH'], f'{args.target}.json')
+    outfile = os.path.join(args.output, 'target.json')
+    copy_file(infile, outfile)
 
     depfile.write("\n")
 

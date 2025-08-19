@@ -25,6 +25,11 @@ def filter_clang_args(clangargs):
           pass
         elif args[i].startswith('-plugin-arg'):
           i += 2
+      # Filter out ARM-specific flags that aren't supported on other architectures
+      elif args[i].startswith('-mbranch-protection'):
+        pass  # Skip this argument
+      elif args[i].startswith('-mfpu='):
+        pass
       elif args[i] == '-ftime-trace':
         pass
       else:

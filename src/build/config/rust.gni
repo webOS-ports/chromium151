@@ -127,6 +127,11 @@ declare_args() {
   # `fail_hard=False` when invoking `build_crubit.py` from
   # `tools/rust/build_rust.py`).
   enable_cpp_api_from_rust = false
+
+  # Override the vendor part of the Rust target triple (with a leading dash)
+  # used for building target code (not host code). Leave empty to use the
+  # platform default.
+  rust_target_triple_vendor_for_target = ""
 }
 
 declare_args() {
@@ -218,12 +223,19 @@ if (enable_rust) {
 # other toolchains.
 rust_abi_target = ""
 if (is_linux || is_chromeos) {
+  vendor = "-unknown"
+
+  is_host = current_toolchain == host_toolchain || current_toolchain == host_system_allocator_toolchain || toolchain_for_rust_host_build_tools
+  if (!is_host && rust_target_triple_vendor_for_target != "") {
+    vendor = rust_target_triple_vendor_for_target
+  }
+
   if (current_cpu == "arm64") {
-    rust_abi_target = "aarch64-unknown-linux-gnu"
+    rust_abi_target = "aarch64" + vendor + "-linux-gnu"
   } else if (current_cpu == "x86") {
-    rust_abi_target = "i686-unknown-linux-gnu"
+    rust_abi_target = "i686" + vendor + "-linux-gnu"
   } else if (current_cpu == "x64") {
-    rust_abi_target = "x86_64-unknown-linux-gnu"
+    rust_abi_target = "x86_64" + vendor + "-linux-gnu"
   } else if (current_cpu == "arm") {
     if (arm_float_abi == "hard") {
       float_suffix = "hf"
@@ -231,31 +243,21 @@ if (is_linux || is_chromeos) {
       float_suffix = ""
     }
     if (arm_arch == "armv7-a" || arm_arch == "armv7") {
-      # We have no way to inform Rust about the -a suffix, so we end up
-      # targeting armv7 in both cases.
-      #
-      # We also try to propagate the availability of NEON without feature
-      # detection; in C++ this is done by -mfpu=neon, but in Rust we need to
-      # use a different ABI target.
-      #
-      # The thumbv7 vs. armv7 distinction is for legacy reasons and both
-      # targets in fact target Thumb, see:
-      # https://github.com/rust-lang/rust/issues/44722
-      rust_abi_target = "thumbv7neon-unknown-linux-gnueabi" + float_suffix
+      rust_abi_target = "armv7" + vendor + "-linux-gnueabi" + float_suffix
     } else {
-      rust_abi_target = "arm-unknown-linux-gnueabi" + float_suffix
+      rust_abi_target = "arm" + vendor + "-linux-gnueabi" + float_suffix
     }
   } else if (current_cpu == "riscv64") {
-    rust_abi_target = "riscv64gc-unknown-linux-gnu"
+    rust_abi_target = "riscv64gc" + vendor + "-linux-gnu"
   } else if (current_cpu == "ppc64") {
-    rust_abi_target = "powerpc64le-unknown-linux-gnu"
+    rust_abi_target = "powerpc64le" + vendor + "-linux-gnu"
   } else if (current_cpu == "s390x") {
-    rust_abi_target = "s390x-unknown-linux-gnu"
+    rust_abi_target = "s390x" + vendor + "-linux-gnu"
   } else if (current_cpu == "loong64") {
-    rust_abi_target = "loongarch64-unknown-linux-gnu"
+    rust_abi_target = "loongarch64" + vendor + "-linux-gnu"
   } else {
     # Best guess for other future platforms.
-    rust_abi_target = current_cpu + "-unknown-linux-gnu"
+    rust_abi_target = current_cpu + "" + vendor + "-linux-gnu"
   }
 } else if (is_android) {
   import("//build/config/android/abi.gni")
