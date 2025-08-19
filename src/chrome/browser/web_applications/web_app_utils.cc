@@ -468,14 +468,7 @@ webapps::AppId GetAppIdFromAppSettingsUrl(const GURL& url) {
   return path.substr(1);
 }
 
-bool IsInScope(const GURL& url, const GURL& scope) {
-  if (!scope.is_valid()) {
-    return false;
-  }
-
-  return base::StartsWith(url.spec(), scope.spec(),
-                          base::CompareCase::SENSITIVE);
-}
+// NEVA: IsInScope() moved to web_app_utils_minimal.cc.
 
 apps::LaunchContainer ConvertDisplayModeToAppLaunchContainer(
     DisplayMode display_mode) {
@@ -505,16 +498,7 @@ apps::RunOnOsLoginMode ConvertOsLoginMode(RunOnOsLoginMode login_mode) {
   }
 }
 
-const char* IconsDownloadedResultToString(IconsDownloadedResult result) {
-  switch (result) {
-    case IconsDownloadedResult::kCompleted:
-      return "Completed";
-    case IconsDownloadedResult::kPrimaryPageChanged:
-      return "PrimaryPageChanged";
-    case IconsDownloadedResult::kAbortedDueToFailure:
-      return "AbortedDueToFailure";
-  }
-}
+// NEVA: IconsDownloadedResultToString() moved to web_app_utils_minimal.cc.
 
 content::mojom::AlternativeErrorPageOverrideInfoPtr ConstructWebAppErrorPage(
     const GURL& url,

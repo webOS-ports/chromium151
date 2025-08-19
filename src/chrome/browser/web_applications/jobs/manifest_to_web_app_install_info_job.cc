@@ -777,6 +777,12 @@ void ManifestToWebAppInstallInfoJob::FetchIconsInternal(
 
 void ManifestToWebAppInstallInfoJob::ParseManifestAndPopulateInfo() {
   // Create the application locale once for all localization lookups.
+#if defined(USE_NEVA_APPRUNTIME)
+  // NEVA: app_shell has no BrowserProcess, so g_browser_process cannot be
+  // referenced from libcbe.so. Manifest localization is not used on webOS, so
+  // take the same default locale the feature-disabled path uses.
+  const icu::Locale application_locale;
+#else
   const icu::Locale application_locale(
       base::FeatureList::IsEnabled(blink::features::kWebAppManifestLocalization)
           ? icu::Locale(g_browser_process->GetFeatures()
@@ -784,6 +790,7 @@ void ManifestToWebAppInstallInfoJob::ParseManifestAndPopulateInfo() {
                             ->Get()
                             .c_str())
           : icu::Locale());
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
   install_info().title =
       GetLocalizedTitleFromManifestFields(*manifest_, application_locale);

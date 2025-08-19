@@ -135,7 +135,7 @@ AppInstallNavigationThrottle::ExtractQueryParams(std::string_view query) {
           query.substr(value_slice.begin, value_slice.len),
           url::DecodeUrlMode::kUtf8OrIsomorphic, &decoded_value);
 
-      // TODO(b/299825321): Make DecodeURLEscapeSequences() work with
+      // TODO(b/299825321): Make DecodeUrlEscapeSequences() work with
       // RawCanonOutput to avoid this redundant UTF8 -> UTF16 -> UTF8
       // conversion.
       return base::UTF16ToUTF8(decoded_value.view());

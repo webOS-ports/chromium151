@@ -418,6 +418,7 @@ void PopulateFileHandlerInfoFromManifest(
         }
       }
     }
+#endif  // ENABLE_PWA_MANAGER_WEBAPI
 
     web_app_file_handlers.push_back(std::move(web_app_file_handler));
   }
@@ -715,6 +716,7 @@ WebAppManagement::Type ConvertInstallSurfaceToWebAppSource(
 
 void CreateWebAppInstallTabHelpers(content::WebContents* web_contents) {
   webapps::InstallableManager::CreateForWebContents(web_contents);
+#if !defined(ENABLE_PWA_MANAGER_WEBAPI)
   ChromeSecurityStateTabHelper::CreateForWebContents(web_contents);
   favicon::CreateContentFaviconDriverForWebContents(web_contents);
 #endif  // ENABLE_PWA_MANAGER_WEBAPI
