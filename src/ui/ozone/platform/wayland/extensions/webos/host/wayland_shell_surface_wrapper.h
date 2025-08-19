@@ -39,11 +39,8 @@ class WaylandShellSurfaceWrapper : public ShellToplevelWrapper {
 
   // ui::ShellToplevelWrapper:
   bool Initialize() override;
-  bool IsSupportedOnAuraToplevel(uint32_t version) const override;
-  void SetCanMaximize(bool can_maximize) override;
   void SetMaximized() override;
   void UnSetMaximized() override;
-  void SetCanFullscreen(bool can_fullscreen) override;
   void SetFullscreen(WaylandOutput* wayland_output) override;
   void UnSetFullscreen() override;
   void SetMinimized() override;
@@ -53,32 +50,23 @@ class WaylandShellSurfaceWrapper : public ShellToplevelWrapper {
   void AckConfigure(uint32_t serial) override;
   bool IsConfigured() override;
   void SetWindowGeometry(const gfx::Rect& bounds) override;
-  void RequestWindowBounds(const gfx::Rect& bounds,
-                           int64_t display_id) override;
   void SetMinSize(int32_t width, int32_t height) override;
   void SetMaxSize(int32_t width, int32_t height) override;
   void SetAppId(const std::string& app_id) override;
-  void SetRestoreInfo(int32_t restore_session_id,
-                      int32_t restore_window_id) override;
-  void SetRestoreInfoWithWindowIdSource(
-      int32_t restore_session_id,
-      const std::string& restore_window_id_source) override;
-  bool SupportsScreenCoordinates() const override;
-  void SetFloatToLocation(
-      WaylandFloatStartLocation float_start_location) override;
-  void UnSetFloat() override;
-  void SetZOrder(ZOrderLevel z_order) override;
-  bool SupportsActivation() override;
-  void Activate() override;
-  void Deactivate() override;
-  void SetScaleFactor(float scale_factor) override;
-  void CommitSnap(WaylandWindowSnapDirection snap_direction,
-                  float snap_ratio) override;
-  void ShowSnapPreview(WaylandWindowSnapDirection snap_direction,
-                       bool allow_haptic_feedback) override;
-  void SetPersistable(bool persistable) const override;
-  void SetShape(std::unique_ptr<ShapeRects> shape_rects) override;
-  void AckRotateFocus(uint32_t serial, uint32_t handled) override;
+
+  // Methods M151 added to the toplevel API. webOS's wl_shell has no equivalent
+  // protocol requests, so these are no-ops here; WebosShellSurfaceWrapper
+  // overrides SetDecoration and SetSystemModal where wl_webos_shell does have
+  // one.
+  void ShowWindowMenu(WaylandConnection* connection,
+                      const gfx::Point& point) override;
+  void SetDecoration(DecorationMode decoration) override;
+  void SetSystemModal(bool modal) override;
+  void SetIcon(const gfx::ImageSkia& icon) override;
+
+  // Not an xdg_shell surface, so there is no xdg_surface to hand out.
+  struct xdg_surface* xdg_surface() const override;
+  struct xdg_toplevel* wl_object() const override;
 
   // wl_shell_surface listener
   static void Configure(void* data,

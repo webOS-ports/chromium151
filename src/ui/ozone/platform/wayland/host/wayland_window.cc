@@ -938,12 +938,10 @@ void WaylandWindow::OnSurfaceContentChanged() {
 }
 
 void WaylandWindow::SetInputArea(const std::vector<gfx::Rect>& regions) {
-  gfx::Rect region;
-
-  for (const auto& reg : regions)
-    region.Union(reg);
-
-  SetInputRegion(region);
+  // NEVA: M120's SetInputRegion took a single Rect, so the regions were
+  // unioned into one. M151 takes the list, which is strictly better - a
+  // union over disjoint regions made the input area larger than asked for.
+  SetInputRegion(regions);
 }
 
 void WaylandWindow::SetCustomCursor(neva_app_runtime::CustomCursorType type,
@@ -990,8 +988,8 @@ void WaylandWindow::SetCustomCursor(neva_app_runtime::CustomCursorType type,
 
     if (HasPointerFocus()) {
       async_cursor->AddCursorLoadedCallback(
-          base::BindOnce(&WaylandWindow::OnCursorLoaded,
-                         weak_ptr_factory_.GetWeakPtr(), async_cursor));
+          base::BindOnce(&WaylandWindow::OnCursorLoaded, AsWeakPtr(),
+                         async_cursor));
       custom_cursor_mode_ = CustomCursorMode::APPLIED;
     } else {
       custom_cursor_mode_ = CustomCursorMode::REQUESTED;

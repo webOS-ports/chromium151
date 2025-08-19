@@ -21,16 +21,9 @@
 namespace ui {
 
 InputMethodAuraLinuxNeva::InputMethodAuraLinuxNeva(
-    ImeKeyEventDispatcher* ime_key_event_dispatcher
-#if defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
-    , unsigned handle
-#endif
-    )
-    : InputMethodAuraLinux(ime_key_event_dispatcher
-#if defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
-                           , handle
-#endif
-  ) {}
+    ImeKeyEventDispatcher* ime_key_event_dispatcher,
+    gfx::AcceleratedWidget widget)
+    : InputMethodAuraLinux(ime_key_event_dispatcher, widget) {}
 
 void InputMethodAuraLinuxNeva::OnDeleteRange(int32_t index, uint32_t length) {
   if (IsTextInputTypeNone())

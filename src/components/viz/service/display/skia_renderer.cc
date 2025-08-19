@@ -2948,6 +2948,29 @@ void SkiaRenderer::ScheduleOverlays() {
 
   for (auto& overlay : current_frame()->overlay_list) {
     if (overlay.is_root_render_pass) {
+#if defined(OS_WEBOS)
+      // NEVA: on webOS the output surface is a plain EGL window surface, so
+      // viz builds a SkiaOutputDeviceGL and renderer_allocates_images is false
+      // (only SkiaOutputDeviceBufferQueue and the Windows DComp device set it).
+      // The overlay processor still promotes the root render pass, and M151
+      // turned what used to be a graceful branch into a hard CHECK, so the GPU
+      // process aborted every frame:
+      //   FATAL skia_renderer.cc:2951
+      //   Check failed: output_surface_->capabilities().renderer_allocates_images
+      // M120 handled the same situation at this point with
+      //   if (!renderer_allocates_images)
+      //     skia_output_surface_->ScheduleOutputSurfaceAsOverlay(surface_plane);
+      // i.e. it simply did not treat the root pass as a renderer-allocated
+      // overlay. Skip it here for the same effect and let the frame composite
+      // through the normal path.
+      //
+      // NOTE: this disables root-plane overlay promotion on webOS, which is the
+      // path punch-hole video would use. Revisit together with the punch-hole /
+      // VideoHole work rather than treating this as complete.
+      if (!output_surface_->capabilities().renderer_allocates_images) {
+        continue;
+      }
+#endif  // defined(OS_WEBOS)
       CHECK(output_surface_->capabilities().renderer_allocates_images);
 
       auto root_pass_backing =

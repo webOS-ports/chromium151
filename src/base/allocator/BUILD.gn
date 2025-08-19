@@ -33,7 +33,14 @@ if (is_apple) {
   }
 }
 
-if (is_win || is_linux) {
+# NEVA: system_allocator_test_helper is new in M151 and is testonly. Its
+# non-default-toolchain branch copies the binary from the
+# ${default_toolchain}_with_system_allocator companion toolchain, which is never
+# defined when gn is rooted at //v8 (mksnapshot-cross uses mksnapshot.gn with
+# root = "//v8"), so gn gen fails with "Unresolved dependencies". webOS never
+# builds chromium's tests; the matching data_deps entry in base/BUILD.gn's
+# base_unittests is guarded the same way, so nothing is left dangling.
+if ((is_win || is_linux) && !is_webos) {
   if (current_toolchain == default_system_allocator_toolchain) {
     # This binary ends up in the 'system_allocator' build output directory.
     executable("system_allocator_test_helper") {

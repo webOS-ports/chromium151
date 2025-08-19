@@ -107,6 +107,12 @@ class TransformRecorder;
 
 using ui::OSExchangeData;
 
+namespace neva_app_runtime {
+class PageView;
+class ShellWindow;
+class WebAppWindow;
+}  // namespace neva_app_runtime
+
 namespace views {
 
 class Background;
@@ -309,6 +315,14 @@ class VIEWS_EXPORT View : public ui::LayerDelegate,
     // DO NOT ADD TO THIS LIST!
     // These existing cases are "grandfathered in", but there shouldn't be more.
     // See comments atop class.
+    // NEVA: see the note on the WidgetDelegateView friend declaration -
+    // WebAppWindow predates this restriction and its restructure is
+    // deferred past the 120 -> 151 uprev.
+    friend class neva_app_runtime::WebAppWindow;
+    // NEVA: same rationale as the WebAppWindow entry above.
+    friend class neva_app_runtime::ShellWindow;
+    // NEVA: PageView owns its views::WebView directly, same rationale.
+    friend class neva_app_runtime::PageView;
     friend class ::InfoBarView;
     friend class ::OmniboxPopupPresenter;
     friend class ::OmniboxPopupViewViews;

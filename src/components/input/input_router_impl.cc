@@ -189,8 +189,15 @@ void InputRouterImpl::SendKeyboardEvent(
 
   gesture_event_queue_.StopFling();
 
-  if (throttle_key_events_ && key_queue_.size() > 1)
+  if (throttle_key_events_ && key_queue_.size() > 1) {
+    // M151: the dispatch callback must be consumed on every path, otherwise
+    // ~ScopedDispatchToRendererCallback fires CHECK(!callback). The throttled
+    // event is intentionally not forwarded to the renderer, so report
+    // kNotDispatched the same way the fling-controller early-out below does.
+    std::move(dispatch_callback)
+        .Run(key_event.event, DispatchToRendererResult::kNotDispatched);
     return;
+  }
 
   blink::mojom::WidgetInputHandler::DispatchEventCallback callback =
       base::BindOnce(&InputRouterImpl::KeyboardEventHandled, weak_this_,

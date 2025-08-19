@@ -10,6 +10,7 @@
 #include <compare>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -304,8 +305,31 @@ class COMPONENT_EXPORT(URL) Origin {
 
   // Allows Origin to be used as a key in STL (for example, a std::set or
   // std::map).
+#if defined(USE_NEVA_APPRUNTIME)
+  // NEVA: `webapp_id_` is browser-process metadata attached to an Origin; it is
+  // not part of the origin's identity. M151 made this operator defaulted, which
+  // made it compare `webapp_id_` too, so an Origin carrying a webapp id no
+  // longer compared same-origin with an equivalent Origin created from a plain
+  // GURL (this killed renderers via the manifest same-origin check). M120
+  // compared only `tuple_` and `nonce_`; AbslHashValue below still hashes only
+  // those two, so excluding `webapp_id_` also keeps equality and hashing
+  // consistent.
+  friend bool operator==(const Origin& left, const Origin& right) {
+    return left.tuple_ == right.tuple_ && left.nonce_ == right.nonce_;
+  }
+#else
   friend bool operator==(const Origin& left, const Origin& right) = default;
+#endif
+#if defined(USE_NEVA_APPRUNTIME)
+  // Ordering must agree with operator== above (and with AbslHashValue), so it
+  // ignores `webapp_id_` as well. M120's operator< compared only these two.
+  friend auto operator<=>(const Origin& left, const Origin& right) {
+    return std::tie(left.tuple_, left.nonce_) <=>
+           std::tie(right.tuple_, right.nonce_);
+  }
+#else
   friend auto operator<=>(const Origin& left, const Origin& right) = default;
+#endif
 
   // Allows Origin to be used as a key in ABSL (for example, absl::flat_hash_set
   // or absl::flat_hash_map).

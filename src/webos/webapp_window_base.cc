@@ -15,11 +15,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "webos/webapp_window_base.h"
+#include "base/notimplemented.h"
 
 #include "base/logging.h"
 #include "components/viz/common/switches.h"
 #include "neva/app_runtime/public/app_runtime_constants.h"
 #include "neva/app_runtime/public/window_group_configuration.h"
+#include "ui/base/mojom/window_show_state.mojom-shared.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/views/widget/desktop_aura/desktop_window_tree_host.h"
@@ -129,7 +131,7 @@ void WebAppWindowBase::InitWindow(int width, int height) {
   neva_app_runtime::WebAppWindow::CreateParams params;
   params.bounds.set_width(width);
   params.bounds.set_height(height);
-  params.show_state = ui::SHOW_STATE_DEFAULT;
+  params.show_state = ui::mojom::WindowShowState::kDefault;
   params.type = views::Widget::InitParams::TYPE_WINDOW_FRAMELESS;
   webapp_window_ = new WebAppWindow(params);
   webapp_window_->SetDelegate(this);
@@ -178,14 +180,14 @@ void WebAppWindowBase::SetFirstActivateTimeoutMs(int timeout) {
 }
 
 int WebAppWindowBase::DisplayWidth() const {
-  if (display::Screen::GetScreen()->GetNumDisplays() > 0)
-    return display::Screen::GetScreen()->GetPrimaryDisplay().bounds().width();
+  if (display::Screen::Get()->GetNumDisplays() > 0)
+    return display::Screen::Get()->GetPrimaryDisplay().bounds().width();
   return 0;
 }
 
 int WebAppWindowBase::DisplayHeight() const {
-  if (display::Screen::GetScreen()->GetNumDisplays() > 0)
-    return display::Screen::GetScreen()->GetPrimaryDisplay().bounds().height();
+  if (display::Screen::Get()->GetNumDisplays() > 0)
+    return display::Screen::Get()->GetPrimaryDisplay().bounds().height();
   return 0;
 }
 

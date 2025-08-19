@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ui/ozone/platform/wayland/extensions/webos/host/webos_accelerometer_wrapper.h"
+#include "base/notimplemented.h"
 
 #include <cstdint>
 

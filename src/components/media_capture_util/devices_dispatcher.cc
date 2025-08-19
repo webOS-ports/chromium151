@@ -81,18 +81,24 @@ void DevicesDispatcher::ProcessMediaAccessRequest(
   if (request.audio_type ==
           blink::mojom::MediaStreamType::DEVICE_AUDIO_CAPTURE &&
       accepts_audio) {
-    const blink::MediaStreamDevice* device =
-        GetAudioDevice(request.requested_audio_device_id);
-    if (device)
-      stream_devices.audio_device = *device;
+    for (const std::string& id : request.requested_audio_device_ids) {
+      const blink::MediaStreamDevice* device = GetAudioDevice(id);
+      if (device) {
+        stream_devices.audio_device = *device;
+        break;
+      }
+    }
   }
   if (request.video_type ==
           blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE &&
       accepts_video) {
-    const blink::MediaStreamDevice* device =
-        GetVideoDevice(request.requested_video_device_id);
-    if (device)
-      stream_devices.video_device = *device;
+    for (const std::string& id : request.requested_video_device_ids) {
+      const blink::MediaStreamDevice* device = GetVideoDevice(id);
+      if (device) {
+        stream_devices.video_device = *device;
+        break;
+      }
+    }
   }
 
   bool is_devices_empty = !stream_devices.audio_device.has_value() &&

@@ -56,7 +56,13 @@ struct CloneTraits<std::vector<T>> {
     std::vector<T> result;
     result.reserve(input.size());
     for (const auto& element : input) {
-      result.push_back(mojo::Clone(element));
+      // Clone<T>, not Clone(element): for std::vector<bool>, OE's libc++ 22
+      // hands out a __bit_const_reference proxy rather than a bool, and
+      // deducing the template argument from that proxy lands in the generic
+      // CloneTraits, which static_asserts. Naming T keeps deduction off the
+      // proxy while still binding by const reference, so move-only T is
+      // unaffected. Chromium's bundled libc++ does not hit this.
+      result.push_back(mojo::Clone<T>(element));
     }
 
     return result;

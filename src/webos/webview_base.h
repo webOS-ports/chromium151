@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "content/public/browser/scoped_accessibility_mode.h"
 #include "neva/app_runtime/public/app_runtime_constants.h"
 #include "neva/app_runtime/public/webview_base_internals.h"
 #include "neva/app_runtime/public/webview_controller_delegate.h"
@@ -303,6 +304,10 @@ class WEBOS_EXPORT WebViewBase
 
   neva_app_runtime::WebView* webview_;
   neva_app_runtime::WebViewInfo webview_info_;
+
+  // M151: accessibility mode is scoped to the lifetime of this object rather
+  // than set and cleared directly on the WebContents.
+  std::unique_ptr<content::ScopedAccessibilityMode> scoped_accessibility_mode_;
 
   bool load_visually_committed_called_ = false;
 };

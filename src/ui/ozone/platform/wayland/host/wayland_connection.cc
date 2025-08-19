@@ -4,6 +4,8 @@
 
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
 
+#include <EGL/eglext.h>
+
 #include <content-type-v1-client-protocol.h>
 #include <extended-drag-unstable-v1-client-protocol.h>
 #include <presentation-time-client-protocol.h>
@@ -902,8 +904,23 @@ struct wl_callback* WaylandConnection::GetSyncCallback() {
 }
 
 gl::EGLDisplayPlatform WaylandConnection::GetNativeDisplay() {
+#if defined(OS_WEBOS)
+  // NEVA: tag the display as Wayland instead of leaving platform=0.
+  //
+  // Passing a wl_display with no platform enum leaves Mesa to guess, and on
+  // webOS it guesses surfaceless: the resulting EGLDisplay initialises fine
+  // (EGL 1.5, vendor "Mesa Project") but exposes ZERO configs, so every
+  // eglChooseConfig fails with "No suitable EGL configs found" and nothing is
+  // ever composited - apps load and activate but never appear. Naming the
+  // platform makes eglGetPlatformDisplay pick the Wayland platform, which does
+  // have configs.
+  return gl::EGLDisplayPlatform(
+      reinterpret_cast<EGLNativeDisplayType>(display()),
+      EGL_PLATFORM_WAYLAND_KHR);
+#else
   return gl::EGLDisplayPlatform(
       reinterpret_cast<EGLNativeDisplayType>(display()));
+#endif  // defined(OS_WEBOS)
 }
 
 struct wl_registry* WaylandConnection::GetRegistry() {

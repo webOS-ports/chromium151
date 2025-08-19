@@ -208,6 +208,7 @@ source_set("wayland") {
     "host/xdg_session_manager.cc",
     "host/xdg_session_manager.h",
     "host/xdg_surface.cc",
+    "host/shell_toplevel_wrapper.h",
     "host/xdg_surface.h",
     "host/xdg_toplevel.cc",
     "host/xdg_toplevel.h",
@@ -374,8 +375,10 @@ source_set("wayland") {
       "host/wayland_extensions_stub.cc",
     ]
 
-    deps -= [ "//build/config/linux/libdrm" ]
-
+    # NEVA: the libdrm dep used to be dropped here along with wayland_drm.*.
+    # M151 added drm_syncobj_ioctl_wrapper, wayland_syncobj_timeline and
+    # wayland_buffer_backing, which include <drm.h>/<drm_fourcc.h> and are not
+    # removed above, so the dep has to stay.
     deps += [ "extensions/webos" ]
   }
 

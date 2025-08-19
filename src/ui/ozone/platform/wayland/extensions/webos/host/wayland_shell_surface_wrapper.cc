@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ui/ozone/platform/wayland/extensions/webos/host/wayland_shell_surface_wrapper.h"
+#include "base/notimplemented.h"
 
 #include "base/logging.h"
 #include "base/notreached.h"
@@ -56,16 +57,6 @@ bool WaylandShellSurfaceWrapper::Initialize() {
 
   return true;
 }
-
-bool WaylandShellSurfaceWrapper::IsSupportedOnAuraToplevel(
-    uint32_t version) const {
-  return false;
-}
-
-void WaylandShellSurfaceWrapper::SetCanMaximize(bool can_maximize) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
 void WaylandShellSurfaceWrapper::SetMaximized() {
   wl_shell_surface_set_maximized(shell_surface_.get(), nullptr);
 }
@@ -73,11 +64,6 @@ void WaylandShellSurfaceWrapper::SetMaximized() {
 void WaylandShellSurfaceWrapper::UnSetMaximized() {
   NOTIMPLEMENTED_LOG_ONCE();
 }
-
-void WaylandShellSurfaceWrapper::SetCanFullscreen(bool can_fullscreen) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
 void WaylandShellSurfaceWrapper::SetFullscreen(WaylandOutput* wayland_output) {
   wl_shell_surface_set_fullscreen(shell_surface_.get(),
                                   WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0,
@@ -120,12 +106,6 @@ bool WaylandShellSurfaceWrapper::IsConfigured() {
 void WaylandShellSurfaceWrapper::SetWindowGeometry(const gfx::Rect& bounds) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
-
-void WaylandShellSurfaceWrapper::RequestWindowBounds(const gfx::Rect& bounds,
-                                                     int64_t display_id) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
 void WaylandShellSurfaceWrapper::SetMinSize(int32_t width, int32_t height) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
@@ -137,78 +117,6 @@ void WaylandShellSurfaceWrapper::SetMaxSize(int32_t width, int32_t height) {
 void WaylandShellSurfaceWrapper::SetAppId(const std::string& app_id) {
   NOTIMPLEMENTED_LOG_ONCE();
 }
-
-void WaylandShellSurfaceWrapper::SetRestoreInfo(int32_t restore_session_id,
-                                                int32_t restore_window_id) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-void WaylandShellSurfaceWrapper::SetRestoreInfoWithWindowIdSource(
-    int32_t restore_session_id,
-    const std::string& restore_window_id_source) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-bool WaylandShellSurfaceWrapper::SupportsScreenCoordinates() const {
-  NOTIMPLEMENTED_LOG_ONCE();
-  return false;
-}
-
-void WaylandShellSurfaceWrapper::SetFloatToLocation(
-    WaylandFloatStartLocation float_start_location) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-void WaylandShellSurfaceWrapper::UnSetFloat() {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-void WaylandShellSurfaceWrapper::SetZOrder(ZOrderLevel z_order) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-bool WaylandShellSurfaceWrapper::SupportsActivation() {
-  NOTIMPLEMENTED_LOG_ONCE();
-  return false;
-}
-
-void WaylandShellSurfaceWrapper::Activate() {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-void WaylandShellSurfaceWrapper::Deactivate() {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-void WaylandShellSurfaceWrapper::SetScaleFactor(float scale_factor) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-void WaylandShellSurfaceWrapper::CommitSnap(
-    WaylandWindowSnapDirection snap_direction,
-    float snap_ratio) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-void WaylandShellSurfaceWrapper::ShowSnapPreview(
-    WaylandWindowSnapDirection snap_direction,
-    bool allow_haptic_feedback) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-void WaylandShellSurfaceWrapper::SetPersistable(bool persistable) const {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-void WaylandShellSurfaceWrapper::SetShape(
-    std::unique_ptr<ShapeRects> shape_rects) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
-void WaylandShellSurfaceWrapper::AckRotateFocus(uint32_t serial,
-                                                uint32_t handled) {
-  NOTIMPLEMENTED_LOG_ONCE();
-}
-
 // static
 void WaylandShellSurfaceWrapper::Configure(void* data,
                                            wl_shell_surface* shell_surface,
@@ -227,6 +135,32 @@ void WaylandShellSurfaceWrapper::Ping(void* data,
                                       wl_shell_surface* shell_surface,
                                       uint32_t serial) {
   wl_shell_surface_pong(shell_surface, serial);
+}
+
+// Methods M151 added to the toplevel API. wl_shell has no equivalent requests,
+// so these are no-ops; WebosShellSurfaceWrapper overrides the two that
+// wl_webos_shell can express.
+void WaylandShellSurfaceWrapper::ShowWindowMenu(WaylandConnection* connection,
+                                                const gfx::Point& point) {
+  NOTIMPLEMENTED_LOG_ONCE();
+}
+
+void WaylandShellSurfaceWrapper::SetDecoration(DecorationMode decoration) {}
+
+void WaylandShellSurfaceWrapper::SetSystemModal(bool modal) {
+  NOTIMPLEMENTED_LOG_ONCE();
+}
+
+void WaylandShellSurfaceWrapper::SetIcon(const gfx::ImageSkia& icon) {
+  NOTIMPLEMENTED_LOG_ONCE();
+}
+
+struct xdg_surface* WaylandShellSurfaceWrapper::xdg_surface() const {
+  return nullptr;
+}
+
+struct xdg_toplevel* WaylandShellSurfaceWrapper::wl_object() const {
+  return nullptr;
 }
 
 }  // namespace ui

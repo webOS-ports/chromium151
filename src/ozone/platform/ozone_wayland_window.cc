@@ -16,6 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ozone/platform/ozone_wayland_window.h"
+#include "base/notimplemented.h"
 
 #include <vector>
 

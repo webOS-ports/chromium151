@@ -72,6 +72,9 @@ const char kShowDCLayerDebugBorders[] = "show-dc-layer-debug-borders";
 // because many apps are not really ready when Blink reports First Meaninful
 // Paint. Giving timeout 0 will swap frame immediately after detection.
 const char kUseVizFMPWithTimeout[] = "use-viz-fmp-with-timeout";
+
+// NEVA: caps the viz client frame cache; see frame_eviction_manager.cc.
+const char kMaxNumberOfSavedFrames[] = "max-number-of-saved-frames";
 #endif
 
 std::optional<uint32_t> GetDeadlineToSynchronizeSurfaces() {

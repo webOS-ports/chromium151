@@ -122,9 +122,10 @@ void PrivateKeyFactoryImpl::OnPrivateKeyCreated(
     PrivateKeyCallback callback,
     scoped_refptr<PrivateKey> private_key) {
   if (!private_key && source != PrivateKeySource::kSoftwareKey) {
-    for (auto fallback_source =
-             ++std::find(std::begin(kKeySourcesOrderedBySecurity),
-                         std::end(kKeySourcesOrderedBySecurity), source);
+    auto fallback_source =
+        std::find(std::begin(kKeySourcesOrderedBySecurity),
+                  std::end(kKeySourcesOrderedBySecurity), source);
+    for (++fallback_source;
          fallback_source != std::end(kKeySourcesOrderedBySecurity);
          fallback_source++) {
       auto it = sub_factories_.find(*fallback_source);

@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "webos/common/webos_resource_delegate.h"
+#include "base/notimplemented.h"
 
 #include "base/base_switches.h"
 #include "base/command_line.h"
@@ -33,13 +34,6 @@ base::FilePath WebosResourceDelegate::GetPathForResourcePack(
   return pack_path;
 }
 
-base::FilePath WebosResourceDelegate::GetPathForLocalePack(
-    const base::FilePath& pack_path,
-    const std::string& locale) {
-  NOTIMPLEMENTED();
-  return pack_path;
-}
-
 gfx::Image WebosResourceDelegate::GetImageNamed(int resource_id) {
   return gfx::Image();
 }
@@ -48,16 +42,28 @@ gfx::Image WebosResourceDelegate::GetNativeImageNamed(int resource_id) {
   return gfx::Image();
 }
 
-base::RefCountedStaticMemory* WebosResourceDelegate::LoadDataResourceBytes(
+// M151 added HasDataResource/LoadDataResourceString to the delegate and
+// widened LoadDataResourceBytes to RefCountedMemory. This delegate serves no
+// data resources itself, so all three defer to the default bundle.
+bool WebosResourceDelegate::HasDataResource(int resource_id) const {
+  return false;
+}
+
+base::RefCountedMemory* WebosResourceDelegate::LoadDataResourceBytes(
     int resource_id,
     ui::ResourceScaleFactor scale_factor) {
   return nullptr;
 }
 
+std::optional<std::string> WebosResourceDelegate::LoadDataResourceString(
+    int resource_id) {
+  return std::nullopt;
+}
+
 bool WebosResourceDelegate::GetRawDataResource(
     int resource_id,
     ui::ResourceScaleFactor scale_factor,
-    base::StringPiece* value) {
+    std::string_view* value) {
   return false;
 }
 

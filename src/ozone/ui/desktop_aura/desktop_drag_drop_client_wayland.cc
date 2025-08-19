@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "ozone/ui/desktop_aura/desktop_drag_drop_client_wayland.h"
+#include "base/notimplemented.h"
 
 #include <algorithm>
 #include <iterator>

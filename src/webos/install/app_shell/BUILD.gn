@@ -83,7 +83,9 @@ copy("app_shell") {
   outputs = [ "$image_path/$app_shell_dir/{{source_file_part}}" ]
 
   deps = [
-    "//extensions/shell:app_shell",
+    # M151 deleted //extensions/shell upstream; the port carries app_shell as
+    # //neva/app_shell, which is where the app_shell executable now lives.
+    "//neva/app_shell:app_shell",
     "//v8:v8", # for snapshot_blob.bin
     ":app_shell_scripts",
     ":app_shell_cbe",

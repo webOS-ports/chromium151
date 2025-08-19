@@ -54,6 +54,9 @@
   "webos/browser/resources/webos_network_error_strings.grd": {
     "messages": [600],
   },
+  "neva/app_shell/app_shell_resources.grd": {
+    "includes": [700],
+  },
   # END webos/ section.
 
   # START chrome/app section.

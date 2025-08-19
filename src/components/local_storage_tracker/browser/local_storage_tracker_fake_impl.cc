@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "components/local_storage_tracker/browser/local_storage_tracker_fake_impl.h"
+#include "base/logging.h"
 
 #include "content/public/browser/browser_thread.h"
 

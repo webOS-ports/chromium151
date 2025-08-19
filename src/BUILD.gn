@@ -770,8 +770,7 @@ group("gn_all") {
           "//neva/wam_demo",
           "//neva/neva_unittests",
         ]
-        # TODO(neva-port): restore //webos in Phase 5; that tree is not ported yet.
-        if ((is_webos || is_webos_lite) && false) {
+        if (is_webos || is_webos_lite) {
           deps += [
             "//webos:weboswebruntime",
             "//webos/install",

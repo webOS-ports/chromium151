@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "components/local_storage_tracker/public/local_storage_tracker.h"
+#include "base/logging.h"
 
 #include <unistd.h>
 #include <memory>

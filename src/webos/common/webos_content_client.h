@@ -18,7 +18,7 @@
 #define WEBOS_COMMON_WEBOS_CONTENT_CLIENT_H_
 
 #include "base/memory/ref_counted_memory.h"
-#include "base/strings/string_piece.h"
+#include <string_view>
 #include "neva/app_runtime/common/app_runtime_content_client.h"
 
 namespace webos {
@@ -28,7 +28,7 @@ class WebOSContentClient : public neva_app_runtime::AppRuntimeContentClient {
   ~WebOSContentClient() override {}
 
   // content::ContentClient implementation
-  void AddPlugins(std::vector<content::ContentPluginInfo>* plugins) override;
+  void AddPlugins(std::vector<content::WebPluginInfo>* plugins) override;
 
   // neva_app_runtime::AppRuntimeContentClient implementation
   std::string FileSchemeHostForApp(const std::string& app_id) override;

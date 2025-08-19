@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "ozone/wayland/data_device.h"
+#include "base/notimplemented.h"
 
 #include "ozone/wayland/data_offer.h"
 #include "ozone/wayland/display.h"

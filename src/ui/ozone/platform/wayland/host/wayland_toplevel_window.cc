@@ -25,6 +25,7 @@
 #include "ui/ozone/platform/wayland/host/wayland_bubble.h"
 #include "ui/ozone/platform/wayland/host/wayland_buffer_manager_host.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
+#include "ui/ozone/platform/wayland/host/wayland_extensions.h"
 #include "ui/ozone/platform/wayland/host/wayland_data_drag_controller.h"
 #include "ui/ozone/platform/wayland/host/wayland_event_source.h"
 #include "ui/ozone/platform/wayland/host/wayland_frame_manager.h"
@@ -69,6 +70,19 @@ WaylandToplevelWindow::WaylandToplevelWindow(PlatformWindowDelegate* delegate,
 WaylandToplevelWindow::~WaylandToplevelWindow() = default;
 
 bool WaylandToplevelWindow::CreateXdgToplevel() {
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  // NEVA: webOS is not xdg_shell. When an extension has bound a shell object
+  // (wl_shell + wl_webos_shell), let it supply the toplevel instead. This is
+  // the seam M120's ShellToplevelWrapper existed for.
+  if (auto* extensions = connection()->extensions();
+      extensions && extensions->HasShellObject()) {
+    if (auto shell_toplevel = extensions->CreateShellToplevel(this);
+        shell_toplevel && shell_toplevel->Initialize()) {
+      xdg_toplevel_ = std::move(shell_toplevel);
+    }
+  } else  // NOLINT(readability/braces)
+  ///@}
   if (auto xdg_surface = std::make_unique<XdgSurface>(this, connection())) {
     if (xdg_surface->Initialize()) {
       auto xdg_toplevel = std::make_unique<XdgToplevel>(std::move(xdg_surface));
@@ -674,33 +688,33 @@ bool WaylandToplevelWindow::OnInitialize(
     PlatformWindowDelegate::State* state) {
   state->window_state = PlatformWindowState::kNormal;
 
+  // NEVA: assign app_id_ BEFORE creating the toplevel below. CreateXdgToplevel()
+  // ends up calling ShellToplevel::SetAppId(app_id_), so creating the toplevel
+  // first sent an empty app id to the compositor and LSM logged
+  //   "appId is undefined. Adding an object with a undefined member"
+  // then never mapped the window - apps loaded and activated but nothing was
+  // ever shown. Upstream is unaffected because it creates the toplevel lazily
+  // in Show(), by which time this assignment has already happened.
+  app_id_ = properties.wayland_app_id;
+
   ///@name USE_NEVA_APPRUNTIME
   ///@{
-  // TODO(neva): Both WAM and wam-demo need the shell surface to exist upon
-  // window creation, otherwise it will crash on an early call to, for
-  // instance, 'SetWindowProperty()'. Direct calling to CreateShellSurface()
-  // (instead of the explicit shell surface creation below) prevents the
-  // XDGSurfaceWrapperImpl::ConfigureV6() callback from being invoked by Weston
-  // upon surface creation, due to a couple of extra calls to the shell surface
-  // ('UnSetFullscreen()' and 'UnSetMaximized()', also wrapped into the
-  // dedicated factory method) during the init stage, which makes Weston
-  // unresponsive to the client code. To be revised later on.
-  ShellObjectFactory factory;
-  shell_toplevel_ = factory.CreateShellToplevelWrapper(connection(), this);
-  if (!shell_toplevel_) {
-    LOG(ERROR) << "Failed to create a ShellToplevel.";
-    return false;
+  // NEVA: WAM and wam_demo call into the shell surface (e.g.
+  // SetWindowProperty()) before Show(), so on webOS the toplevel has to exist
+  // by the end of Initialize(). Upstream creates it lazily in Show(), which
+  // then early-returns because xdg_toplevel_ is already set - that is the same
+  // behaviour this had on M120.
+  //
+  // Scoped to the extension path so the plain xdg_shell case keeps upstream's
+  // ordering.
+  if (auto* extensions = connection()->extensions();
+      extensions && extensions->HasShellObject()) {
+    if (!CreateXdgToplevel()) {
+      LOG(ERROR) << "Failed to create a ShellToplevel.";
+      return false;
+    }
   }
-
-  // After https://crrev.com/c/3344634, root_surface()->Commit() moved to
-  // WaylandToplevelWindow::CreateShellToplevel from
-  // XDGToplevelWrapperImpl::Initialize. CreateShellToplevel cannot be called
-  // once shell_toplevel_ is already initialised here, which stops wam_demo
-  // showing on PC, so commit explicitly.
-  root_surface()->Commit(true);
   ///@}
-
-  app_id_ = properties.wayland_app_id;
   SetWaylandToplevelExtension(this, this);
   SetWmMoveLoopHandler(this, static_cast<WmMoveLoopHandler*>(this));
   SetWorkspaceExtension(this, static_cast<WorkspaceExtension*>(this));

@@ -5,6 +5,7 @@
 #include "services/device/geolocation/webos/geolocation_provider_neva.h"
 
 #include "base/logging.h"
+#include "base/notimplemented.h"
 #include "base/task/single_thread_task_runner.h"
 #include "services/device/geolocation/webos/geolocation_request_geoplugin.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"

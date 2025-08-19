@@ -16,6 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ozone/ui/desktop_aura/desktop_screen_wayland.h"
+#include "base/notimplemented.h"
 
 #include "ozone/platform/desktop_platform_screen.h"
 #include "ozone/platform/ozone_platform_wayland.h"
@@ -188,9 +189,8 @@ display::Display DesktopScreenWayland::GetPrimaryDisplay() const {
   // webOS specific way to determine the screen to use:
   // DISPLAY_ID is set by the application manager meaning the display ID to use.
   std::unique_ptr<base::Environment> env(base::Environment::Create());
-  std::string display_id_env;
-  if (env->GetVar("DISPLAY_ID", &display_id_env)) {
-    int display_id = std::stoi(display_id_env);
+  if (std::optional<std::string> display_id_env = env->GetVar("DISPLAY_ID")) {
+    int display_id = std::stoi(*display_id_env);
     for (auto& display : displays_)
       if (display.id() == display_id)
         return display;

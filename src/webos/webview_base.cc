@@ -15,10 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "webos/webview_base.h"
+#include "base/notimplemented.h"
 
 #include "base/command_line.h"
 #include "base/unguessable_token.h"
 #include "components/viz/common/switches.h"
+#include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
@@ -81,9 +83,9 @@ WebViewBase::WebViewBase(neva_app_runtime::WebView *webview, bool alt_storage_pa
     // If screen is rotated then initial size might be different and default
     // values may lead to incorrectly scaled view for the first rendered frame.
     // That is why the default values are subject to the overriding.
-    if (display::Screen::GetScreen()->GetNumDisplays() > 0) {
+    if (display::Screen::Get()->GetNumDisplays() > 0) {
       gfx::Size displaySize =
-          display::Screen::GetScreen()->GetPrimaryDisplay().bounds().size();
+          display::Screen::Get()->GetPrimaryDisplay().bounds().size();
       width = displaySize.width();
       height = displaySize.height();
     }
@@ -109,9 +111,9 @@ content::WebContents *WebViewBase::CreateWindowForContents(std::unique_ptr<conte
   // values may lead to incorrectly scaled view for the first rendered frame.
   // That is why the default values are subject to the overriding.
   int width = 1920, height = 1080;
-  if (display::Screen::GetScreen()->GetNumDisplays() > 0) {
+  if (display::Screen::Get()->GetNumDisplays() > 0) {
     gfx::Size displaySize =
-        display::Screen::GetScreen()->GetPrimaryDisplay().bounds().size();
+        display::Screen::Get()->GetPrimaryDisplay().bounds().size();
     width = displaySize.width();
     height = displaySize.height();
   }
@@ -253,10 +255,17 @@ void WebViewBase::SetAppPreloadHint(bool is_preload) {
 }
 
 void WebViewBase::SetUseAccessibility(bool enabled) {
-  if (enabled)
-    GetWebContents()->EnableWebContentsOnlyAccessibilityMode();
-  else
-    GetWebContents()->SetAccessibilityMode(ui::AXMode());
+  // M151: hold a ScopedAccessibilityMode for as long as accessibility should
+  // be on; dropping it restores the previous mode. This replaces the old
+  // EnableWebContentsOnlyAccessibilityMode()/SetAccessibilityMode() pair.
+  if (enabled) {
+    scoped_accessibility_mode_ =
+        content::BrowserAccessibilityState::GetInstance()
+            ->CreateScopedModeForWebContents(GetWebContents(),
+                                             ui::kAXModeWebContentsOnly);
+  } else {
+    scoped_accessibility_mode_.reset();
+  }
 }
 
 void WebViewBase::ShowExistingAlertsIfAccessibilityIsEnabled() {
@@ -301,14 +310,14 @@ void WebViewBase::SetViewportSize(int width, int height) {
 }
 
 void WebViewBase::NotifyMemoryPressure(MemoryPressureLevel level) {
-  base::MemoryPressureListener::MemoryPressureLevel pressure_level =
-      base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE;
+  base::MemoryPressureLevel pressure_level =
+      base::MEMORY_PRESSURE_LEVEL_NONE;
   if (level == MemoryPressureLevel::MEMORY_PRESSURE_LOW) {
     pressure_level =
-        base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE;
+        base::MEMORY_PRESSURE_LEVEL_MODERATE;
   } else if (level == MemoryPressureLevel::MEMORY_PRESSURE_CRITICAL) {
     pressure_level =
-        base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_CRITICAL;
+        base::MEMORY_PRESSURE_LEVEL_CRITICAL;
   }
   webview_->NotifyMemoryPressure(pressure_level);
 }

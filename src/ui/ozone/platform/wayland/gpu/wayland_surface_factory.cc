@@ -235,7 +235,15 @@ WaylandSurfaceFactory::GetAllowedGLImplementations() {
     impls.emplace_back(gl::ANGLEImplementation::kOpenGLES);
 #endif  // !defined(OS_WEBOS)
     impls.emplace_back(gl::ANGLEImplementation::kSwiftShader);
+#if defined(OS_WEBOS)
+    // NEVA: M120 listed kGLImplementationEGLGLES2 here - native EGL/GLES2,
+    // which on webOS is mesa. Upstream M151 replaced it with kVulkan, leaving
+    // webOS advertising only a backend the image cannot provide (no libvulkan,
+    // no ICD), so GL initialisation failed outright.
+    impls.emplace_back(gl::kGLImplementationEGLGLES2);
+#else
     impls.emplace_back(gl::ANGLEImplementation::kVulkan);
+#endif  // defined(OS_WEBOS)
   }
   return impls;
 }

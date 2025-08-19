@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "ozone/ui/webui/ozone_webui.h"
+#include "base/notimplemented.h"
 
 #include <memory>
 #include <set>

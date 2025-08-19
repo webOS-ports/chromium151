@@ -439,12 +439,20 @@ struct less<raw_ref<T, Traits>> {
     return lhs < rhs;
   }
 
-  bool operator()(T& lhs, const raw_ref<T, Traits>& rhs) const {
+  // These take const T& rather than T& so a lookup from a const context works.
+  // libc++ 22's std::map::find() routes heterogeneous lookup through
+  // __lazy_synth_three_way_comparator, which invokes the comparator with the
+  // key exactly as given - const when find() is called from a const member
+  // function, as PermissionRequestManager does. Chromium's bundled libc++ never
+  // instantiates that path, so upstream does not hit it; LuneOS builds
+  // use_custom_libcxx=false against OE's libc++ and does. The underlying
+  // operator<(const U&, const raw_ref&) is already const-correct.
+  bool operator()(const T& lhs, const raw_ref<T, Traits>& rhs) const {
     Impl::IncrementLessCountForTest();
     return lhs < rhs;
   }
 
-  bool operator()(const raw_ref<T, Traits>& lhs, T& rhs) const {
+  bool operator()(const raw_ref<T, Traits>& lhs, const T& rhs) const {
     Impl::IncrementLessCountForTest();
     return lhs < rhs;
   }

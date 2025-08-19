@@ -16,6 +16,7 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/ozone/platform/wayland/common/wayland_object.h"
 #include "ui/ozone/platform/wayland/host/xdg_surface.h"
+#include "ui/ozone/platform/wayland/host/shell_toplevel_wrapper.h"
 
 namespace ui {
 
@@ -28,38 +29,47 @@ class WaylandWindow;
 // fullscreen, and minimize, set application-specific metadata like title and
 // id, as well as trigger user interactive operations such as interactive resize
 // and move.
-class XdgToplevel {
+// NEVA: derives from ShellToplevelWrapper so the webOS shell surface can be
+// substituted for it, as it was in M120. DecorationMode now comes from the
+// interface; the alias keeps XdgToplevel::DecorationMode spellings working.
+class XdgToplevel : public ShellToplevelWrapper {
  public:
   using ShapeRects = std::vector<gfx::Rect>;
-  enum class DecorationMode { kNone, kClientSide, kServerSide };
+  using DecorationMode = ShellToplevelWrapper::DecorationMode;
 
   explicit XdgToplevel(std::unique_ptr<XdgSurface> xdg_surface);
   XdgToplevel(const XdgToplevel&) = delete;
   XdgToplevel& operator=(const XdgToplevel&) = delete;
-  ~XdgToplevel();
+  ~XdgToplevel() override;
 
-  bool Initialize();
-  void SetMaximized();
-  void UnSetMaximized();
-  void SetFullscreen(WaylandOutput* wayland_output);
-  void UnSetFullscreen();
-  void SetMinimized();
-  void SurfaceMove(WaylandConnection* connection);
-  void SurfaceResize(WaylandConnection* connection, uint32_t hittest);
-  void SetTitle(const std::u16string& title);
-  void AckConfigure(uint32_t serial);
-  bool IsConfigured();
-  void SetWindowGeometry(const gfx::Rect& bounds);
-  void SetMinSize(int32_t width, int32_t height);
-  void SetMaxSize(int32_t width, int32_t height);
-  void SetAppId(const std::string& app_id);
-  void ShowWindowMenu(WaylandConnection* connection, const gfx::Point& point);
-  void SetDecoration(DecorationMode decoration);
-  void SetSystemModal(bool modal);
-  void SetIcon(const gfx::ImageSkia& icon);
+  // ShellToplevelWrapper:
+  bool Initialize() override;
+  void SetMaximized() override;
+  void UnSetMaximized() override;
+  void SetFullscreen(WaylandOutput* wayland_output) override;
+  void UnSetFullscreen() override;
+  void SetMinimized() override;
+  void SurfaceMove(WaylandConnection* connection) override;
+  void SurfaceResize(WaylandConnection* connection, uint32_t hittest) override;
+  void SetTitle(const std::u16string& title) override;
+  void AckConfigure(uint32_t serial) override;
+  bool IsConfigured() override;
+  void SetWindowGeometry(const gfx::Rect& bounds) override;
+  void SetMinSize(int32_t width, int32_t height) override;
+  void SetMaxSize(int32_t width, int32_t height) override;
+  void SetAppId(const std::string& app_id) override;
+  void ShowWindowMenu(WaylandConnection* connection,
+                      const gfx::Point& point) override;
+  void SetDecoration(DecorationMode decoration) override;
+  void SetSystemModal(bool modal) override;
+  void SetIcon(const gfx::ImageSkia& icon) override;
 
-  struct xdg_surface* xdg_surface() const { return xdg_surface_->wl_object(); }
-  struct xdg_toplevel* wl_object() const { return xdg_toplevel_.get(); }
+  struct xdg_surface* xdg_surface() const override {
+    return xdg_surface_->wl_object();
+  }
+  struct xdg_toplevel* wl_object() const override {
+    return xdg_toplevel_.get();
+  }
 
  private:
   // xdg_toplevel_listener callbacks:

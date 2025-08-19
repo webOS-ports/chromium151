@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "base/logging.h"
+#include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "content/public/common/content_switches.h"
 #include "neva/logging.h"
@@ -36,21 +37,14 @@ const char kResourcesFileName[] = "webos_content.pak";
 
 namespace webos {
 
-struct BrowserShellBrowserClientTraits
-    : public base::internal::DestructorAtExitLazyInstanceTraits<
-          browser_shell::BrowserShellContentBrowserClient> {
-  static browser_shell::BrowserShellContentBrowserClient* New(void* instance) {
-    return new browser_shell::BrowserShellContentBrowserClient();
-  }
-};
-
-base::LazyInstance<browser_shell::BrowserShellContentBrowserClient,
-                   BrowserShellBrowserClientTraits>
-    g_browser_shell_content_browser_client = LAZY_INSTANCE_INITIALIZER;
-
+// M151 removed base::LazyInstance. base::NoDestructor gives the same
+// construct-on-first-use, never-destroyed singleton the
+// DestructorAtExitLazyInstanceTraits specialisation provided.
 browser_shell::BrowserShellContentBrowserClient*
 GetBrowserShellContentBrowserClient() {
-  return g_browser_shell_content_browser_client.Pointer();
+  static base::NoDestructor<browser_shell::BrowserShellContentBrowserClient>
+      instance;
+  return instance.get();
 }
 
 BrowserShellWebOSMainDelegate::BrowserShellWebOSMainDelegate(
@@ -99,8 +93,8 @@ absl::optional<int> BrowserShellWebOSMainDelegate::BasicStartupComplete() {
 
 content::ContentBrowserClient*
 BrowserShellWebOSMainDelegate::CreateContentBrowserClient() {
-  g_browser_shell_content_browser_client.Pointer()->SetBrowserExtraParts(this);
-  return g_browser_shell_content_browser_client.Pointer();
+  GetBrowserShellContentBrowserClient()->SetBrowserExtraParts(this);
+  return GetBrowserShellContentBrowserClient();
 }
 
 content::ContentRendererClient*

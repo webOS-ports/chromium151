@@ -48,6 +48,10 @@ class LocalStorageTrackerDatabase {
   bool EnsurePath(const base::FilePath& path);
 
   base::FilePath data_file_name_;
+  // M151: sql::Database has no default constructor; the Tag is supplied in
+  // the member-initializer list alongside the DatabaseOptions. The tag itself
+  // is validated at compile time against the DatabaseTag variants in
+  // tools/metrics/histograms/metadata/sql/histograms.xml.
   sql::Database db_;
 };
 }  // namespace content

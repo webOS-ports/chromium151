@@ -42,6 +42,9 @@ class CookieNevaCryptoDelegate
   void SetDefaultCryptoDelegate(std::unique_ptr<net::CookieCryptoDelegate> delegate);
 
   // net::CookieCryptoDelegate
+  // M151 added Init(); EncryptString/DecryptString may only be called once its
+  // callback has run.
+  void Init(base::OnceClosure callback) override;
   bool ShouldEncrypt() override;
   bool EncryptString(const std::string& plaintext,
                      std::string* ciphertext) override;

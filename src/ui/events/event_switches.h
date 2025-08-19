@@ -26,10 +26,13 @@ extern const char kEnableMicrophoneMuteSwitchDeviceSwitch[];
 
 #endif
 
-#if defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+// NEVA: these were guarded on OZONE_PLATFORM_WAYLAND_EXTERNAL, LG's legacy
+// ozone backend. WaylandSeatManager in the modern wayland path uses them too,
+// so they are keyed off the neva app runtime instead.
+#if defined(USE_OZONE) && defined(USE_NEVA_APPRUNTIME)
 EVENTS_BASE_EXPORT extern const char kIgnoreTouchDevices[];
 EVENTS_BASE_EXPORT extern const char kForceMaxTouchPoints[];
-#endif  // defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+#endif  // defined(USE_OZONE) && defined(USE_NEVA_APPRUNTIME)
 
 }  // namespace switches
 

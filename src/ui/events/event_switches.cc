@@ -48,13 +48,16 @@ constexpr char kEnableMicrophoneMuteSwitchDeviceSwitch[] =
 
 #endif
 
-#if defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+// NEVA: these were guarded on OZONE_PLATFORM_WAYLAND_EXTERNAL, LG's legacy
+// ozone backend. WaylandSeatManager in the modern wayland path uses them too,
+// so they are keyed off the neva app runtime instead.
+#if defined(USE_OZONE) && defined(USE_NEVA_APPRUNTIME)
 // Ignores reporting touchscreen added.
 const char kIgnoreTouchDevices[] = "ignore-touch-devices";
 
 // Overrides navigator.maxTouchPoints. --ignore-touch-devices" has a higher
 // priority over this.
 const char kForceMaxTouchPoints[] = "force-max-touch-points";
-#endif  // defined(USE_OZONE) && defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
+#endif  // defined(USE_OZONE) && defined(USE_NEVA_APPRUNTIME)
 
 }  // namespace switches

@@ -15,6 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ui/ozone/platform/wayland/extensions/webos/host/webos_text_model_wrapper.h"
+#include "ui/gfx/range/range.h"
+#include "ui/ozone/platform/wayland/host/span_style.h"
+#include "base/notimplemented.h"
 
 #include <wayland-text-client-protocol.h>
 
@@ -293,9 +296,11 @@ void WebosTextModelWrapper::PreeditString(void* data,
     // TODO(neva): (chr91), empty spans are passed as the workaround
     // for modified upstream OnPreeditString. Find if it's possible to
     // implement PreeditStyling to get expected info
+    // M151: SpanStyle is a standalone ui:: type, and the cursor is a
+    // gfx::Range rather than a bare offset.
     text_model_wrapper->input_method_context_->OnPreeditString(
-        std::string(text), std::vector<ZWPTextInputWrapperClient::SpanStyle>(),
-            text_model_wrapper->preedit_cursor_);
+        std::string(text), std::vector<SpanStyle>(),
+        gfx::Range(text_model_wrapper->preedit_cursor_));
 }
 
 void WebosTextModelWrapper::DeleteSurroundingText(void* data,
@@ -358,7 +363,10 @@ void WebosTextModelWrapper::Keysym(void* data,
   DCHECK(text_model_wrapper);
 
   if (text_model_wrapper->input_method_context_)
-    text_model_wrapper->input_method_context_->OnKeysym(sym, state, modifiers);
+    // M151 added the event time as a fourth parameter; the protocol callback
+    // already carries it.
+    text_model_wrapper->input_method_context_->OnKeysym(sym, state, modifiers,
+                                                        time);
 }
 
 void WebosTextModelWrapper::Enter(void* data,

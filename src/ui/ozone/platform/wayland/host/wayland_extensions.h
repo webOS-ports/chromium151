@@ -25,7 +25,6 @@ namespace ui {
 
 class PlatformWindowDelegate;
 class ShellToplevelWrapper;
-class ShellPopupWrapper;
 class WaylandConnection;
 class WaylandWindow;
 
@@ -54,12 +53,6 @@ class WaylandExtensions {
 
   // Creates and returns shell toplevel wrapper object.
   virtual std::unique_ptr<ShellToplevelWrapper> CreateShellToplevel(
-      WaylandWindow* window) = 0;
-
-  // FIXME(neva): this API was intended for webOS which still doesn't provide
-  // popup roles hence need to revise it for removement.
-  // Creates and returns shell popup wrapper object.
-  virtual std::unique_ptr<ShellPopupWrapper> CreateShellPopup(
       WaylandWindow* window) = 0;
 
   // Creates and returns extension-specific window object.

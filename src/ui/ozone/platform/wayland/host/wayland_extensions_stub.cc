@@ -19,7 +19,6 @@
 #include "ui/ozone/platform/wayland/host/extended_input_wrapper.h"
 #include "ui/ozone/platform/wayland/host/input_manager_wrapper.h"
 #include "ui/ozone/platform/wayland/host/input_panel_manager.h"
-#include "ui/ozone/platform/wayland/host/shell_popup_wrapper.h"
 #include "ui/ozone/platform/wayland/host/shell_toplevel_wrapper.h"
 #include "ui/ozone/platform/wayland/host/surface_group_compositor_wrapper.h"
 #include "ui/ozone/platform/wayland/host/wayland_window.h"
@@ -51,10 +50,6 @@ class StubWaylandExtensions : public WaylandExtensions {
     return nullptr;
   }
 
-  std::unique_ptr<ShellPopupWrapper> CreateShellPopup(
-      WaylandWindow* window) override {
-    return nullptr;
-  }
 
   std::unique_ptr<WaylandWindow> CreateWaylandWindow(
       PlatformWindowDelegate* delegate,

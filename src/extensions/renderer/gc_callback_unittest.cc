@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "extensions/renderer/gc_callback.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"

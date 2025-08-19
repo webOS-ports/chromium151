@@ -99,6 +99,9 @@ source_set("webos_impl") {
   }
 
   deps = [
+    # WTF headers include <hwy/highway.h>; blink keeps this dep private,
+    # so targets including those headers directly need it too.
+    "//third_party/highway:libhwy",
     "//neva/app_runtime",
     "//neva/injection/public/renderer",
     "//neva/pal_service",
@@ -112,6 +115,16 @@ source_set("webos_impl") {
   ]
 
   include_dirs = [ "." ]
+  # The neva changes to this target include generated headers whose
+  # producing targets were not reachable from here. Nothing ordered them
+  # against this compile, so a clean build could reach these objects
+  # before the generators ran; an incremental build never notices because
+  # the headers are left over from an earlier pass.
+  deps += [
+    ":webos_network_error_resources_grit",
+    ":webos_network_error_strings_grit",
+    "//neva/app_runtime:app_runtime_network_error_strings",
+  ]
 }
 
 grit("webos_network_error_resources_grit") {

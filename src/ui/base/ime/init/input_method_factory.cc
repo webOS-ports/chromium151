@@ -73,13 +73,10 @@ std::unique_ptr<InputMethod> CreateInputMethod(
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
             switches::kEnableNevaIme))
       return std::make_unique<InputMethodAuraLinuxNeva>(
-          ime_key_event_dispatcher
-#if defined(OZONE_PLATFORM_WAYLAND_EXTERNAL)
-          , widget
-#endif
-      );
+          ime_key_event_dispatcher, widget);
     else
-      return std::make_unique<InputMethodAuraLinux>(ime_key_event_dispatcher);
+      return std::make_unique<InputMethodAuraLinux>(ime_key_event_dispatcher,
+                                                    widget);
 #endif  // defined(USE_AURA)
   }
   ///@}

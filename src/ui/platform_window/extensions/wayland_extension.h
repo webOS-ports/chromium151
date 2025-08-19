@@ -13,6 +13,20 @@ namespace ui {
 
 class PlatformWindow;
 
+// NEVA: webOS locks the shell surface to a screen orientation. This enum lived
+// here in M120 and was dropped when upstream removed the lock API; the webOS
+// shell surface wrapper still needs it.
+enum class WaylandOrientationLockType {
+  kAny,
+  kNatural,
+  kPortrait,
+  kLandscape,
+  kPortraitPrimary,
+  kLandscapePrimary,
+  kPortraitSecondary,
+  kLandscapeSecondary,
+};
+
 class COMPONENT_EXPORT(PLATFORM_WINDOW) WaylandExtension {
  public:
   // Waits for a Wayland roundtrip to ensure all side effects have been

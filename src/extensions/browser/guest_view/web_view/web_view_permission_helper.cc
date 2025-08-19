@@ -14,6 +14,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/values.h"
 #include "components/guest_view/browser/guest_view_event.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
@@ -217,6 +218,9 @@ void WebViewPermissionHelper::RequestMediaAccessPermission(
   if (!request.security_origin.SchemeIs(kExtensionScheme) &&
       web_view_guest()->attached() &&
       web_view_guest()->embedder_web_contents()->GetDelegate()) {
+    content::WebContents* source = content::WebContents::FromRenderFrameHost(
+        content::RenderFrameHost::FromID(request.render_process_id,
+                                         request.render_frame_id));
     neva_app_runtime::MediaCaptureDevicesDispatcher::GetInstance()
         ->ProcessMediaAccessRequest(source, request, std::move(callback));
     return;
@@ -251,9 +255,10 @@ bool WebViewPermissionHelper::CheckMediaAccessPermission(
     return false;
   }
 #if defined(USE_NEVA_BROWSER_SERVICE)
-  if (!security_origin.SchemeIs(kExtensionScheme)) {
+  if (security_origin.scheme() != kExtensionScheme) {
     return neva_app_runtime::MediaCaptureDevicesDispatcher::GetInstance()
-        ->CheckMediaAccessPermission(render_frame_host, security_origin, type);
+        ->CheckMediaAccessPermission(render_frame_host,
+                                     security_origin.GetURL(), type);
   }
 #endif
   return web_view_guest()

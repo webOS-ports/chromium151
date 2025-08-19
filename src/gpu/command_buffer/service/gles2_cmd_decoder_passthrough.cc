@@ -990,7 +990,14 @@ gpu::ContextResult GLES2DecoderPassthroughImpl::Initialize(
     ContextType context_type,
     bool lose_context_when_out_of_memory) {
   TRACE_EVENT0("gpu", "GLES2DecoderPassthroughImpl::Initialize");
+#if defined(OS_WEBOS)
+  // webOS runs the passthrough decoder directly on the native EGL/GLES2 driver
+  // rather than ANGLE, which is what M120 did (this CHECK is new in M151).
+  CHECK(gl::GetGLImplementation() == gl::kGLImplementationEGLANGLE ||
+        gl::GetGLImplementation() == gl::kGLImplementationEGLGLES2)
+#else
   CHECK(gl::GetGLImplementation() == gl::kGLImplementationEGLANGLE)
+#endif
       << "Running WebGL through passthrough command decoder without ANGLE's "
       << "validation is a security risk";
   DCHECK(context->IsCurrent(surface.get()));

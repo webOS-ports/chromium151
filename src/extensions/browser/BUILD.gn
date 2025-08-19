@@ -718,7 +718,10 @@ source_set("browser_sources") {
   # TODO(crbug.com/41323543): Ideally web_view should be a separate target on
   # which the extension system depends.
   if (enable_guest_view) {
-    if (is_chromeos) {
+    # NEVA: M151 narrowed these to ChromeOS; app_shell's <appview> support
+    # (ShellAppViewGuestDelegate) derives from AppViewGuestDelegate, so webOS
+    # needs them as well. They were unconditional in M120.
+    if (is_chromeos || is_webos) {
       sources += [
         "guest_view/app_view/app_view_constants.cc",
         "guest_view/app_view/app_view_constants.h",
@@ -868,6 +871,15 @@ source_set("browser_sources") {
   configs += [
     "//build/config:precompiled_headers",
     "//build/config/compiler:wexit_time_destructors",
+  ]
+  # The neva changes to this target include generated headers whose
+  # producing targets were not reachable from here. Nothing ordered them
+  # against this compile, so a clean build could reach these objects
+  # before the generators ran; an incremental build never notices because
+  # the headers are left over from an earlier pass.
+  deps += [
+    "//neva/app_runtime/public/mojom:mojom",
+    "//neva/app_runtime/public/mojom:mojom_app_runtime_blink",
   ]
 }
 
