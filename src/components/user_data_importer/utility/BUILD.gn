@@ -64,6 +64,7 @@ source_set("safari_data_importer") {
 rust_static_library("zip_ffi_glue") {
   allow_unsafe = true
   crate_root = "parsing_ffi/lib.rs"
+  edition = "2024"
   sources = [
     "parsing_ffi/history.rs",
     "parsing_ffi/json.rs",
