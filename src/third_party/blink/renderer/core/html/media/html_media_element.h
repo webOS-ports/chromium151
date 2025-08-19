@@ -66,6 +66,12 @@
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 #include "third_party/webrtc_overrides/low_precision_timer.h"
 
+#if defined(USE_NEVA_MEDIA)
+#include "third_party/blink/renderer/core/html/media/neva/html_media_element.h"
+#else
+#include "third_party/blink/renderer/core/html/media/neva/html_media_element_stub.h"
+#endif
+
 namespace gfx {
 class Size;
 }
@@ -117,6 +123,14 @@ class CORE_EXPORT HTMLMediaElement
       public FrameVisibilityObserver,
       public media::mojom::blink::MediaPlayer,
       public media::RemotePlaybackClientWrapper,
+      ///@name USE_NEVA_MEDIA
+      ///@{
+      public neva::HTMLMediaElement<HTMLMediaElement>,
+      ///@}
+#if defined(USE_NEVA_MEDIA)
+      private neva::HTMLMediaElementExtendingWebMediaPlayerClient<
+          HTMLMediaElement>,
+#endif
       private MediaPlayerClient {
   DEFINE_WRAPPERTYPEINFO();
   USING_PRE_FINALIZER(HTMLMediaElement, Dispose);
@@ -522,6 +536,18 @@ class CORE_EXPORT HTMLMediaElement
   }
 
  private:
+  ///@name USE_NEVA_MEDIA
+  ///@{
+  template <typename>
+  friend class neva::HTMLMediaElement;
+  ///@}
+#if defined(USE_NEVA_MEDIA)
+  using neva::HTMLMediaElement<HTMLMediaElement>::ScheduleEvent;
+
+  template <typename>
+  friend class neva::HTMLMediaElementExtendingWebMediaPlayerClient;
+#endif
+
   // Friend class for testing.
   friend class ContextMenuControllerTest;
   friend class HTMLMediaElementTest;
@@ -669,6 +695,10 @@ class CORE_EXPORT HTMLMediaElement
   void SetPowerExperimentState(bool enabled) override;
   void SetAudioSinkId(const String&) override;
   void SuspendForFrameClosed() override;
+#if defined(USE_NEVA_MEDIA)
+  void RequestActivation() override;
+  void RequestSuspend() override;
+#endif  // defined(USE_NEVA_MEDIA)
   void RequestMediaRemoting() override {}
   void RequestVisibility(
       RequestVisibilityCallback request_visibility_cb) override {}

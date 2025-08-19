@@ -85,6 +85,7 @@ class CORE_EXPORT FrameCaret final : public GarbageCollected<FrameCaret> {
   void UpdateStyleAndLayoutIfNeeded();
   void InvalidatePaint(const LayoutBlock&, const PaintInvalidatorContext&);
   void EnsureInvalidationOfPreviousLayoutBlock();
+  float GetCaretWidth() const;
 
   bool ShouldPaintCaret(const LayoutBlock&) const;
   bool ShouldPaintCaret(const PhysicalBoxFragment&) const;

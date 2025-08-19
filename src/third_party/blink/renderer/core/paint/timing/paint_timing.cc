@@ -47,6 +47,11 @@
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 #include "third_party/blink/renderer/platform/wtf/wtf.h"
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "third_party/blink/public/common/page/first_frame_policy.h"
+#include "third_party/blink/renderer/core/frame/settings.h"
+#endif
+
 namespace blink {
 
 namespace {
@@ -545,6 +550,38 @@ void PaintTiming::SetFirstContentfulPaint(base::TimeTicks stamp) {
 }
 
 void PaintTiming::Mark(PaintEvent event) {
+#if defined(USE_NEVA_APPRUNTIME)
+  // webOS first-frame policy: tell the embedder which paint event counts as the
+  // app's "first frame" so it can drop the splash. M151 replaced
+  // RegisterNotifyPresentationTime(PaintEvent, ...) with Mark(PaintEvent),
+  // which is now the per-event entry point this used to hang off.
+  if (GetFrame() && GetFrame()->GetPage() && GetFrame()->GetSettings()) {
+    bool is_fcp = false;
+    const bool is_container_reset =
+        (event == PaintEvent::kFirstContainerResetPaint);
+    switch (GetFrame()->GetSettings()->GetFirstFramePolicy()) {
+      case FirstFramePolicy::kImmediate:
+        is_fcp = (event == PaintEvent::kFirstPaint);
+        break;
+      case FirstFramePolicy::kContents:
+      default:
+        is_fcp = (event == PaintEvent::kFirstContentfulPaint);
+        break;
+    }
+    if (is_fcp || is_container_reset) {
+      if (GetFrame()->GetDocument()) {
+        GetFrame()->GetDocument()->SetFirstFramePolicyAccepted(is_fcp);
+      }
+      GetFrame()->GetPage()->GetChromeClient().NotifyVizFMPSwap(
+          *GetFrame(), is_fcp, is_container_reset);
+    }
+    // kFirstContainerResetPaint is neva-only and has no upstream presentation
+    // callback; do not queue it as a pending paint event.
+    if (is_container_reset) {
+      return;
+    }
+  }
+#endif
   pending_paint_events_.insert(event);
 }
 
@@ -557,7 +594,8 @@ void PaintTiming::
                WrapWeakPersistent(this), index));
 }
 
-void PaintTiming::RegisterNotifyPresentationTime(ReportTimeCallback callback) {
+void PaintTiming::RegisterNotifyPresentationTime(PaintEvent event,
+                                                 ReportTimeCallback callback) {
   // ReportPresentationTime will queue a presentation-promise, the callback is
   // called when the compositor submission of the current render frame completes
   // or fails to happen.

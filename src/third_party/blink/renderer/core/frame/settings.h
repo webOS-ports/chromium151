@@ -30,11 +30,12 @@
 
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/settings_base.h"
+#include "third_party/blink/renderer/core/frame/neva/settings_neva.h"
 #include "third_party/blink/renderer/platform/fonts/generic_font_family_settings.h"
 
 namespace blink {
 
-class CORE_EXPORT Settings : public SettingsBase {
+class CORE_EXPORT Settings : public SettingsBase, public SettingsNeva {
   USING_FAST_MALLOC(Settings);
 
  public:

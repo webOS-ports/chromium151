@@ -637,6 +637,7 @@ void MediaStreamVideoTrack::FrameDeliverer::DeliverFrameOnVideoTaskRunner(
     // frames are dropped.
     video_frame = GetBlackFrame(*frame);
   }
+
   for (const auto& entry : callbacks_) {
     entry.deliver_frame.Run(video_frame, estimated_capture_time);
   }

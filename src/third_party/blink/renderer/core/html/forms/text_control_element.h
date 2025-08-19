@@ -35,6 +35,10 @@
 #include "third_party/blink/renderer/core/html/forms/text_control_inner_elements.h"
 #include "third_party/blink/renderer/core/style/text_overflow_data.h"
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "third_party/blink/renderer/platform/wtf/vector.h"
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
 namespace blink {
 
 class ExceptionState;
@@ -117,6 +121,9 @@ class CORE_EXPORT TextControlElement : public HTMLFormControlElementWithState {
   int minLength() const;
   void setMaxLength(int, ExceptionState&);
   void setMinLength(int, ExceptionState&);
+#if defined(USE_NEVA_APPRUNTIME)
+  Vector<double> getInputPanelCoords() const;
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
   // Dispatch 'change' event if the value is updated.
   void DispatchFormControlChangeEvent();
@@ -419,6 +426,10 @@ class CORE_EXPORT TextControlElement : public HTMLFormControlElementWithState {
   bool has_scheduled_selectionchange_event_ = false;
 
   bool has_been_heuristic_custom_password_js_ = false;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  Vector<double> input_panel_coords_;
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
   FRIEND_TEST_ALL_PREFIXES(TextControlElementTest, IndexForPosition);
   FRIEND_TEST_ALL_PREFIXES(HTMLTextAreaElementTest, ValueWithHardLineBreaks);

@@ -1761,6 +1761,12 @@ void RTCPeerConnectionHandler::OnWebRtcEventLogWrite(
   }
 }
 
+#if defined(USE_NEVA_APPRUNTIME)
+bool RTCPeerConnectionHandler::IsOpened() const {
+  return !is_closed_;
+}
+#endif
+
 void RTCPeerConnectionHandler::StartDataChannelLog() {
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
   native_peer_connection_->SetDataChannelEventObserver(

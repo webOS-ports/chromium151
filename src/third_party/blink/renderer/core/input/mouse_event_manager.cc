@@ -315,6 +315,14 @@ MouseEventManager::SetElementUnderMouseAndDispatchMouseEvent(
   // which isn't ideal.
 
   SetElementUnderMouse(target_element, web_mouse_event);
+
+  // Gesture tap should update last known mouse position just like mousemove.
+  // Otherwise, HandleGestureTap and RecomputeMouseHoverState will fight over
+  // SetElementUnderMouse with different ideas about where the mouse is. This
+  // creates flakiness in tests that send taps and listen to mouseout, like
+  // fast/events/touch/gesture/focus-selectionchange-on-tap.html.
+  SetLastKnownMousePosition(web_mouse_event);
+
   return DispatchMouseEvent(
              element_under_mouse_, event_type, web_mouse_event, nullptr,
              nullptr, false, web_mouse_event.id,

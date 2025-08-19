@@ -1093,6 +1093,10 @@ bool ContainsSafeAreaInsetBottom(StringView string);
 // calc(10px + 42em - 13cqw).
 bool IsSimpleSum(StringView string);
 
+CSSValue* ConsumeNavigationDirection(CSSParserTokenStream&);
+CSSValue* ConsumeNavigationIndex(CSSParserTokenStream&, const CSSParserContext&);
+CSSValue* ConsumeCaretWidth(CSSParserTokenStream&, const CSSParserContext&);
+
 }  // namespace css_parsing_utils
 }  // namespace blink
 

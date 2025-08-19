@@ -95,6 +95,8 @@ class CORE_EXPORT CaretDisplayItemClient final
   // DisplayItemClient.
   String DebugName() const final;
 
+  float CaretWidth() const { return caret_width_; }
+
  private:
   friend class CaretDisplayItemClientTest;
   friend class ComputeCaretRectTest;
@@ -119,6 +121,7 @@ class CORE_EXPORT CaretDisplayItemClient final
 
   // These are updated by UpdateStyleAndLayoutIfNeeded().
   Color color_;
+  float caret_width_ = 1.f;
   PhysicalRect local_rect_;
   Member<LayoutBlock> layout_block_;
 

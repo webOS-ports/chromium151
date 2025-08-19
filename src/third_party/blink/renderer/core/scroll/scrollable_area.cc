@@ -53,6 +53,7 @@
 #include "third_party/blink/renderer/core/event_type_names.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
+#include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/frame/visual_viewport.h"
 #include "third_party/blink/renderer/core/html/anchor_element_viewport_position_tracker.h"
 #include "third_party/blink/renderer/core/input/event_handler.h"
@@ -1536,6 +1537,12 @@ ScrollableAreaTraversal::Iterator::operator++() {
 
   current_scrollable_area_ = nullptr;
   return *this;
+
+bool ScrollableArea::IsWebOSNativeScrollEnabled() const {
+  auto* document = GetDocument();
+  return document->GetSettings() &&
+         document->GetSettings()->GetWebOSNativeScrollEnabled();
+}
 }
 
 }  // namespace blink

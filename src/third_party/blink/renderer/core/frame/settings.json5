@@ -1043,6 +1043,26 @@
       name: "navigatorPlatformOverride",
       type: "String",
     },
+    ///@name USE_NEVA_MEDIA
+    ///@{
+    {
+      name: "maxTimeupdateEventFrequency",
+      initial: "250",
+      type: "int",
+    },
+    ///@}
+    ///@name USE_NEVA_APPRUNTIME
+    ///@{
+    {
+      name: "disallowScrollbarsInMainFrame",
+      initial: "false",
+    },
+    ///@}
+    {
+      name: "webOSNativeScrollEnabled",
+      initial: "false",
+    },
+    ///@}
     {
       name: "lowPriorityIframesThreshold",
       initial: "WebEffectiveConnectionType::kTypeUnknown",
@@ -1229,6 +1249,10 @@
       include_paths: [
         "third_party/blink/public/common/css/navigation_controls.h"
       ],
+    },
+    {
+      name: "accessibilityExploreByMouseEnabled",
+      initial: "false",
     },
     {
       name: "accessibilityAlwaysShowFocus",

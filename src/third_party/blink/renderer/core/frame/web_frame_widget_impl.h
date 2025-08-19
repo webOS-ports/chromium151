@@ -250,6 +250,11 @@ class CORE_EXPORT WebFrameWidgetImpl
   void RequestDecode(const cc::DrawImage&,
                      base::OnceCallback<void(bool)>,
                      bool speculative) override;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  void NotifyVizFMPSwap(bool is_first_contentful_paint,
+                        bool did_reset_container_state) final;
+#endif
   int GetLayerTreeId() final;
   const cc::LayerTreeSettings* GetLayerTreeSettings() final;
   void UpdateBrowserControlsState(
@@ -453,6 +458,9 @@ class CORE_EXPORT WebFrameWidgetImpl
   void SetCursor(const ui::Cursor& cursor) override;
   bool HandlingInputEvent() override;
   void SetHandlingInputEvent(bool handling) override;
+#if defined(USE_NEVA_APPRUNTIME)
+  bool HasImeEventGuard() const override;
+#endif
   void ProcessInputEventSynchronouslyForTesting(
       const WebCoalescedInputEvent&) override;
   void DispatchNonBlockingEventForTesting(
@@ -529,6 +537,12 @@ class CORE_EXPORT WebFrameWidgetImpl
       mojo::PendingAssociatedRemote<mojom::blink::UnboundedSurfaceHost>
           host_remote);
   void UpdateUnboundedElementBounds(const gfx::Rect& bounds);
+
+#if defined(USE_NEVA_APPRUNTIME)
+  // mojom::blink::FrameWidget overrides:
+  void ActivateCompositor() override;
+  void DeactivateCompositor() override;
+#endif  // USE_NEVA_APPRUNTIME
 
   // mojom::blink::FrameWidgetInputHandler overrides:
   void HandleStylusWritingGestureAction(

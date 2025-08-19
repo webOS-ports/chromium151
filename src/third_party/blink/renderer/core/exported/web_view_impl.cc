@@ -203,8 +203,13 @@
 #if !BUILDFLAG(IS_MAC)
 #include "skia/ext/legacy_display_globals.h"
 #include "third_party/blink/public/platform/web_font_render_style.h"
+#include "third_party/blink/public/platform/web_security_origin.h"
 #include "ui/gfx/font_render_params.h"
 #endif
+
+#if defined(USE_NEVA_APPRUNTIME)
+#include "cc/base/switches_neva.h"
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
 #if BUILDFLAG(IS_WIN)
 #include "third_party/blink/public/web/win/web_font_rendering.h"
@@ -382,6 +387,13 @@ void ApplyCommandLineToSettings(WebSettings* settings) {
                                      : setting.substr(pos + 1).ToString()));
     }
   }
+#if defined(USE_NEVA_APPRUNTIME)
+  // This is for checking condition whether native scroll is enabled
+  // on blink side. In initial phase of this feature, all related changes
+  // are blocked inside this condition.
+  settings->SetWebOSNativeScrollEnabled(
+      command_line.HasSwitch(switches::kEnableWebOSNativeScroll));
+#endif  // defined(USE_NEVA_APPRUNTIME)
 }
 
 // Records the queuing duration for activation IPC.
@@ -1719,6 +1731,8 @@ void WebView::ApplyWebPreferences(const web_pref::WebPreferences& prefs,
 
   settings->SetSpatialNavigationEnabled(prefs.spatial_navigation_enabled);
 
+  WebRuntimeFeatures::EnableCSSNavigation(prefs.css_navigation_enabled);
+
   settings->SetSelectionIncludesAltImageText(true);
 
   settings->SetV8CacheOptions(prefs.v8_cache_options);
@@ -1775,6 +1789,10 @@ void WebView::ApplyWebPreferences(const web_pref::WebPreferences& prefs,
       prefs.dont_send_key_events_to_javascript);
   settings->SetWebAppScope(WebString::FromAscii(prefs.web_app_scope.spec()));
   settings->SetIsInitialProfile(prefs.is_initial_profile);
+
+  settings->SetAccessibilityExploreByMouseEnabled(
+      settings->GetAccessibilityExploreByMouseEnabled() &&
+      prefs.accessibility_explore_by_mouse_enabled);
 
 #if BUILDFLAG(IS_ANDROID)
   settings->SetAllowCustomScrollbarInMainFrame(false);
@@ -1845,6 +1863,18 @@ void WebView::ApplyWebPreferences(const web_pref::WebPreferences& prefs,
 #endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_FUCHSIA)
 
   settings->SetForceDarkModeEnabled(prefs.force_dark_mode_enabled);
+
+#if defined(USE_NEVA_APPRUNTIME)
+  settings->SetFirstFramePolicy(prefs.first_frame_policy);
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
+#if defined(USE_NEVA_APPRUNTIME)
+  settings->SetKeepAliveWebApp(prefs.keep_alive_webapp);
+#endif
+#if defined(USE_NEVA_MEDIA)
+  settings->SetMaxTimeupdateEventFrequency(
+      prefs.max_timeupdate_event_frequency);
+#endif
 
   settings->SetAccessibilityAlwaysShowFocus(prefs.always_show_focus);
   settings->SetAutoplayPolicy(prefs.autoplay_policy);
@@ -3637,6 +3667,21 @@ void WebViewImpl::UpdateFontRenderingFromRendererPrefs() {
         renderer_preferences_.system_font_family_name));
   }
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+
+#if defined(USE_NEVA_APPRUNTIME)
+  WebFontRenderStyle::SetAllowFakeBoldText(
+      renderer_preferences_.allow_fake_bold_text);
+
+  // Per-app file security origin. This is the only producer of
+  // MutableLocalOrigin(), which SecurityOrigin::CreateInternal() reads to scope
+  // file:// documents per webOS application. It lived in
+  // WebThemeEngineHelper::DidUpdateRendererPreferences() in M120, which M151
+  // removed.
+  if (!renderer_preferences_.file_security_origin.empty()) {
+    url::Origin::SetFileOriginChanged(true);
+  }
+  SetMutableLocalOrigin(renderer_preferences_.file_security_origin);
+#endif  // defined(USE_NEVA_APPRUNTIME)
 #endif  // BUILDFLAG(IS_WIN)
 #endif  // !BUILDFLAG(IS_MAC)
 }
@@ -3849,6 +3894,14 @@ void WebViewImpl::SetWebPreferences(
 const web_pref::WebPreferences& WebViewImpl::GetWebPreferences() {
   return web_preferences_;
 }
+
+#if defined(USE_NEVA_APPRUNTIME)
+void WebViewImpl::SetKeepAliveWebApp(bool keep_alive) {
+  web_preferences_.keep_alive_webapp = keep_alive;
+  if (GetSettings())
+    GetSettings()->SetKeepAliveWebApp(keep_alive);
+}
+#endif
 
 void WebViewImpl::UpdateWebPreferences(
     const blink::web_pref::WebPreferences& preferences) {

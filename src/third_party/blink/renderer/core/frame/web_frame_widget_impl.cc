@@ -3312,6 +3312,22 @@ void WebFrameWidgetImpl::SetHandlingInputEvent(bool handling) {
   widget_base_->input_handler().set_handling_input_event(handling);
 }
 
+#if defined(USE_NEVA_APPRUNTIME)
+void WebFrameWidgetImpl::ActivateCompositor() {
+  if (widget_base_ && !widget_base_->never_composited())
+    widget_base_->SetCompositorVisible(!widget_base_->is_hidden());
+}
+
+void WebFrameWidgetImpl::DeactivateCompositor() {
+  if (widget_base_)
+    widget_base_->SetCompositorVisible(false);
+}
+
+bool WebFrameWidgetImpl::HasImeEventGuard() const {
+  return widget_base_->HasImeEventGuard();
+}
+#endif
+
 void WebFrameWidgetImpl::ProcessInputEventSynchronouslyForTesting(
     const WebCoalescedInputEvent& event,
     WidgetBaseInputHandler::HandledEventCallback callback) {
@@ -3982,12 +3998,68 @@ void WebFrameWidgetImpl::NotifySwapAndPresentationTimeForTesting(
   NotifySwapAndPresentationTime(std::move(callbacks));
 }
 
+#if defined(USE_NEVA_APPRUNTIME)
+// Lets call this Viz First Meaninful Paint promise for now
+class VizFMPPromise : public cc::SwapPromise {
+ public:
+  VizFMPPromise(bool is_first_contentful_paint, bool did_reset_container_state)
+      : is_first_contentful_paint_(is_first_contentful_paint),
+        did_reset_container_state_(did_reset_container_state) {}
+
+  void DidActivate() override {}
+
+  void WillSwap(viz::CompositorFrameMetadata* metadata) override {
+    metadata->is_first_contentful_paint |= is_first_contentful_paint_;
+    metadata->did_reset_container_state |= did_reset_container_state_;
+  }
+  void DidSwap() override {}
+
+  cc::SwapPromise::DidNotSwapAction DidNotSwap(
+      DidNotSwapReason reason,
+      base::TimeTicks timestamp) override {
+    // Keep promise active since we need to pass metadata
+    // to viz once swap happens
+    return DidNotSwapAction::KEEP_ACTIVE;
+  }
+
+  int64_t GetTraceId() const override { return 0; }
+
+ private:
+  bool is_first_contentful_paint_;
+  bool did_reset_container_state_;
+};
+
+void WebFrameWidgetImpl::NotifyVizFMPSwap(bool is_first_contentful_paint,
+                                          bool did_reset_container_state) {
+  widget_base_->LayerTreeHost()->QueueSwapPromise(
+      std::make_unique<VizFMPPromise>(is_first_contentful_paint,
+                                      did_reset_container_state));
+}
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
 void WebFrameWidgetImpl::NotifyPresentationTime(
     base::OnceCallback<void(const viz::FrameTimingDetails&)>
         presentation_callback) {
   CHECK(IsMainThread());
+#if defined(OS_WEBOS)
+  // Splash screen dismissal on webOS keys off FMP, but upstream reports FMP
+  // only once the frame has actually been presented, which is too late to
+  // dismiss the splash. Fire on swap instead. We do not consume the
+  // presentation histograms, so synthesising FrameTimingDetails carrying just
+  // the swap timestamp is enough here.
+  NotifySwapAndPresentationTime(
+      {.swap_time_callback = WTF::BindOnce(
+           [](base::OnceCallback<void(const viz::FrameTimingDetails&)> callback,
+              base::TimeTicks swap_time) {
+             viz::FrameTimingDetails details;
+             details.presentation_feedback.timestamp = swap_time;
+             std::move(callback).Run(details);
+           },
+           std::move(presentation_callback))});
+#else
   NotifySwapAndPresentationTime(
       {.presentation_time_callback = std::move(presentation_callback)});
+#endif
 }
 
 #if BUILDFLAG(IS_APPLE)

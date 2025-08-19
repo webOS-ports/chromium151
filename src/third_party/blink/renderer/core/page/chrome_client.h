@@ -595,6 +595,11 @@ class CORE_EXPORT ChromeClient : public GarbageCollected<ChromeClient> {
       base::OnceCallback<void(const viz::FrameTimingDetails&)>;
   virtual void NotifyPresentationTime(LocalFrame& frame,
                                       ReportTimeCallback callback) {}
+#if defined(USE_NEVA_APPRUNTIME)
+  virtual void NotifyVizFMPSwap(LocalFrame& frame,
+                                bool is_first_contentful_paint,
+                                bool did_reset_container_state) {}
+#endif
 
   // A stable numeric Id for |frame|'s local root's compositor. For
   // tracing/debugging purposes.

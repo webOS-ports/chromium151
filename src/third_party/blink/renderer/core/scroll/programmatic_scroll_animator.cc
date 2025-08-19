@@ -68,9 +68,6 @@ void ProgrammaticScrollAnimator::AnimateToOffset(
   // animate to a different offset, instead of cancelling the current
   // animation, we could retarget the current animation to the new
   // scroll offset, keeping the velocity of the current animation.
-  // When doing this, we'd need to be careful to handle the possibility
-  // of repeatedly retargeting to a drastically different location such that
-  // the scroll never settles.
   if (animation_curve_ && target_offset_ == offset) {
     return;
   }
@@ -78,9 +75,22 @@ void ProgrammaticScrollAnimator::AnimateToOffset(
   target_offset_ = offset;
   source_type_ = source_type;
 
+#if defined(OS_WEBOS)
+  // If scrollTo() is invoked very frequently the scroll velocity stays very
+  // low, so switch the curve to EASE_OUT while an animation is still running.
+  const cc::ScrollOffsetAnimationCurve::ScrollType scroll_type =
+      scrollable_area_->IsWebOSNativeScrollEnabled() &&
+              run_state_ != RunState::kIdle &&
+              run_state_ != RunState::kPostAnimationCleanup
+          ? cc::ScrollOffsetAnimationCurve::ScrollType::kContinueProgrammatic
+          : cc::ScrollOffsetAnimationCurve::ScrollType::kProgrammatic;
+#else
+  const cc::ScrollOffsetAnimationCurve::ScrollType scroll_type =
+      cc::ScrollOffsetAnimationCurve::ScrollType::kProgrammatic;
+#endif
+
   animation_curve_ = cc::ScrollOffsetAnimationCurveFactory::CreateAnimation(
-      CompositorOffsetFromBlinkOffset(target_offset_),
-      cc::ScrollOffsetAnimationCurve::ScrollType::kProgrammatic);
+      CompositorOffsetFromBlinkOffset(target_offset_), scroll_type);
 
   scrollable_area_->RegisterForAnimation();
   if (!scrollable_area_->ScheduleAnimation()) {

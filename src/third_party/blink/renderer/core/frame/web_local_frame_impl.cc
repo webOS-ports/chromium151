@@ -286,6 +286,10 @@
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "ui/gfx/geometry/size_conversions.h"
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "third_party/blink/renderer/core/paint/timing/first_meaningful_paint_detector.h"
+#endif
+
 #if BUILDFLAG(IS_WIN)
 #include "third_party/blink/public/web/win/web_font_family_names.h"
 #include "third_party/blink/renderer/core/layout/layout_font_accessor_win.h"
@@ -2777,6 +2781,26 @@ void WebLocalFrameImpl::SendPings(const WebURL& destination_url) {
   }
 }
 
+#if defined(USE_NEVA_APPRUNTIME)
+void WebLocalFrameImpl::ResetStateToMarkNextPaint() {
+  if (!GetFrame())
+    return;
+
+  FirstMeaningfulPaintDetector::From(*(GetFrame()->GetDocument()))
+      .ResetStateToMarkNextPaint();
+}
+#endif
+
+#if defined(USE_NEVA_MEDIA)
+void WebLocalFrameImpl::SetSuppressMediaPlay(bool suppress) {
+  suppress_media_play_ = suppress;
+}
+
+bool WebLocalFrameImpl::IsSuppressedMediaPlay() const {
+  return suppress_media_play_;
+}
+#endif
+
 void WebLocalFrameImpl::SendAttributionSrc(
     const std::optional<Impression>& impression,
     bool did_navigate) {
@@ -2845,6 +2869,22 @@ void WebLocalFrameImpl::CommitNavigation(
   GetFrame()->Loader().CommitNavigation(std::move(navigation_params),
                                         std::move(extra_data));
 }
+
+#if defined(USE_NEVA_APPRUNTIME)
+void WebLocalFrameImpl::UpdateForSameDocumentNavigation(
+    const std::string& new_url) {
+  DCHECK(GetFrame());
+  GetFrame()->GetDocument()->Loader()->UpdateForSameDocumentNavigation(
+      blink::KURL(blink::KURL(),
+                  WTF::String::FromUTF8(new_url.data(), new_url.length())),
+      nullptr, mojom::blink::SameDocumentNavigationType::kHistoryApi, nullptr,
+      blink::WebFrameLoadType::kReplaceCurrentItem,
+      frame_->DomWindow()->GetSecurityOrigin(),
+      /*is_browser_initiated=*/true,
+      /*is_synchronously_committed=*/true,
+      /*soft_navigation_heuristics_task_id*/std::nullopt);
+}
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
 blink::mojom::CommitResult WebLocalFrameImpl::CommitSameDocumentNavigation(
     const WebURL& url,

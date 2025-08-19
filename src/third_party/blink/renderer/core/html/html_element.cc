@@ -701,6 +701,17 @@ const AttributeTriggers* HTMLElement::TriggersForAttributeName(
       {html_names::kOnlocationAttr, kNoWebFeature, event_type_names::kLocation,
        nullptr},
 
+#if defined(USE_NEVA_MEDIA)
+      // It looks like second attribute only used for UseCounter
+      {html_names::kOnumsmediainfoAttr, kNoWebFeature,
+       event_type_names::kUmsmediainfo, nullptr},
+      // TODO(neva): Doesn't need to add onwebosmediafocuschange at here?
+#if defined(USE_NEVA_MEDIA_PLAYER_CAMERA)
+      {html_names::kOnupdatecamerastateAttr, kNoWebFeature,
+       event_type_names::kUpdatecamerastate, nullptr},
+#endif  // defined(USE_NEVA_MEDIA_PLAYER_CAMERA)
+#endif  // defined(USE_NEVA_MEDIA)
+
       // Begin ARIA attributes.
       {html_names::kAriaActionsAttr, WebFeature::kARIAActionsAttribute,
        kNoEvent, nullptr},

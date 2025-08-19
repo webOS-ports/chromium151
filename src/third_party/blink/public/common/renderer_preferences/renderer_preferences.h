@@ -81,6 +81,16 @@ struct BLINK_COMMON_EXPORT RendererPreferences {
   std::u16string message_font_family_name;
   int32_t message_font_height{0};
 #endif
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  std::string application_id;
+  std::string display_id;
+  std::string board_type;
+  bool allow_fake_bold_text{true};
+  std::string file_security_origin;
+  bool use_unlimited_media_policy{false};
+  bool is_enact_browser{false};
+  ///@}
 #if BUILDFLAG(IS_OZONE)
   bool selection_clipboard_buffer_available{false};
 #endif

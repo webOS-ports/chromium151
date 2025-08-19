@@ -604,6 +604,13 @@ blink_core_sources_html = [
   "$root_gen_dir/third_party/blink/renderer/core/html/html_permission_element_strings_map.cc",
 ]
 
+import("//neva/neva.gni")
+if (use_neva_media) {
+  blink_core_sources_html += [ "media/neva/html_media_element.h" ]
+} else {
+  blink_core_sources_html += [ "media/neva/html_media_element_stub.h" ]
+}
+
 # Optimizing the HTML parser for speed yields significant gains in performance
 # in parser-heavy scenarios. See https://crbug.com/787512.
 blink_core_hot_sources_html = [

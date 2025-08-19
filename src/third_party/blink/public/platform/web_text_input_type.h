@@ -100,6 +100,16 @@ enum WebTextInputFlags {
   // best effort heuristic to determine what a "password" is based on the
   // field's behavior.
   kWebTextInputFlagHasBeenCustomPassword = 1 << 14,
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  // Renumbered for M151: upstream took bit 14 for
+  // kWebTextInputFlagHasBeenCustomPassword.
+  kWebTextInputFlagSensitiveOn = 1 << 15,
+  kWebTextInputFlagSensitiveOff = 1 << 16,
+  // Neva system keyboard
+  kWebTextInputFlagSystemKeyboardOn = 1 << 17,
+  kWebTextInputFlagSystemKeyboardOff = 1 << 18
+  ///@}
 };
 // LINT.ThenChange(//ui/base/ime/text_input_flags.h:TextInputFlags)
 

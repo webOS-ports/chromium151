@@ -80,6 +80,8 @@
 #include "third_party/blink/renderer/core/style/style_generated_image.h"
 #include "third_party/blink/renderer/core/style/style_image.h"
 #include "third_party/blink/renderer/core/style/style_inherited_variables.h"
+#include "third_party/blink/renderer/core/style/style_navigation_data.h"
+#include "third_party/blink/renderer/core/style/style_navigation_index.h"
 #include "third_party/blink/renderer/core/style/style_non_inherited_variables.h"
 #include "third_party/blink/renderer/core/style/style_ray.h"
 #include "third_party/blink/renderer/core/style/style_shape.h"
@@ -2902,6 +2904,28 @@ bool ComputedStyle::ScrollbarIsHiddenByCustomStyle(Element* element) const {
          uncached_scrollbar_style->Display() == EDisplay::kNone;
 }
 
+const scoped_refptr<StyleNavigationData> ComputedStyle::Navigation(
+    CSSPropertyID property) const {
+  switch (property) {
+    case CSSPropertyID::kNavUp:
+      return NavigationDataUpInternal();
+    case CSSPropertyID::kNavDown:
+      return NavigationDataDownInternal();
+    case CSSPropertyID::kNavLeft:
+      return NavigationDataLeftInternal();
+    case CSSPropertyID::kNavRight:
+      return NavigationDataRightInternal();
+    default:
+      break;
+  }
+  return nullptr;
+}
+
+const scoped_refptr<StyleNavigationIndex> ComputedStyle::NavigationIndex()
+    const {
+  return NavigationIndexInternal();
+}
+
 bool ComputedStyle::CalculateIsStackingContextWithoutContainment() const {
   // Force a stacking context for transform-style: preserve-3d. This happens
   // even if preserves-3d is ignored due to a 'grouping property' being
@@ -3176,9 +3200,85 @@ void ComputedStyleBuilder::SetUsedColorScheme(
 
   SetColorSchemeForced(forced_scheme);
 
-  const bool is_normal =
-      flags == static_cast<ColorSchemeFlags>(ColorSchemeFlag::kNormal);
-  SetColorSchemeFlagsIsNormal(is_normal);
+scoped_refptr<StyleNavigationData> ComputedStyleBuilder::AccessNavigation(
+    CSSPropertyID property) {
+  switch (property) {
+    case CSSPropertyID::kNavUp: {
+      if (!NavigationDataUpInternal()) {
+        SetNavigationDataUpInternal(
+            scoped_refptr<StyleNavigationData>(StyleNavigationData::Create()));
+      }
+      return NavigationDataUpInternal();
+    }
+    case CSSPropertyID::kNavDown: {
+      if (!NavigationDataDownInternal()) {
+        SetNavigationDataDownInternal(
+            scoped_refptr<StyleNavigationData>(StyleNavigationData::Create()));
+      }
+      return NavigationDataDownInternal();
+    }
+    case CSSPropertyID::kNavLeft: {
+      if (!NavigationDataLeftInternal()) {
+        SetNavigationDataLeftInternal(
+            scoped_refptr<StyleNavigationData>(StyleNavigationData::Create()));
+      }
+      return NavigationDataLeftInternal();
+    }
+    case CSSPropertyID::kNavRight: {
+      if (!NavigationDataRightInternal()) {
+        SetNavigationDataRightInternal(
+            scoped_refptr<StyleNavigationData>(StyleNavigationData::Create()));
+      }
+      return NavigationDataRightInternal();
+    }
+    default:
+      break;
+  }
+  return nullptr;
+}
+
+scoped_refptr<StyleNavigationIndex>
+ComputedStyleBuilder::AccessNavigationIndex() {
+  if (!NavigationIndexInternal()) {
+    SetNavigationIndexInternal(
+        scoped_refptr<StyleNavigationIndex>(StyleNavigationIndex::Create()));
+  }
+  return NavigationIndexInternal();
+}
+
+void ComputedStyleBuilder::InheritNavigation(
+    CSSPropertyID property,
+    const ComputedStyle* inherit_parent) {
+  switch (property) {
+    case CSSPropertyID::kNavUp:
+      SetNavigationDataUpInternal(scoped_refptr<StyleNavigationData>(
+          inherit_parent->NavigationDataUpInternal()));
+      break;
+    case CSSPropertyID::kNavDown:
+      SetNavigationDataDownInternal(scoped_refptr<StyleNavigationData>(
+          inherit_parent->NavigationDataDownInternal()));
+      break;
+    case CSSPropertyID::kNavLeft:
+      SetNavigationDataLeftInternal(scoped_refptr<StyleNavigationData>(
+          inherit_parent->NavigationDataLeftInternal()));
+      break;
+    case CSSPropertyID::kNavRight:
+      SetNavigationDataRightInternal(scoped_refptr<StyleNavigationData>(
+          inherit_parent->NavigationDataRightInternal()));
+      break;
+    case CSSPropertyID::kNavIndex:
+      SetNavigationIndexInternal(scoped_refptr<StyleNavigationIndex>(
+          inherit_parent->NavigationIndexInternal()));
+      break;
+    default:
+      break;
+  }
+}
+
+CSSVariableData* ComputedStyleBuilder::GetVariableData(
+    const AtomicString& name,
+    bool is_inherited_property) const {
+  return blink::GetVariableData(*this, name, is_inherited_property);
 }
 
 StyleInheritedVariables& ComputedStyleBuilder::MutableInheritedVariables() {

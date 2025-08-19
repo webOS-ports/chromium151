@@ -32,6 +32,16 @@
 #define THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_MEDIA_PLAYER_CLIENT_H_
 
 #include "third_party/blink/public/platform/web_common.h"
+#include "third_party/blink/public/platform/web_media_player.h"
+#include "ui/gfx/color_space.h"
+
+#if defined(USE_NEVA_MEDIA)
+#include "third_party/blink/public/platform/neva/web_media_player_client.h"
+#endif
+
+namespace cc {
+class Layer;
+}
 
 namespace media {
 class RemotePlaybackClientWrapper;
@@ -39,7 +49,15 @@ class RemotePlaybackClientWrapper;
 
 namespace blink {
 
+class WebMediaSource;
+class WebRemotePlaybackClient;
+
+#if defined(USE_NEVA_MEDIA)
+class BLINK_PLATFORM_EXPORT WebMediaPlayerClient
+    : public neva::WebMediaPlayerClient {
+#else
 class BLINK_PLATFORM_EXPORT WebMediaPlayerClient {
+#endif
  public:
   // Returns the remote playback client associated with the media element, if
   // any.

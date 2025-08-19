@@ -352,9 +352,13 @@ class PLATFORM_EXPORT WebMediaPlayerImpl
       const media::PictureInPictureEventsInfo::AutoPipInfo&
           auto_picture_in_picture_info) override;
 
+#if defined(USE_NEVA_MEDIA)
+  bool IsBackgroundMediaSuspendEnabled() const;
+#else
   bool IsBackgroundMediaSuspendEnabled() const {
     return is_background_suspend_enabled_;
   }
+#endif
 
   // Distinct states that |delegate_| can be in. (Public for testing.)
   enum class DelegateState {
@@ -377,7 +381,11 @@ class PLATFORM_EXPORT WebMediaPlayerImpl
   constexpr static base::TimeDelta
       kMaxKeyframeDistanceToDisableBackgroundVideo = base::Milliseconds(5500);
 
+#if defined(USE_NEVA_MEDIA)
+ protected:
+#else
  private:
+#endif
   friend class WebMediaPlayerImplTest;
   friend class WebMediaPlayerImplBackgroundBehaviorTest;
 
@@ -530,7 +538,12 @@ class PLATFORM_EXPORT WebMediaPlayerImpl
   // Returns the current video frame from |compositor_|, and asks the compositor
   // to update its frame if it is stale.
   // Can return a nullptr.
+#if defined(USE_NEVA_MEDIA)
+  virtual scoped_refptr<media::VideoFrame> GetCurrentFrameFromCompositor()
+      const;
+#else
   scoped_refptr<media::VideoFrame> GetCurrentFrameFromCompositor() const;
+#endif
 
   // Sets CdmContext from |cdm| on the pipeline and calls OnCdmAttached()
   // when done.
@@ -1119,6 +1132,10 @@ class PLATFORM_EXPORT WebMediaPlayerImpl
 
   // Whether background video optimization is supported on current platform.
   bool is_background_video_track_optimization_supported_ = true;
+
+#if defined(USE_NEVA_MEDIA)
+  bool is_background_video_optimization_enabled_ = true;
+#endif
 
   bool was_suspended_for_frame_closed_or_frozen_ = false;
 

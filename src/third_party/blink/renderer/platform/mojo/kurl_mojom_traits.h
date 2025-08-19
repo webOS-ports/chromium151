@@ -5,6 +5,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_MOJO_KURL_MOJOM_TRAITS_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_MOJO_KURL_MOJOM_TRAITS_H_
 
+#include <optional>
 #include "mojo/public/cpp/bindings/string_traits_wtf.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -23,6 +24,11 @@ struct StructTraits<url::mojom::UrlDataView, ::blink::KURL> {
 
     return blinkUrl.GetString();
   }
+#if defined(USE_NEVA_APPRUNTIME)
+  static std::optional<WTF::String> webapp_id(const ::blink::KURL& blinkUrl) {
+    return std::nullopt;
+  }
+#endif
   static bool Read(url::mojom::UrlDataView data, ::blink::KURL* out) {
     blink::String urlString;
     if (!data.ReadUrl(&urlString))

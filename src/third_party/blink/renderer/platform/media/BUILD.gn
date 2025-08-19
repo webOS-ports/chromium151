@@ -3,7 +3,9 @@
 # found in the LICENSE file.
 
 import("//media/media_options.gni")
+import("//neva/neva.gni")
 import("//third_party/blink/renderer/platform/platform.gni")
+
 
 # TODO(https://crbug.com/40760651): temporary workaround while the code is being
 # migrated to Blink coding conventions. Rename to "media" once the component is
@@ -112,6 +114,20 @@ component("media") {
     "//third_party/blink/renderer/platform",
     "//third_party/blink/renderer/platform:allow_discouraged_type",
   ]
+  if (use_neva_media) {
+    import("//third_party/blink/renderer/platform/media/neva/build.gni")
+    configs += neva.configs
+    if (!defined(public_configs)) {
+      public_configs = []
+    }
+    public_configs += neva.public_configs
+    deps += neva.deps
+    if (!defined(public_deps)) {
+      public_deps = []
+    }
+    public_deps += neva.public_deps
+    sources += rebase_path(neva.sources, ".")
+  }
 }
 
 source_set("unit_tests") {

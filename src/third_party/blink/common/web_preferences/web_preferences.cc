@@ -39,6 +39,12 @@ WebPreferences::WebPreferences() {
   // may be refined via resource files for the Chrome profile, in order to take
   // into account platform-specific availability of math fonts.
   math_font_family_map[web_pref::kCommonScript] = u"Latin Modern Math";
+
+#if defined(USE_NEVA_APPRUNTIME)
+  allow_scripts_to_close_windows =
+      base::CommandLine::ForCurrentProcess()->HasSwitch(
+          blink::switches::kAllowScriptsToCloseWindows);
+#endif
 }
 
 WebPreferences::WebPreferences(const WebPreferences& other) = default;

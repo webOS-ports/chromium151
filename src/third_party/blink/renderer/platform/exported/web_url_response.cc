@@ -200,6 +200,9 @@ WebURLResponse WebURLResponse::Create(
   response.SetWasInPrefetchCache(head.was_in_prefetch_cache);
   response.SetWasCookieInRequest(head.was_cookie_in_request);
   response.SetRecursivePrefetchToken(head.recursive_prefetch_token);
+#if defined(USE_FILESCHEME_CODECACHE)
+  response.SetFileLastModifiedTime(head.file_last_modified_time);
+#endif
   response.SetDeviceBoundSessionUsage(head.device_bound_session_usage);
 
   if (head.unencoded_digests) {
@@ -643,6 +646,12 @@ void WebURLResponse::SetRecursivePrefetchToken(
     const std::optional<base::UnguessableToken>& token) {
   resource_response_->SetRecursivePrefetchToken(token);
 }
+
+#if defined(USE_FILESCHEME_CODECACHE)
+void WebURLResponse::SetFileLastModifiedTime(base::Time last_modified_time) {
+  resource_response_->SetFileLastModifiedTime(last_modified_time);
+}
+#endif
 
 bool WebURLResponse::WasAlpnNegotiated() const {
   return resource_response_->WasAlpnNegotiated();

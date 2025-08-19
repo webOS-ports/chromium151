@@ -37,6 +37,8 @@ class CORE_EXPORT CanvasFontCache final
   void Trace(Visitor*) const;
 
   static unsigned MaxFonts();
+  static unsigned VisibleHardMaxFonts();
+  static unsigned HiddenHardMaxFonts();
   unsigned HardMaxFonts();
 
   void WillUseCurrentFont() { SchedulePruningIfNeeded(); }

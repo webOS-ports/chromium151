@@ -135,6 +135,11 @@
     "inert",
     "inputmode",
     "installurl",
+
+///@name USE_NEVA_APPRUNTIME
+///@{
+    "inputpanelcoords",
+///@}
     "integrity",
     "interestfor",
     "is",
@@ -380,6 +385,12 @@
     "step",
     "style",
     "summary",
+///@name USE_NEVA_APPRUNTIME
+///@{
+    "sensitive",
+    // Neva system keyboard
+    "systemkeyboard",
+///@}
     "tabindex",
     "target",
     "text",
@@ -410,5 +421,17 @@
     "width",
     "wrap",
     "writingsuggestions",
+
+///@name USE_NEVA_MEDIA
+///@{
+    // added for Neva HTMLMediaElement
+    "noaudio",
+    "onumsmediainfo",
+    "onbroadcasterrormsg",
+    "ondvrerrormsg",
+    "onupdatecamerastate",
+    "onpipelinestarted",
+    "texture",
+///@}
   ],
 }

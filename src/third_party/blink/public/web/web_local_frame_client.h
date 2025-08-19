@@ -895,6 +895,11 @@ class BLINK_EXPORT WebLocalFrameClient {
 
   // Returns true if this frame is for the initial WebUI.
   virtual bool IsForInitialWebUI() const { return false; }
+
+#if defined(USE_NEVA_APPRUNTIME)
+  // APPRUNTIME has own procedure for regulating access to local resources.
+  virtual bool IsAccessAllowedForURL(const blink::WebURL& url) { return true; }
+#endif
 };
 
 }  // namespace blink

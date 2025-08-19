@@ -104,6 +104,11 @@ class PLATFORM_EXPORT FrameWidget {
       base::OnceCallback<void(const viz::FrameTimingDetails&)>
           presentation_callback) = 0;
 
+#if defined(USE_NEVA_APPRUNTIME)
+  virtual void NotifyVizFMPSwap(bool is_first_contentful_paint,
+                                bool did_reset_container_state) {}
+#endif
+
   // A stable numeric Id for the local root's compositor. For tracing/debugging
   // purposes.
   virtual int GetLayerTreeId() = 0;

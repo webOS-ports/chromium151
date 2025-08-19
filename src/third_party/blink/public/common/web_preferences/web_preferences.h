@@ -21,6 +21,10 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 
+#if defined(USE_NEVA_APPRUNTIME)
+#include "third_party/blink/public/common/page/first_frame_policy.h"
+#endif
+
 namespace blink {
 
 namespace web_pref {
@@ -247,6 +251,8 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   bool double_tap_to_zoom_enabled =
       BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_APPLE);
 
+  bool accessibility_explore_by_mouse_enabled = false;
+
   bool fullscreen_supported = true;
 
   bool text_size_adjust_enabled = BUILDFLAG(IS_ANDROID);
@@ -344,6 +350,26 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   // https://crbug.com/699943 for details.
   // TODO(changwan): remove this once we no longer support Android N.
   bool do_not_update_selection_on_mutating_selection_range = false;
+
+#if defined(USE_NEVA_APPRUNTIME)
+  // Defines the cross origin policy.
+  bool x_frame_options_cross_origin_allowed = false;
+  bool keep_alive_webapp = false;
+
+  // Policy for when to display the first frame when launching a webapp.
+  blink::FirstFramePolicy first_frame_policy =
+      blink::FirstFramePolicy::kContents;
+
+  // Policy for third party cookies.
+  blink::mojom::ThirdPartyCookiesPolicy third_party_cookies_policy =
+      blink::mojom::ThirdPartyCookiesPolicy::kDefault;
+#endif
+
+#if defined(USE_NEVA_MEDIA)
+  // The spec says to fire periodic timeupdate events (those sent while playing)
+  // every "15 to 250ms"
+  int max_timeupdate_event_frequency = 250;
+#endif
 
   // Defines the current autoplay policy.
   blink::mojom::AutoplayPolicy autoplay_policy =
@@ -449,6 +475,11 @@ struct BLINK_COMMON_EXPORT WebPreferences {
   // Whether MIME type checking for worker scripts is strict (true) or lax
   // (false). Used by StrictMimetypeCheckForWorkerScriptsEnabled policy.
   bool strict_mime_type_check_for_worker_scripts_enabled = true;
+
+  // CSS UI keyboard control properties (‘nav-index’, ‘nav-up’, ‘nav-down’,
+  // ‘nav-right’, ‘nav-left’) support.
+  // See https://www.w3.org/TR/2021/WD-css-ui-4-20210316/#nav-dir
+  bool css_navigation_enabled = false;
 
   // Whether modal context menu is used. A modal context menu meaning it is
   // blocking user's access to the background web content.

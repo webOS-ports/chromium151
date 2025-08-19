@@ -16,6 +16,19 @@ namespace switches {
 // All switches in alphabetical order. The switches should be documented
 // alongside the definition of their values in the .cc file.
 BLINK_COMMON_EXPORT extern const char kAllowPreCommitInput[];
+#if defined(USE_NEVA_APPRUNTIME)
+BLINK_COMMON_EXPORT extern const char kAllowScriptsToCloseWindows[];
+BLINK_COMMON_EXPORT extern const char
+    kMaxTimeToPurgeAfterBackgroundedInSeconds[];
+BLINK_COMMON_EXPORT extern const char
+    kMinTimeToPurgeAfterBackgroundedInSeconds[];
+#endif  // defined(USE_NEVA_APPRUNTIME)
+BLINK_COMMON_EXPORT extern const char
+    kBeforeunloadEventCancelByPreventDefaultPolicy[];
+BLINK_COMMON_EXPORT extern const char
+    kBeforeunloadEventCancelByPreventDefaultPolicy_ForceDisable[];
+BLINK_COMMON_EXPORT extern const char
+    kBeforeunloadEventCancelByPreventDefaultPolicy_ForceEnable[];
 BLINK_COMMON_EXPORT extern const char kBlinkSettings[];
 BLINK_COMMON_EXPORT extern const char kDarkModeSettings[];
 BLINK_COMMON_EXPORT extern const char kDataUrlInSvgUseEnabled[];

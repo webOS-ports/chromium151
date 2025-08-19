@@ -11,6 +11,34 @@
 
 namespace mojo {
 
+#if defined(USE_NEVA_APPRUNTIME)
+// static
+blink::mojom::FirstFramePolicy
+EnumTraits<blink::mojom::FirstFramePolicy, blink::FirstFramePolicy>::ToMojom(
+    blink::FirstFramePolicy policy) {
+  switch (policy) {
+    case blink::FirstFramePolicy::kImmediate:
+      return blink::mojom::FirstFramePolicy::kImmediate;
+    case blink::FirstFramePolicy::kContents:
+      return blink::mojom::FirstFramePolicy::kContents;
+  }
+  NOTREACHED();
+}
+
+// static
+blink::FirstFramePolicy
+EnumTraits<blink::mojom::FirstFramePolicy, blink::FirstFramePolicy>::FromMojom(
+    blink::mojom::FirstFramePolicy input) {
+  switch (input) {
+    case blink::mojom::FirstFramePolicy::kImmediate:
+      return blink::FirstFramePolicy::kImmediate;
+    case blink::mojom::FirstFramePolicy::kContents:
+      return blink::FirstFramePolicy::kContents;
+  }
+  NOTREACHED();
+}
+#endif
+
 // static
 bool StructTraits<blink::mojom::WebPreferencesDataView,
                   blink::web_pref::WebPreferences>::
@@ -47,6 +75,10 @@ bool StructTraits<blink::mojom::WebPreferencesDataView,
       !data.ReadRootScrollbarThemeColor(&out->root_scrollbar_theme_color)
 #if BUILDFLAG(IS_ANDROID)
       || !data.ReadDefaultVideoPosterUrl(&out->default_video_poster_url)
+#endif
+#if defined(USE_NEVA_APPRUNTIME)
+      || !data.ReadFirstFramePolicy(&out->first_frame_policy) ||
+      !data.ReadThirdPartyCookiesPolicy(&out->third_party_cookies_policy)
 #endif
   )
     return false;
@@ -146,6 +178,7 @@ bool StructTraits<blink::mojom::WebPreferencesDataView,
       data.initialize_at_minimum_page_scale();
   out->smart_insert_delete_enabled = data.smart_insert_delete_enabled();
   out->spatial_navigation_enabled = data.spatial_navigation_enabled();
+  out->css_navigation_enabled = data.css_navigation_enabled();
   out->v8_cache_options = data.v8_cache_options();
   out->record_whole_document = data.record_whole_document();
   out->stylus_handwriting_enabled = data.stylus_handwriting_enabled();
@@ -159,6 +192,8 @@ bool StructTraits<blink::mojom::WebPreferencesDataView,
   out->immersive_mode_enabled = data.immersive_mode_enabled();
   out->immersive_video_playback_enabled =
       data.immersive_video_playback_enabled();
+  out->accessibility_explore_by_mouse_enabled =
+      data.accessibility_explore_by_mouse_enabled();
   out->double_tap_to_zoom_enabled = data.double_tap_to_zoom_enabled();
   out->fullscreen_supported = data.fullscreen_supported();
   out->is_initial_profile = data.is_initial_profile();
@@ -218,6 +253,14 @@ bool StructTraits<blink::mojom::WebPreferencesDataView,
   out->media_controls_enabled = data.media_controls_enabled();
   out->do_not_update_selection_on_mutating_selection_range =
       data.do_not_update_selection_on_mutating_selection_range();
+#if defined(USE_NEVA_APPRUNTIME)
+  out->x_frame_options_cross_origin_allowed =
+      data.x_frame_options_cross_origin_allowed();
+  out->keep_alive_webapp = data.keep_alive_webapp();
+#endif
+#if defined(USE_NEVA_MEDIA)
+  out->max_timeupdate_event_frequency = data.max_timeupdate_event_frequency();
+#endif
   out->autoplay_policy = data.autoplay_policy();
   out->require_transient_activation_for_get_display_media =
       data.require_transient_activation_for_get_display_media();

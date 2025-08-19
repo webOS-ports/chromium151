@@ -4156,6 +4156,16 @@ void AXObjectCacheImpl::PostNotification(AXObject* object,
   if (!object || !object->AXObjectID() || object->IsDetached())
     return;
 
+#if defined(OS_WEBOS)
+  // User creates alert event first but spokes later than focus event
+  // because the focus event fired as sync event.
+  // So, to meet enyo's requirement, AlertRole should be sync event.
+  if (event_type == ax::mojom::blink::Event::kAlert) {
+    PostPlatformNotification(object, event_type);
+    return;
+  }
+#endif
+
   ax::mojom::blink::EventFrom event_from = ComputeEventFrom();
 
   // If PostNotification is called while outside of processing deferred events,

@@ -103,6 +103,7 @@ static const CSSPropertyID kStaticEditingProperties[] = {
     CSSPropertyID::kWebkitTextStrokeColor,
     CSSPropertyID::kWebkitTextStrokeWidth,
     CSSPropertyID::kCaretColor,
+    CSSPropertyID::kCaretWidth,
     CSSPropertyID::kTextWrapMode,
     CSSPropertyID::kWhiteSpaceCollapse,
 };

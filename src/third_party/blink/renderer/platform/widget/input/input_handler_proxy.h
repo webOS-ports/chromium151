@@ -319,6 +319,11 @@ class PLATFORM_EXPORT InputHandlerProxy : public cc::InputHandlerClient,
       EventWithCallback* event_with_callback,
       const gfx::PointF& position);
 
+#if defined(USE_NEVA_APPRUNTIME)
+  blink::WebGestureEvent MaybeAdjustGestureScrollUpdate(
+      const blink::WebGestureEvent& event);
+#endif
+
   cc::InputHandlerScrollEndResult InputHandlerScrollEnd(
       std::optional<cc::InputHandler::ScrollVector> scroll_state);
 

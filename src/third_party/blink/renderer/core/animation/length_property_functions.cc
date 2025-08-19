@@ -43,6 +43,7 @@ Length::ValueRange LengthPropertyFunctions::GetValueRange(
     case CSSPropertyID::kColumnHeight:
     case CSSPropertyID::kWidth:
     case CSSPropertyID::kTabSize:
+    case CSSPropertyID::kCaretWidth:
       return Length::ValueRange::kNonNegative;
     default:
       return Length::ValueRange::kAll;
@@ -493,6 +494,12 @@ bool LengthPropertyFunctions::GetLength(const CSSProperty& property,
         success = true;
       }
       break;
+    case CSSPropertyID::kCaretWidth:
+      if (!style.HasAutoCaretWidth()) {
+        result = Length::Fixed(style.CaretWidth());
+        success = true;
+      }
+      break;
     default:
       break;
   }
@@ -634,6 +641,7 @@ bool LengthPropertyFunctions::SetLength(const CSSProperty& property,
     // TODO(alancutter): Support setters that take a numeric value (need to
     // resolve percentages).
     // One example of such a property: border-bottom-width
+    case CSSPropertyID::kCaretWidth:
 
     default:
       return false;

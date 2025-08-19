@@ -29,6 +29,10 @@
 #include "third_party/blink/renderer/platform/wtf/text/text_encoding.h"
 #include "v8/include/v8-script.h"
 
+#if defined(USE_FILESCHEME_CODECACHE)
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+#endif
+
 namespace blink {
 
 namespace {
@@ -67,6 +71,12 @@ bool TimestampIsRecent(const CachedMetadata* cached_metadata) {
       base::TimeTicks() + base::Milliseconds(time_stamp_ms);
   return (base::TimeTicks::Now() - time_stamp) < kHotHours;
 }
+
+#if defined(USE_FILESCHEME_CODECACHE)
+bool IsProducedCodeCacheForLocalResource(bool is_local) {
+  return is_local && RuntimeEnabledFeatures::LocalResourceCodeCacheEnabled();
+}
+#endif
 
 // Flags that can be set in the CacheMetadata header, describing how the code
 // cache data was produced so that the consumer can generate better trace
@@ -486,7 +496,15 @@ V8CodeCache::GetCompileOptionsInternal(
   switch (cache_options) {
     case mojom::blink::V8CacheOptions::kDefault:
     case mojom::blink::V8CacheOptions::kCode: {
+#if defined(USE_FILESCHEME_CODECACHE)
+      // It is always worth producing a cache for a local resource, so skip the
+      // hot-timestamp requirement. CacheTagTimeStamp handling for local
+      // resources may revisit this later.
+      if (!IsProducedCodeCacheForLocalResource(url.IsLocalFile()) &&
+          !HasHotTimestamp(cache_handler)) {
+#else
       if (!HasHotTimestamp(cache_handler)) {
+#endif  // defined(USE_FILESCHEME_CODECACHE)
         no_cache_reason =
             source_location_type == ScriptSourceLocationType::kInline &&
                     features::IsInlineScriptCacheEnabled()
@@ -590,6 +608,10 @@ static void ProduceCacheInternal(
             ToSpan(*cached_data));
         base::UmaHistogramMicrosecondsTimes("V8.ProduceCodeCacheMicroseconds",
                                             timer.Elapsed());
+#if defined(USE_FILESCHEME_CODECACHE)
+        LOG(INFO) << "V8CodeCache Produce " << url.GetString().Utf8().data()
+                  << "(" << cached_data->length << ")";
+#endif
       }
 
       TRACE_EVENT_END1(kTraceEventCategoryGroup, trace_name, "data",

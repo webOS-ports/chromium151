@@ -26,11 +26,16 @@
 
 #include "third_party/blink/renderer/core/loader/resource/image_resource_observer.h"
 #include "third_party/blink/renderer/core/style/style_image.h"
+#include "third_party/blink/renderer/platform/graphics/paint/ignore_paint_timing_scope.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
 #include "third_party/blink/renderer/platform/heap/prefinalizer.h"
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
+
+#if defined(OS_WEBOS)
+#include "third_party/abseil-cpp/absl/types/optional.h"
+#endif
 
 namespace blink {
 
@@ -107,6 +112,12 @@ class CORE_EXPORT StyleFetchedImage final : public StyleImage,
   // This overrides an images natural resolution.
   // A value of zero indicates no override.
   const float override_image_resolution_;
+
+#if defined(OS_WEBOS)
+  bool commit_deferred_ = false;
+  STACK_ALLOCATED_IGNORE("To support improved webOS splash")
+  std::optional<IgnorePaintTimingScope> ignore_paint_timing_;
+#endif
 };
 
 template <>

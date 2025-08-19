@@ -5,6 +5,7 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_URL_REQUEST_EXTRA_DATA_H_
 #define THIRD_PARTY_BLINK_PUBLIC_PLATFORM_WEB_URL_REQUEST_EXTRA_DATA_H_
 
+#include <optional>
 #include "base/memory/ref_counted.h"
 #include "third_party/blink/public/common/loader/url_loader_throttle.h"
 #include "third_party/blink/public/platform/web_common.h"
@@ -61,6 +62,17 @@ class BLINK_PLATFORM_EXPORT WebURLRequestExtraData
   void set_allow_cross_origin_auth_prompt(bool allow_cross_origin_auth_prompt) {
     allow_cross_origin_auth_prompt_ = allow_cross_origin_auth_prompt;
   }
+#if defined(USE_NEVA_APPRUNTIME)
+  std::optional<bool> allow_third_party_cookies() const {
+    return allow_third_party_cookies_;
+  }
+  void set_allow_third_party_cookies(bool allow) {
+    allow_third_party_cookies_ = allow;
+  }
+  void reset_allow_third_party_cookies() {
+    allow_third_party_cookies_ = std::nullopt;
+  }
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
   void CopyToResourceRequest(network::ResourceRequest* request) const;
 
@@ -75,6 +87,9 @@ class BLINK_PLATFORM_EXPORT WebURLRequestExtraData
   bool originated_from_service_worker_ = false;
   WebString custom_user_agent_;
   bool allow_cross_origin_auth_prompt_ = false;
+#if defined(USE_NEVA_APPRUNTIME)
+  std::optional<bool> allow_third_party_cookies_;
+#endif
 };
 
 }  // namespace blink

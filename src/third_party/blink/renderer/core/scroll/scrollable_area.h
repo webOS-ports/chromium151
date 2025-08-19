@@ -249,6 +249,8 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
         overlay_scrollbar_color_scheme__);
   }
 
+  bool IsWebOSNativeScrollEnabled() const;
+
   // This getter will create a MacScrollAnimator if it doesn't already exist,
   // only on MacOS.
   MacScrollbarAnimator* GetMacScrollbarAnimator() const;

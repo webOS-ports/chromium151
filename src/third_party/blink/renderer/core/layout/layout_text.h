@@ -188,6 +188,7 @@ class CORE_EXPORT LayoutText : public LayoutObject {
   void ForceSetText(String);
   void SetTextWithOffset(String, const TextDiffRange&);
   void SetTextInternal(String);
+  void UpdateTextIfNeeded();
 
   // Apply text-transform and -webkit-text-security to OriginalText(), and
   // store its result to text_.
@@ -475,6 +476,7 @@ class CORE_EXPORT LayoutText : public LayoutObject {
   DOMNodeId node_id_ = kInvalidDOMNodeId;
 
   String text_;
+  String previous_text_;
 
   // This is mutable for paint invalidation.
   mutable LogicalOffset previous_logical_starting_point_ =

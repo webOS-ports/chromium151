@@ -195,6 +195,14 @@ interface FrameWidget {
   // now. This is used to abort View Transitions, and possibly other optional
   // work.
   NotifyClearedDisplayedGraphics();
+
+  ///@name USE_NEVA_APPRUNTIME
+  ///@{
+  [EnableIf=neva_appruntime]
+  ActivateCompositor();
+  [EnableIf=neva_appruntime]
+  DeactivateCompositor();
+  ///@}
 };
 
 // Implemented in Browser, this interface defines frame-widget-specific methods that

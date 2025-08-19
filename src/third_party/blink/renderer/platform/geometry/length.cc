@@ -86,7 +86,14 @@ class CalculationValueHandleMap
     // This monotonically increasing handle generation scheme is potentially
     // wasteful of the handle space. Consider reusing empty handles.
     do {
+#if defined(USE_NEVA_APPRUNTIME)
+      // Mantissa has only 23 bits, so many numbers above 0x1000000 (16777216)
+      // cannot be represented accurately as 32-bit floats. Wrapping here keeps
+      // the index convertible without loss in places such as GetFloatValue().
+      index_ = (index_ + 1) % 0x1000000;
+#else
       index_++;
+#endif
     } while (IsHashTraitsEmptyOrDeletedValue<HashTraits<unsigned>>(index_) ||
              !map_.insert(index_, calc_value).is_new_entry);
     return index_;

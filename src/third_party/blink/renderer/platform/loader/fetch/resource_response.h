@@ -424,6 +424,13 @@ class PLATFORM_EXPORT ResourceResponse final {
     is_web_bundle_inner_response_ = is_web_bundle_inner_response;
   }
 
+#if defined(USE_FILESCHEME_CODECACHE)
+  base::Time FileLastModifiedTime() const { return file_last_modified_time_; }
+  void SetFileLastModifiedTime(base::Time last_modified_time) {
+    file_last_modified_time_ = last_modified_time;
+  }
+#endif
+
   bool WasInPrefetchCache() const { return was_in_prefetch_cache_; }
 
   void SetWasInPrefetchCache(bool was_in_prefetch_cache) {
@@ -684,6 +691,14 @@ class PLATFORM_EXPORT ResourceResponse final {
   // Sizes of the response body in bytes after any content-encoding is
   // removed.
   int64_t decoded_body_length_ = 0;
+
+#if defined(USE_FILESCHEME_CODECACHE)
+  // Last modified time for local files
+  base::Time file_last_modified_time_;
+#endif
+
+  // Represents when the response arrives at the renderer.
+  base::TimeTicks arrival_time_at_renderer_;
 
   // This is propagated from the browser process's PrefetchURLLoader on
   // cross-origin prefetch responses. It is used to pass the token along to
