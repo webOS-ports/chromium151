@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
 #include "media/mojo/services/playback_events_recorder.h"
 
 #include "base/metrics/user_metrics.h"
@@ -66,7 +67,12 @@ void PlaybackEventsRecorder::BitrateEstimator::Update(
 }
 
 void PlaybackEventsRecorder::BitrateEstimator::OnPause() {
+// TODO(neva): GCC 8.x.x
+#if defined(__clang__)
   last_stats_ = {};
+#else
+  last_stats_ = std::optional<PipelineStatistics>();
+#endif
 }
 
 // static

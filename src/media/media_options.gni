@@ -419,6 +419,10 @@ if (enable_library_cdms || is_win) {
   media_subcomponent_deps += [ "//media/cdm:cdm_type_conversion" ]
 }
 
+if (use_webos_audio) {
+  assert(use_pulseaudio,
+         "use_webos_audio is turned on without use_pulseaudio.")
+}
 if (is_win) {
   media_subcomponent_deps += [ "//media/base/win:media_foundation_util" ]
 }

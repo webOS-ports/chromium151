@@ -5,6 +5,7 @@
 import("//build/config/ui.gni")
 import("//media/media_options.gni")
 import("//testing/test.gni")
+import("//neva/neva.gni")
 
 group("capture") {
   public_deps = [
@@ -195,6 +196,11 @@ component("capture_lib") {
 
   if (is_linux || is_chromeos) {
     deps += [ "video/linux" ]
+  }
+
+  if (use_webos_camera) {
+    defines += [ "USE_WEBOS_CAMERA=1" ]
+    public_deps += [ "//media/capture/video/webos" ]
   }
 
   if (is_chromeos) {

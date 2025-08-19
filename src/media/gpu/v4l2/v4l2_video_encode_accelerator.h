@@ -416,6 +416,11 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   std::unique_ptr<base::WeakPtrFactory<Client>> client_ptr_factory_;
   scoped_refptr<gpu::SharedImageInterface> sii_;
 
+#if defined(USE_NEVA_V4L2_CODEC)
+  base::TimeTicks old_time_ = base::TimeTicks::Now();
+  int32_t frames_per_sec_ = 0;
+#endif
+
   // WeakPtr<> pointing to |this| for use in posting tasks to
   // |encoder_task_runner_|. This factory should only be accessed on
   // |encoder_task_runner_|.

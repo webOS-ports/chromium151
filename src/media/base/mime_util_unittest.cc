@@ -23,6 +23,11 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 
+#if defined(USE_NEVA_MEDIA) && defined(OS_WEBOS)
+#include "base/command_line.h"
+#include "media/base/media_switches_neva.h"
+#endif
+
 namespace media::internal {
 
 #if BUILDFLAG(USE_PROPRIETARY_CODECS)
@@ -166,10 +171,14 @@ TEST(MimeUtilTest, CommonMediaMimeType) {
   EXPECT_TRUE(IsSupportedMediaMimeType("audio/aac"));
   EXPECT_TRUE(IsSupportedMediaMimeType("video/3gpp"));
 
+#if defined(USE_NEVA_MEDIA) && defined(OS_WEBOS)
+  EXPECT_EQ(kMp2tsSupported, IsSupportedMediaMimeType("video/mp2t"));
+#else
   // Always an unsupported mime type, even when the parsers are compiled in
   // MediaSource handles reporting support separately in order to not taint
   // the src= support response.
   EXPECT_FALSE(IsSupportedMediaMimeType("video/mp2t"));
+#endif  // defined(USE_NEVA_MEDIA) && defined(OS_WEBOS)
 
 #else
   EXPECT_FALSE(IsSupportedMediaMimeType("audio/x-m4a"));
@@ -489,6 +498,9 @@ TEST(IsCodecSupportedOnAndroidTest, EncryptedCodecBehavior) {
           case MimeUtil::INVALID_CODEC:
           case MimeUtil::MPEG_H_AUDIO:
           case MimeUtil::THEORA:
+#if defined(USE_NEVA_MEDIA)
+          case MimeUtil::VALID_CODEC:
+#endif
             EXPECT_FALSE(result);
             break;
 
@@ -562,6 +574,9 @@ TEST(IsCodecSupportedOnAndroidTest, ClearCodecBehavior) {
           case MimeUtil::INVALID_CODEC:
           case MimeUtil::MPEG_H_AUDIO:
           case MimeUtil::THEORA:
+#if defined(USE_NEVA_MEDIA)
+          case MimeUtil::VALID_CODEC:
+#endif
             EXPECT_FALSE(result);
             break;
 

@@ -49,8 +49,12 @@ class PulseAudioInputStream : public AgcAudioStream<AudioInputStream> {
   bool IsMuted() override;
   void SetOutputDeviceForAec(const std::string& output_device_id) override;
 
+#if defined(USE_WEBOS_AUDIO)
+ protected:
+#else
  private:
   bool ShouldLog() const { return !log_callback_.is_null(); }
+#endif
 
   // Helper method used for sending native logs to the registered client.
   void SendLogMessage(const std::string& message);

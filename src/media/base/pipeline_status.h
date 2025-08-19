@@ -29,7 +29,11 @@ enum PipelineStatusCodes : StatusCodeType {
   // Deprecated: PIPELINE_ERROR_URL_NOT_FOUND = 1,
   PIPELINE_ERROR_NETWORK = 2,
   PIPELINE_ERROR_DECODE = 3,
+#if defined(USE_NEVA_MEDIA)
+  PIPELINE_ERROR_DECRYPT = 4,
+#else
   // Deprecated: PIPELINE_ERROR_DECRYPT = 4,
+#endif
   PIPELINE_ERROR_ABORT = 5,
   PIPELINE_ERROR_INITIALIZATION_FAILED = 6,
   PIPELINE_ERROR_COULD_NOT_RENDER = 8,
@@ -79,8 +83,12 @@ enum PipelineStatusCodes : StatusCodeType {
   // rather than it being unsupported.
   DEMUXER_ERROR_PROGRESSIVE_DISABLED = 27,
 
+  // NEVA: resource released by a policy action. Renumbered from 25 for M151 --
+  // upstream took that value for DEMUXER_ERROR_BITSTREAM_CONVERSION_FAILED.
+  PIPELINE_ERROR_RESOURCE_IS_RELEASED = 28,
+
   // Must be equal to the largest value ever logged.
-  PIPELINE_STATUS_MAX = DEMUXER_ERROR_PROGRESSIVE_DISABLED,
+  PIPELINE_STATUS_MAX = PIPELINE_ERROR_RESOURCE_IS_RELEASED,
 };
 
 MEDIA_EXPORT std::string_view PipelineStatusCodeToString(
@@ -98,6 +106,7 @@ struct PipelineStatusTraits {
     return #status
 
     switch (code) {
+      STRINGIFY_STATUS_CASE(PIPELINE_ERROR_RESOURCE_IS_RELEASED);
       STRINGIFY_STATUS_CASE(PIPELINE_OK);
       STRINGIFY_STATUS_CASE(PIPELINE_ERROR_NETWORK);
       STRINGIFY_STATUS_CASE(PIPELINE_ERROR_DECODE);

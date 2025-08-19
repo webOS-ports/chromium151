@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 
 import("//build/config/ozone.gni")
+import("//neva/neva.gni")
 
 declare_args() {
   # Indicates if V4L plugin is used.
@@ -53,7 +54,9 @@ declare_args() {
   use_vaapi_image_codecs = use_vaapi && is_chromeos
 }
 
-use_linux_video_acceleration = use_vaapi || use_v4l2_codec
+# NEVA: webOS hardware codecs count as linux video acceleration, so every
+# downstream condition picks them up without a separate check.
+use_linux_video_acceleration = use_vaapi || use_v4l2_codec || use_webos_codec
 
 declare_args() {
   # A platform that is capable of hardware av1 decoding.

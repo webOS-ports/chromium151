@@ -35,6 +35,10 @@
 #include "media/cdm/cdm_auxiliary_helper.h"
 #include "ui/gfx/geometry/size.h"
 
+#if defined(USE_NEVA_CDM)
+#include "media/cdm/neva/webos/content_decryption_module_webos.h"
+#endif
+
 namespace media {
 
 class AudioFramesImpl;
@@ -43,6 +47,9 @@ class CdmWrapper;
 class MEDIA_EXPORT CdmAdapter final : public ContentDecryptionModule,
                                       public CdmContext,
                                       public Decryptor,
+#if defined(USE_NEVA_CDM)
+                                      public cdm::Host_8,
+#endif
                                       public cdm::Host_10,
                                       public cdm::Host_11,
                                       public cdm::Host_12 {

@@ -10,6 +10,9 @@
 #include "base/check.h"
 #include "base/memory/raw_ptr.h"
 #include "media/base/media_switches.h"
+#if defined(USE_NEVA_CDM)
+#include "media/cdm/neva/webos/content_decryption_module_webos.h"
+#endif
 #include "media/cdm/api/content_decryption_module.h"
 #include "media/cdm/cdm_helpers.h"
 #include "media/cdm/supported_cdm_versions.h"
@@ -17,6 +20,48 @@
 namespace media {
 
 namespace {
+
+#if defined(USE_NEVA_CDM)
+bool IsEncryptionSchemeSupportedByLegacyCdms(
+    const cdm::EncryptionScheme& scheme) {
+  // CDM_9 don't check the encryption scheme, so do it here.
+  return scheme == cdm::EncryptionScheme::kUnencrypted ||
+         scheme == cdm::EncryptionScheme::kCenc;
+}
+
+cdm::AudioDecoderConfig ToAudioDecoderConfig(
+    const cdm::AudioDecoderConfig_2& config) {
+  return {config.codec,
+          config.channel_count,
+          config.bits_per_channel,
+          config.samples_per_second,
+          config.extra_data,
+          config.extra_data_size};
+}
+
+cdm::VideoDecoderConfig ToVideoDecoderConfig(
+    const cdm::VideoDecoderConfig_2& config) {
+  return {config.codec,      config.profile,    config.format,
+          config.coded_size, config.extra_data, config.extra_data_size};
+}
+
+cdm::InputBuffer ToInputBuffer(const cdm::InputBuffer_2& buffer,
+                               const cdm::StreamType decoder_type) {
+  return {buffer.data,
+          buffer.data_size,
+          buffer.encryption_scheme,
+          buffer.key_id,
+          buffer.key_id_size,
+          buffer.iv,
+          buffer.iv_size,
+          buffer.subsamples,
+          buffer.num_subsamples,
+          buffer.timestamp,
+          buffer.pattern,
+          decoder_type ==
+              static_cast<uint32_t>(cdm::StreamType::kStreamTypeVideo ? 1 : 0)};
+}
+#endif
 
 cdm::VideoDecoderConfig_2 ToVideoDecoderConfig_2(
     const cdm::VideoDecoderConfig_3& config) {
@@ -117,7 +162,12 @@ class CdmWrapper {
                              uint32_t session_id_size) = 0;
   virtual void TimerExpired(void* context) = 0;
   virtual cdm::Status Decrypt(const cdm::InputBuffer_2& encrypted_buffer,
+#if defined(USE_NEVA_CDM)
+                              cdm::DecryptedBlock* decrypted_buffer,
+                              const cdm::StreamType decoder_type) = 0;
+#else
                               cdm::DecryptedBlock* decrypted_buffer) = 0;
+#endif
   virtual cdm::Status InitializeAudioDecoder(
       const cdm::AudioDecoderConfig_2& audio_decoder_config) = 0;
   virtual cdm::Status InitializeVideoDecoder(
@@ -238,7 +288,12 @@ class CdmWrapperImpl : public CdmWrapper {
   void TimerExpired(void* context) override { cdm_->TimerExpired(context); }
 
   cdm::Status Decrypt(const cdm::InputBuffer_2& encrypted_buffer,
+#if defined(USE_NEVA_CDM)
+                      cdm::DecryptedBlock* decrypted_buffer,
+                      const cdm::StreamType decoder_type) override {
+#else
                       cdm::DecryptedBlock* decrypted_buffer) override {
+#endif
     return cdm_->Decrypt(encrypted_buffer, decrypted_buffer);
   }
 

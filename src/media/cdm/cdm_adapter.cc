@@ -46,6 +46,10 @@
 #include "ui/gfx/geometry/rect.h"
 #include "url/origin.h"
 
+#if defined(USE_NEVA_CDM)
+#include "widevine_cdm_version.h"  // In SHARED_INTERMEDIATE_DIR.
+#endif
+
 namespace media {
 
 namespace {
@@ -494,7 +498,12 @@ void CdmAdapter::Decrypt(StreamType stream_type,
   TRACE_EVENT_BEGIN1("media", "CdmAdapter::Decrypt", "stream_type",
                      stream_type);
   ToCdmInputBuffer(*encrypted, &subsamples, &input_buffer);
+#if defined(USE_NEVA_CDM)
+  cdm::Status status = cdm_->Decrypt(input_buffer, decrypted_block.get(),
+                                     ToCdmStreamType(stream_type));
+#else
   cdm::Status status = cdm_->Decrypt(input_buffer, decrypted_block.get());
+#endif
   TRACE_EVENT_END2("media", "CdmAdapter::Decrypt", "key ID",
                    GetHexKeyId(input_buffer), "status",
                    CdmStatusToString(status));
@@ -509,6 +518,12 @@ void CdmAdapter::Decrypt(StreamType stream_type,
       DecoderBuffer::CopyFrom(AsSpan(decrypted_block->DecryptedBuffer())));
   decrypted_buffer->set_timestamp(
       base::Microseconds(decrypted_block->Timestamp()));
+
+#if defined(USE_NEVA_CDM)
+  // TODO(neva): Upstreamable
+  decrypted_buffer->set_duration(encrypted->duration());
+#endif  // defined(USE_NEVA_CDM)
+
   std::move(decrypt_cb).Run(Decryptor::kSuccess, std::move(decrypted_buffer));
 }
 

@@ -18,7 +18,11 @@
 #endif
 
 #if BUILDFLAG(IS_LINUX)
+#if defined(USE_WEBOS_CAMERA)
+#include "media/capture/video/webos/video_capture_device_factory_webos.h"
+#else
 #include "media/capture/video/linux/video_capture_device_factory_linux.h"
+#endif
 #elif BUILDFLAG(IS_CHROMEOS)
 #include "media/capture/video/chromeos/public/cros_features.h"
 #include "media/capture/video/chromeos/video_capture_device_factory_chromeos.h"
@@ -65,7 +69,11 @@ CreatePlatformSpecificVideoCaptureDeviceFactory(
     scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner,
     gpu::GpuDriverBugWorkarounds* gpu_workarounds) {
 #if BUILDFLAG(IS_LINUX)
+#if defined(USE_WEBOS_CAMERA)
+  return std::make_unique<VideoCaptureDeviceFactoryWebOS>();
+#else
   return std::make_unique<VideoCaptureDeviceFactoryLinux>(ui_task_runner);
+#endif
 #elif BUILDFLAG(IS_CHROMEOS)
   if (base::SysInfo::IsRunningOnChromeOS())
     return std::make_unique<VideoCaptureDeviceFactoryChromeOS>(ui_task_runner);

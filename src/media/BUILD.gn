@@ -105,6 +105,9 @@ config("media_config") {
       defines += [ "DLOPEN_PULSEAUDIO" ]
     }
   }
+  if (use_webos_audio) {
+    defines += [ "USE_WEBOS_AUDIO=1" ]
+  }
 }
 
 # Internal grouping of the configs necessary to support sub-folders having their

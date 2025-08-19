@@ -194,6 +194,11 @@ void PulseAudioInputStream::Close() {
     }
   }
 
+#if defined(USE_WEBOS_AUDIO)
+  // NEVA: webOS owns the stream lifetime itself.
+  return;
+#endif
+
   // If the stream is not managed by AudioManager, the owner is responsible to
   // destroy the object.
   if (audio_manager_) {

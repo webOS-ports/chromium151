@@ -11,6 +11,9 @@
 
 #include "media/base/media_export.h"
 #include "media/cdm/api/content_decryption_module.h"
+#if defined(USE_NEVA_CDM)
+#include "media/cdm/neva/webos/content_decryption_module_webos.h"
+#endif
 
 // A library CDM interface is "supported" if it's implemented by CdmAdapter and
 // CdmWrapper. Typically multiple CDM interfaces are supported:
@@ -39,12 +42,16 @@ constexpr std::array<SupportedVersion, 3> kSupportedCdmInterfaceVersions = {{
     {11, true},
     {12, false},
 }};
+#endif
 
 // In most cases CdmInterface::kVersion == CdmInterface::Host::kVersion. However
 // this is not guaranteed. For example, a newer CDM interface may use an
 // existing CDM host. So we keep CDM host support separate from CDM interface
 // support. In CdmInterfaceTraits we also static assert that for supported CDM
 // interface, CdmInterface::Host::kVersion must also be supported.
+#if defined(USE_NEVA_CDM)
+constexpr int kMinSupportedCdmHostVersion = 8;
+#else
 constexpr int kMinSupportedCdmHostVersion = 10;
 constexpr int kMaxSupportedCdmHostVersion = 12;
 
@@ -121,6 +128,16 @@ constexpr bool CheckSupportedCdmHostVersions(int min_version, int max_version) {
 // Traits for CDM Interfaces
 template <int CdmInterfaceVersion>
 struct CdmInterfaceTraits {};
+
+#if defined(USE_NEVA_CDM)
+template <>
+struct CdmInterfaceTraits<8> {
+  using CdmInterface = cdm::ContentDecryptionModule_8;
+  static_assert(CdmInterface::kVersion == 8, "CDM interface version mismatch");
+  static_assert(IsSupportedCdmHostVersion(CdmInterface::Host::kVersion),
+                "Host not supported");
+};
+#endif
 
 // TODO(xhwang): CDM_9 support has been removed; consider to use a macro to
 // help define CdmInterfaceTraits specializations.
