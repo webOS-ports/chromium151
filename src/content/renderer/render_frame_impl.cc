@@ -242,6 +242,7 @@
 #include "third_party/blink/public/web/web_security_policy.h"
 #include "third_party/blink/public/web/web_serialized_script_value.h"
 #include "third_party/blink/public/web/web_v8_features.h"
+#include "third_party/blink/public/web/web_settings.h"
 #include "third_party/blink/public/web/web_view.h"
 #include "third_party/blink/public/web/web_widget.h"
 #include "third_party/blink/public/web/web_window_features.h"
@@ -4698,7 +4699,7 @@ void RenderFrameImpl::FinalizeRequestInternal(
   lst_responder->SaveUrl(
       GetWebView()->GetRendererPreferences().file_security_origin,
       request.Url().GetString().Utf8(), base::BindOnce([] {}));
-  GetBrowserInterfaceBroker()->GetInterface(std::move(receiver));
+  GetBrowserInterfaceBroker().GetInterface(std::move(receiver));
 #endif
 
   request.SetHasUserGesture(frame_->HasTransientUserActivation());

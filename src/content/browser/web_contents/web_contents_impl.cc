@@ -3997,14 +3997,17 @@ const blink::web_pref::WebPreferences WebContentsImpl::ComputeWebPreferences(
   if (command_line.HasSwitch(switches::kEnableV8CacheForWebappList)) {
     std::string whitelist =
         command_line.GetSwitchValueASCII(switches::kEnableV8CacheForWebappList);
-    std::vector<base::StringPiece> webapps = base::SplitStringPiece(
+    std::vector<std::string_view> webapps = base::SplitStringPiece(
         whitelist, ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
-    if (base::Contains(webapps, GetRendererPrefs().application_id)) {
+    if (std::ranges::contains(
+            webapps,
+            GetRendererPrefs(main_frame->render_view_host()).application_id)) {
       prefs.v8_cache_options = blink::mojom::V8CacheOptions::kCode;
     } else {
       prefs.v8_cache_options = blink::mojom::V8CacheOptions::kNone;
     }
-    VLOG(1) << __func__ << " " << GetRendererPrefs().application_id
+    VLOG(1) << __func__ << " "
+            << GetRendererPrefs(main_frame->render_view_host()).application_id
             << " v8-cache-options=" << prefs.v8_cache_options;
   }
 #endif
@@ -5709,7 +5712,7 @@ FrameTree* WebContentsImpl::CreateNewWindow(
   // Additional window features passed to window.open (webOS/LuneOS specific)
   std::vector<std::string> additional_features;
   for (auto webStr : params.features->additional_features)
-    additional_features.push_back(std::string(base::StringPiece(webStr)));
+    additional_features.push_back(std::string(std::string_view(webStr)));
 
   new_contents_impl->SetAdditionalFeatures(additional_features);
 

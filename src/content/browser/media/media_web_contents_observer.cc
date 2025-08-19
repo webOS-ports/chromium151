@@ -542,7 +542,7 @@ void MediaWebContentsObserver::MediaPlayerObserverHostImpl::OnMediaCreated(
     return;
 
   MediaStateManager::GetInstance()->OnMediaCreated(
-      rfh, media_player_id_.delegate_id, will_use_media_resource);
+      rfh, media_player_id_.player_id, will_use_media_resource);
 }
 
 void MediaWebContentsObserver::MediaPlayerObserverHostImpl::OnMediaActivated() {
@@ -553,7 +553,7 @@ void MediaWebContentsObserver::MediaPlayerObserverHostImpl::OnMediaActivated() {
     return;
 
   MediaStateManager::GetInstance()->OnMediaActivated(
-      rfh, media_player_id_.delegate_id);
+      rfh, media_player_id_.player_id);
 }
 
 void MediaWebContentsObserver::MediaPlayerObserverHostImpl::
@@ -565,7 +565,7 @@ void MediaWebContentsObserver::MediaPlayerObserverHostImpl::
     return;
 
   MediaStateManager::GetInstance()->OnMediaActivationRequested(
-      rfh, media_player_id_.delegate_id);
+      rfh, media_player_id_.player_id);
 }
 
 void MediaWebContentsObserver::MediaPlayerObserverHostImpl::OnMediaSuspended() {
@@ -576,7 +576,7 @@ void MediaWebContentsObserver::MediaPlayerObserverHostImpl::OnMediaSuspended() {
     return;
 
   MediaStateManager::GetInstance()->OnMediaSuspended(
-      rfh, media_player_id_.delegate_id);
+      rfh, media_player_id_.player_id);
 }
 #endif  // defined(USE_NEVA_MEDIA)
 
@@ -841,7 +841,7 @@ void MediaWebContentsObserver::OnMediaPlayerAdded(
 #if defined(USE_NEVA_MEDIA)
         MediaStateManager::GetInstance()->OnMediaDestroyed(
             RenderFrameHost::FromID(player_id.frame_routing_id),
-            player_id.delegate_id);
+            player_id.player_id);
 #endif
         observer->web_contents_impl()->MediaDestroyed(player_id);
       },

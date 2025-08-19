@@ -382,6 +382,16 @@ mojom("interfaces") {
     "//extensions/common:mojom_blink",
   ]
 
+  # These targets reach content/browser or content/public/common headers via
+  # the neva changes and transitively include these bindings.
+  if (use_neva_appruntime) {
+    visibility += [
+      "//components/input:input",
+      "//neva/pal_service:pal_service",
+      "//neva/pal_service/webos:pal_service_webos",
+    ]
+  }
+
   sources = [
     "alternative_error_page_override_info.mojom",
     "drop_data.mojom",

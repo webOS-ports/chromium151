@@ -159,6 +159,7 @@
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_frame.h"
+#include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_render_theme.h"
 #include "third_party/blink/public/web/web_security_policy.h"
 #include "third_party/blink/public/web/web_user_level_memory_pressure_signal_generator.h"
@@ -227,7 +228,6 @@
 ///@name USE_NEVA_APPRUNTIME
 ///@{
 #if defined(USE_NEVA_APPRUNTIME)
-#include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
 #endif
 ///@}
 
@@ -1327,9 +1327,9 @@ void RenderThreadImpl::SetBatterySaverMode(bool battery_saver_mode_enabled) {
 ///@{
 void RenderThreadImpl::ProcessSuspend() {
 #if defined(USE_NEVA_APPRUNTIME)
-  blink::WebLocalFrameImpl* frame = static_cast<blink::WebLocalFrameImpl*>(
-      blink::WebLocalFrameImpl::FrameForCurrentContext());
-  page_pauser_ = std::make_unique<blink::WebScopedPagePauser>(*frame);
+  blink::WebLocalFrame* frame = blink::WebLocalFrame::FrameForCurrentContext();
+  CHECK(frame);
+  page_pauser_ = blink::WebScopedPagePauser::Create(*frame);
   ++suspension_count_;
 #endif
 }

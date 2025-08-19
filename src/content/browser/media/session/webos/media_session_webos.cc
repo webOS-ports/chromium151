@@ -473,7 +473,7 @@ void MediaSessionWebOS::ReceiveMediaKeyEvent(const std::string& payload) {
   if (mcs_permission_error_)
     return;
 
-  std::optional<base::Value> value = base::JSONReader::Read(payload);
+  std::optional<base::Value> value = base::JSONReader::Read(payload, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!value || !value->is_dict()) {
     return;
   }
@@ -517,7 +517,7 @@ void MediaSessionWebOS::CheckReplyStatusMessage(const std::string& message) {
   if (mcs_permission_error_)
     return;
 
-  std::optional<base::Value> value = base::JSONReader::Read(message);
+  std::optional<base::Value> value = base::JSONReader::Read(message, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!value || !value->is_dict()) {
     return;
   }

@@ -3483,6 +3483,20 @@ void RenderWidgetHostImpl::PassImeRenderWidgetHost(
 #endif
 }
 
+#if defined(USE_NEVA_APPRUNTIME)
+void RenderWidgetHostImpl::ActivateRendererCompositor() {
+  if (blink_frame_widget_) {
+    blink_frame_widget_->ActivateCompositor();
+  }
+}
+
+void RenderWidgetHostImpl::DeactivateRendererCompositor() {
+  if (blink_frame_widget_) {
+    blink_frame_widget_->DeactivateCompositor();
+  }
+}
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
 void RenderWidgetHostImpl::SetMouseCapture(bool capture) {
   if (!delegate_ || !delegate_->GetInputEventRouter()) {
     return;

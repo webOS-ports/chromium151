@@ -150,7 +150,7 @@ static_library("content_shell_app") {
 }
 
 inspector_protocol_generate("protocol_sources") {
-  visibility = [ ":content_shell_lib" ]
+  visibility = [ ":content_shell_nontest_lib" ]
   deps = [ "//third_party/blink/public/devtools_protocol:protocol_version" ]
   _blink_protocol_path = rebase_path(
           "$root_gen_dir/third_party/blink/public/devtools_protocol/protocol.json",
@@ -206,6 +206,8 @@ static_library("content_shell_nontest_lib") {
     "browser/shell_javascript_dialog_manager.h",
     "browser/shell_permission_manager.cc",
     "browser/shell_permission_manager.h",
+    "common/shell_paths.cc",
+    "common/shell_paths.h",
     "common/shell_switches.cc",
     "common/shell_switches.h",
   ]
@@ -214,6 +216,13 @@ static_library("content_shell_nontest_lib") {
     "CONTENT_SHELL_VERSION=\"$content_shell_version\"",
     "CONTENT_SHELL_MAJOR_VERSION=\"$content_shell_major_version\"",
   ]
+
+  # The generated browser/protocol/*.{h,cc} that browser_handler.cc,
+  # shell_devtools_session.cc and friends include come from here. The generated
+  # .cc files must also be compiled - listing the action in deps alone only
+  # makes the headers exist, and Browser::Dispatcher::wire() ends up undefined.
+  sources += get_target_outputs(":protocol_sources")
+  deps = [ ":protocol_sources" ]
 
   public_deps = [
     # This exposes all public content APIs.
@@ -237,6 +246,15 @@ static_library("content_shell_nontest_lib") {
     "common/shell_neva_switches.h",
   ]
   #@}
+  # The neva changes to this target include generated headers whose
+  # producing targets were not reachable from here. Nothing ordered them
+  # against this compile, so a clean build could reach these objects
+  # before the generators ran; an incremental build never notices because
+  # the headers are left over from an earlier pass.
+  deps += [
+    ":content_shell_resources_grit",
+    "//neva/app_runtime:app_runtime_inspector_resources_grit",
+  ]
 }
 
 # Upstream name and semantics, for the content_shell binary and web tests.

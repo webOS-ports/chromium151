@@ -11,19 +11,19 @@
 #include "neva/pal_service/public/mojom/memorymanager.mojom.h"
 #include "neva/pal_service/public/mojom/sample.mojom.h"
 #include "neva/pal_service/public/mojom/system_servicebridge.mojom.h"
-#include "neva/pal_service/public/pal_service.h"
+#include "neva/pal_service/pal_service.h"
 #if defined(ENABLE_NETWORK_ERROR_PAGE_CONTROLLER_WEBAPI)
 #include "neva/pal_service/public/mojom/network_error_page_controller.mojom.h"
 #endif
 #if defined(ENABLE_BROWSER_SHELL)
-#include "neva/browser_shell_service/browser_shell_service.h"
-#include "neva/browser_shell_service/public/mojom/shell_service.mojom.h"
+#include "neva/browser_shell/service/public/browser_shell_service.h"
+#include "neva/browser_shell/service/public/mojom/browser_shell_service.mojom.h"
 #endif
 #endif  // defined(USE_NEVA_APPRUNTIME)
 
 #if defined(USE_NEVA_MEDIA)
 #include "neva/neva_media_service/neva_media_service.h"
-#include "neva/neva_media_service/public/mojom/media_service_provider.mojom.h"
+#include "neva/neva_media_service/public/mojom/neva_media_service.mojom.h"
 #endif
 // clang-format on
 

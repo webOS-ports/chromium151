@@ -226,6 +226,7 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/tracing_support.h"
 #include "content/public/browser/weak_document_ptr.h"
+#include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_ui_url_loader_factory.h"
 #include "content/public/common/alternative_error_page_override_info.mojom.h"
 #include "content/public/common/bindings_policy.h"
@@ -7648,13 +7649,14 @@ void RenderFrameHostImpl::RequestClose() {
   }
 
 #if defined(USE_NEVA_APPRUNTIME)
-  if (render_view_host_->GetDelegate() && render_view_host_->GetDelegate()
-                                              ->GetOrCreateWebPreferences()
-                                              .keep_alive_webapp) {
+  if (render_view_host_->GetDelegate() &&
+      render_view_host_->GetDelegate()
+          ->GetOrCreateWebPreferences(render_view_host_.get())
+          .keep_alive_webapp) {
     // this is keepAlive app, window.close() should't close this app.
     // Just notify about this 'trying close' without any setting for real view
     // closing
-    delegate_->Close();
+    delegate_->Close(this);
     return;
   }
 #endif

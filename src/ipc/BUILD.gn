@@ -69,20 +69,6 @@ component("ipc") {
 
 component("message_support") {
   sources = [
-    # NEVA: M151 deleted the legacy IPC message system because no upstream
-    # caller was left. LG's //ozone:ozone_wayland still declares 75 legacy
-    # messages (IPC_MESSAGE_CONTROLn), so the declaration machinery is kept
-    # here. ipc_message_utils.h and ipc_param_traits.h are thin forwarders to
-    # the surviving param_traits*.h rather than copies, so ParamTraits is
-    # defined exactly once.
-    "ipc_message_macros.h",
-    "ipc_message_templates.h",
-    "ipc_message_templates_impl.h",
-    "ipc_message_utils.h",
-    "ipc_param_traits.h",
-    "ipc_sync_message.cc",
-    "ipc_sync_message.h",
-
     "ipc_message.cc",
     "ipc_message.h",
     "ipc_message_attachment.cc",

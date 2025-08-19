@@ -3909,6 +3909,17 @@ source_set("browser") {
     deps += [ "//components/vrp_flags" ]
     public_deps += [ "//components/vrp_flags:mojom" ]
   }
+
+  # RenderProcessHostImpl binds neva_app_runtime::mojom::InstallableManager, so
+  # this target compiles against generated bindings that nothing here ordered it
+  # against. A clean build could reach those objects before mojom ran; an
+  # incremental build never notices, because the headers survive from an earlier
+  # pass. The chrome/browser/web_applications headers that used to come in along
+  # the same include chain are gone: neva/app_shell/neva/installable_manager.h
+  # forward-declares WebAppInstallableManager rather than holding one by value,
+  # which keeps //content/browser out of //chrome (declaring that dependency
+  # would fail assert_no_deps on every target that bans //chrome/*).
+  deps += [ "//neva/app_runtime/public/mojom:mojom" ]
 }
 
 if (is_android) {

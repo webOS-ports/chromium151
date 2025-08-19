@@ -125,8 +125,11 @@ bool ServiceWorkerContainerHostForClient::IsContainerRemoteConnected() const {
   return container_.is_connected();
 }
 
+// The parameter is named script_url_const, not script_url: the neva block
+// below needs a mutable copy under the plain name, and the #else branch
+// aliases it straight back.
 void ServiceWorkerContainerHostForClient::Register(
-    const GURL& script_url,
+    const GURL& script_url_const,
     blink::mojom::ServiceWorkerRegistrationOptionsPtr options,
     blink::mojom::FetchClientSettingsObjectPtr
         outside_fetch_client_settings_object,

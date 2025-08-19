@@ -1247,8 +1247,8 @@ void PopulateBinderMapWithContext(
   }
 #if defined(USE_LOCAL_STORAGE_TRACKER)
   map->Add<local_storage::mojom::LocalStorageTracker>(
-      base::BindRepeating(&RenderFrameHostImpl::GetLocalStorageTrackerMojoImpl,
-                          base::Unretained(host)));
+      &BindRenderFrameHostImpl<
+          &RenderFrameHostImpl::GetLocalStorageTrackerMojoImpl>);
 #endif
 
 #if BUILDFLAG(IS_ANDROID) || (BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_IOS_TVOS))

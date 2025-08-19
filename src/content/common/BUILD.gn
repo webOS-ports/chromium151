@@ -438,7 +438,14 @@ mojom("mojo_bindings") {
   visibility = [ "//content/*" ]
 
   if (use_neva_appruntime) {
-    visibility += [ "//neva/app_runtime" ]
+    visibility += [
+      "//neva/app_runtime",
+      # NEVA: the neva components patch makes
+      # components/input/render_widget_host_input_event_router.cc include
+      # content/browser/renderer_host/render_view_host_impl.h, which pulls in
+      # the generated agent_scheduling_group.mojom.h from here.
+      "//components/input:input",
+    ]
   }
 
   disable_variants = true

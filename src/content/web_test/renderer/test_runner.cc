@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "content/web_test/renderer/test_runner.h"
+#include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 
 #include <stddef.h>
 

@@ -3716,7 +3716,7 @@ void StoragePartitionImpl::InitNetworkContext() {
   if (base::FeatureList::IsEnabled(features::kPreloadCookies)) {
     mojo::Remote<::network::mojom::CookieManager> cookie_manager;
     mojo::PendingRemote<::network::mojom::CookieManager> cookie_manager_remote;
-    network_context_->GetCookieManager(
+    network_context_owner_->network_context->GetCookieManager(
         cookie_manager_remote.InitWithNewPipeAndPassReceiver());
     cookie_manager.Bind(std::move(cookie_manager_remote));
     cookie_manager->GetAllCookies(base::NullCallback());
@@ -3724,7 +3724,8 @@ void StoragePartitionImpl::InitNetworkContext() {
 
   os_crypt_impl_ = std::make_unique<pal::OSCryptImpl>();
   if (os_crypt_impl_->IsEncryptionAvailable())
-    network_context_->SetOSCrypt(os_crypt_impl_->CreatePendingRemoteAndBind());
+    network_context_owner_->network_context->SetOSCrypt(
+        os_crypt_impl_->CreatePendingRemoteAndBind());
 }
 
 network::mojom::URLLoaderFactoryParamsPtr

@@ -414,7 +414,7 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
         media::AudioDeviceDescription::GetDisplayDefaultDevice(
             render_frame_->GetRendererPreferences().display_id);
     VLOG(1) << __func__ << " defult device_id=[" << device_id << "]";
-    sink_id = blink::WebString::FromUTF8(device_id);
+    sink_id = blink::WebString::FromUtf8(device_id);
   }
 #endif
 
@@ -590,7 +590,7 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
       base::BindRepeating(
           &content::mojom::FrameVideoWindowFactory::CreateVideoWindow,
           base::Unretained(render_frame_->GetFrameVideoWindowFactory())),
-      blink::WebString::FromUTF8(renderer_prefs.application_id +
+      blink::WebString::FromUtf8(renderer_prefs.application_id +
                                  renderer_prefs.display_id),
       renderer_prefs.use_unlimited_media_policy, use_neva_media,
       std::move(create_media_player_neva_cb));

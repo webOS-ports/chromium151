@@ -255,7 +255,8 @@ size_t BlinkPlatformImpl::MaxDecodedImageBytes() {
   // still limit the decoded images. I.e. for 384MB of physical memory
   // available, it allows 6M pixels.
   if (base::SysInfo::IsLowEndDevice()) {
-    max_decoded_image_byte_limit = base::SysInfo::AmountOfPhysicalMemory() / 16;
+    max_decoded_image_byte_limit =
+        base::SysInfo::AmountOfTotalPhysicalMemory().InBytes() / 16;
   }
 #endif
   base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();

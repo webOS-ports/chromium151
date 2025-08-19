@@ -191,6 +191,7 @@
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/scoped_message_error_crash_key.h"
 #include "net/cookies/cookie_setting_override.h"
+#include "neva/app_shell/neva/installable_manager.h"
 #include "sandbox/policy/switches.h"
 #include "services/device/public/mojom/power_monitor.mojom.h"
 #include "services/device/public/mojom/screen_orientation.mojom.h"
@@ -2855,6 +2856,27 @@ void RenderProcessHostImpl::BindVideoEncoderMetricsProvider(
   media::MojoVideoEncoderMetricsProviderService::Create(ukm::NoURLSourceId(),
                                                         std::move(receiver));
 }
+
+#if defined(ENABLE_PWA_MANAGER_WEBAPI)
+// The declaration in render_process_host_impl.h and the AddUIThreadInterface
+// call in render_process_host_impl_receiver_bindings.cc both survived the
+// merge; this definition did not. In M120 the InstallableManager lived in
+// extensions/shell/neva/, which M151 deleted along with the rest of
+// extensions/shell - it is now neva/app_shell/neva/.
+void RenderProcessHostImpl::BindInstallableManager(
+    mojo::PendingReceiver<neva_app_runtime::mojom::InstallableManager>
+        receiver) {
+  if (render_frame_host_id_set_.empty()) {
+    return;
+  }
+  RenderFrameHost* render_frame_host =
+      RenderFrameHost::FromID(*(render_frame_host_id_set_.rbegin()));
+  if (render_frame_host) {
+    neva_app_runtime::InstallableManager::BindInstallableManager(
+        std::move(receiver), render_frame_host);
+  }
+}
+#endif  // defined(ENABLE_PWA_MANAGER_WEBAPI)
 
 void RenderProcessHostImpl::BindAecDumpManager(
     mojo::PendingReceiver<blink::mojom::AecDumpManager> receiver) {
