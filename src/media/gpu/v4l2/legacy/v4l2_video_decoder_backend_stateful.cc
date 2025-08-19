@@ -440,7 +440,7 @@ void V4L2StatefulVideoDecoderBackend::OnOutputBufferDequeued(
     const struct timeval timeval = buffer->GetTimeStamp();
     const struct timespec timespec = {
         .tv_sec = timeval.tv_sec,
-        .tv_nsec = timeval.tv_usec * 1000,
+        .tv_nsec = static_cast<long>(timeval.tv_usec * 1000),
     };
 
     const int64_t flat_timespec =
