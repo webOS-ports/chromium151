@@ -79,6 +79,14 @@ class PageContentsImpl : public mojom::PageContents,
   void ResumeDOM() override;
   void ResumeMedia() override;
   void ScrollByY(int y_shift) override;
+  void SetEnableJavascript(bool enable) override;
+  void SetAcceptCookies(bool accept) override;
+  void FindInPage(int32_t request_id,
+                  const std::string& search_text,
+                  bool forward,
+                  bool match_case,
+                  bool find_next) override;
+  void StopFindInPage(bool clear_selection) override;
   void SetAcceptedLanguages(const std::string& languages) override;
   void SetErrorPageHiding(bool enable) override;
   void SetFocus() override;
@@ -122,6 +130,10 @@ class PageContentsImpl : public mojom::PageContents,
   void OnRendererUnresponsive() override;
   void OnRendererResponsive() override;
   void OnPermissionRequest(const std::string& permission, uint64_t id) override;
+  void OnFoundInPage(int request_id,
+                     int active_match_ordinal,
+                     int number_of_matches,
+                     bool final_update) override;
   void OnVisibleRegionCaptured(const std::string& base64_data) override;
   void OnZoomFactorChanged(double zoom_factor) override;
   bool RunJSDialog(const std::string& type, const std::string& message,

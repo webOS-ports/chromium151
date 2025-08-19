@@ -55,6 +55,7 @@ const char kOnOpenURLFromTab[] = "open-url-from-tab";
 const char kOnRendererUnresponsive[] = "unresponsive";
 const char kOnRendererResponsive[] = "responsive";
 const char kOnPermissionRequest[] = "permissionrequest";
+const char kOnFoundInPage[] = "found-in-page";
 const char kOnZoomFactorChanged[] = "zoomchange";
 const char kPageTitleUpdated[] = "page-title-updated";
 const char kOnCloseEvent[] = "close";
@@ -98,6 +99,12 @@ char BrowserShellPageContents::kReloadMethodName[] = "reload";
 char BrowserShellPageContents::kResumeDOMMethodName[] = "resumeDOM";
 char BrowserShellPageContents::kResumeMediaMethodName[] = "resumeMedia";
 char BrowserShellPageContents::kScrollByYMethodName[] = "scrollByY";
+char BrowserShellPageContents::kFindInPageMethodName[] = "findInPage";
+char BrowserShellPageContents::kStopFindInPageMethodName[] = "stopFindInPage";
+char BrowserShellPageContents::kSetAcceptCookiesMethodName[] =
+    "setAcceptCookies";
+char BrowserShellPageContents::kSetEnableJavascriptMethodName[] =
+    "setEnableJavascript";
 char BrowserShellPageContents::kSetAcceptedLanguagesMethodName[] =
     "setAcceptedLanguages";
 char BrowserShellPageContents::kSetFocusMethodName[] = "setFocus";
@@ -674,6 +681,33 @@ void BrowserShellPageContents::DidUpdateFaviconUrl(
   DoEmit(events::kDidUpdateFaviconUrl, favicon_info_arr.As<v8::Object>());
 }
 
+void BrowserShellPageContents::OnFoundInPage(int32_t request_id,
+                                            int32_t active_match_ordinal,
+                                            int32_t number_of_matches,
+                                            bool final_update) {
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::HandleScope handle_scope(isolate);
+  v8::Local<v8::Object> wrapper = GetWrapper(isolate).ToLocalChecked();
+  v8::Local<v8::Context> context;
+  if (!wrapper->GetCreationContext().ToLocal(&context))
+    return;
+
+  v8::MicrotasksScope microtasksScope(context,
+                                      v8::MicrotasksScope::kRunMicrotasks);
+  v8::Context::Scope context_scope(context);
+
+  v8::Local<v8::Object> result = v8::Object::New(isolate);
+  gin::Dictionary dict(isolate, result);
+  dict.Set("requestId", request_id);
+  // 1-based index of the highlighted match, 0 when there is none.
+  dict.Set("activeMatchOrdinal", active_match_ordinal);
+  dict.Set("numberOfMatches", number_of_matches);
+  // The engine reports as it scans; only the final report is a complete count.
+  dict.Set("finalUpdate", final_update);
+
+  DoEmit(events::kOnFoundInPage, result);
+}
+
 void BrowserShellPageContents::DOMReady() {
   DoEmit(events::kDOMReady);
 }
@@ -864,6 +898,55 @@ void BrowserShellPageContents::ResumeMedia() {
     remote_->ResumeMedia();
 }
 
+/* findInPage(searchText [, forward [, matchCase [, findNext]]]) -> requestId
+ *
+ * The request id is generated here rather than asked of the caller: it only has
+ * to be unique within this page contents, and handing it back lets the app match
+ * a "found-in-page" event to the search that produced it — the engine reports
+ * progressively, so several events arrive per request. */
+int BrowserShellPageContents::FindInPage(gin::Arguments* args) {
+  std::string search_text;
+  if (!args->GetNext(&search_text))
+    return 0;
+
+  // Optional arguments, peeked so that omitting them is not an argument error.
+  bool forward = true;
+  bool match_case = false;
+  bool find_next = false;
+  if (!args->PeekNext().IsEmpty())
+    args->GetNext(&forward);
+  if (!args->PeekNext().IsEmpty())
+    args->GetNext(&match_case);
+  if (!args->PeekNext().IsEmpty())
+    args->GetNext(&find_next);
+
+  if (!remote_.is_bound())
+    return 0;
+
+  remote_->FindInPage(++find_request_id_, search_text, forward, match_case,
+                      find_next);
+  return find_request_id_;
+}
+
+void BrowserShellPageContents::StopFindInPage(gin::Arguments* args) {
+  bool clear_selection = true;
+  if (!args->PeekNext().IsEmpty())
+    args->GetNext(&clear_selection);
+
+  if (remote_.is_bound())
+    remote_->StopFindInPage(clear_selection);
+}
+
+void BrowserShellPageContents::SetEnableJavascript(bool enable) {
+  if (remote_.is_bound())
+    remote_->SetEnableJavascript(enable);
+}
+
+void BrowserShellPageContents::SetAcceptCookies(bool accept) {
+  if (remote_.is_bound())
+    remote_->SetAcceptCookies(accept);
+}
+
 void BrowserShellPageContents::ScrollByY(int y_shift) {
   if (y_shift != 0 && remote_.is_bound())
     remote_->ScrollByY(y_shift);
@@ -1031,6 +1114,13 @@ gin::ObjectTemplateBuilder BrowserShellPageContents::GetObjectTemplateBuilder(
       .SetMethod(kResumeDOMMethodName, &BrowserShellPageContents::ResumeDOM)
       .SetMethod(kResumeMediaMethodName, &BrowserShellPageContents::ResumeMedia)
       .SetMethod(kScrollByYMethodName, &BrowserShellPageContents::ScrollByY)
+      .SetMethod(kFindInPageMethodName, &BrowserShellPageContents::FindInPage)
+      .SetMethod(kStopFindInPageMethodName,
+                 &BrowserShellPageContents::StopFindInPage)
+      .SetMethod(kSetAcceptCookiesMethodName,
+                 &BrowserShellPageContents::SetAcceptCookies)
+      .SetMethod(kSetEnableJavascriptMethodName,
+                 &BrowserShellPageContents::SetEnableJavascript)
       .SetMethod(kSetAcceptedLanguagesMethodName,
                  &BrowserShellPageContents::SetAcceptedLanguages)
       .SetMethod(kSetFocusMethodName, &BrowserShellPageContents::SetFocus)

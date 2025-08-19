@@ -90,6 +90,12 @@ interface PageContentsClient {
   OnRendererUnresponsive();
   OnRendererResponsive();
   OnPermissionRequest(string permission, uint64 id);
+  // Progress of a FindInPage request. The engine reports repeatedly for one
+  // request as it scans, with final_update set on the last one.
+  OnFoundInPage(int32 request_id,
+                int32 active_match_ordinal,
+                int32 number_of_matches,
+                bool final_update);
   OnZoomFactorChanged(double zoom_factor);
   RunJSDialog(string type, string message, string default_prompt_text);
   TitleUpdated(string title, string url);
@@ -112,6 +118,14 @@ interface PageContents {
   ExecuteJavaScriptInAllFrames(string code);
   ExecuteJavaScriptInMainFrame(string code);
   ExitFullscreen();
+  // Find-in-page. find_next distinguishes "advance within the current search"
+  // from "start a new one"; results arrive on OnFoundInPage.
+  FindInPage(int32 request_id,
+             string search_text,
+             bool forward,
+             bool match_case,
+             bool find_next);
+  StopFindInPage(bool clear_selection);
   GoBack();
   GoForward();
   LoadURL(string url) => (string url);
@@ -119,7 +133,9 @@ interface PageContents {
   ResumeDOM();
   ResumeMedia();
   ScrollByY(int32 y_shift);
+  SetAcceptCookies(bool accept);
   SetAcceptedLanguages(string launguages);
+  SetEnableJavascript(bool enable);
   SetErrorPageHiding(bool enable);
   SetFocus();
   SetKeyCodesFilter(array<string> key_codes);

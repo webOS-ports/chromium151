@@ -116,6 +116,11 @@ void PageContentsDelegate::OnRendererResponsive() {}
 void PageContentsDelegate::OnPermissionRequest(const std::string& permission,
                                                uint64_t id) {}
 
+void PageContentsDelegate::OnFoundInPage(int request_id,
+                                         int active_match_ordinal,
+                                         int number_of_matches,
+                                         bool final_update) {}
+
 void PageContentsDelegate::OnVisibleRegionCaptured(
     const std::string& base64_data) {}
 

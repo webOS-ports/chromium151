@@ -51,8 +51,12 @@
 #include "neva/app_runtime/app/app_runtime_page_view.h"
 #include "neva/app_runtime/app/app_runtime_shell_environment.h"
 #include "neva/app_runtime/app/app_runtime_visible_region_capture.h"
+#include "components/content_settings/core/browser/host_content_settings_map.h"
+#include "components/content_settings/core/common/content_settings.h"
+#include "components/content_settings/core/common/content_settings_types.h"
 #include "neva/app_runtime/browser/app_runtime_browser_context.h"
 #include "neva/app_runtime/browser/app_runtime_webview_controller_impl.h"
+#include "neva/app_runtime/browser/host_content_settings_map_factory.h"
 #include "neva/app_runtime/browser/browsing_data/browsing_data_remover.h"
 #include "neva/app_runtime/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "neva/app_runtime/public/mojom/app_runtime_webview.mojom.h"
@@ -64,6 +68,7 @@
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
+#include "third_party/blink/public/mojom/frame/find_in_page.mojom.h"
 #include "third_party/blink/public/mojom/renderer_preferences.mojom.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/events/keycodes/dom/dom_key.h"
@@ -906,8 +911,59 @@ void PageContents::RequestMediaAccessPermission(
   if (callback.is_null())
     return;
 
+  // Ask the dispatcher which devices would satisfy the request, but do not hand
+  // them to the page yet: the shell app gets to approve first. Everything needed
+  // for that round trip (media_access_requests_, AckPermission, the
+  // OnPermissionRequest delegate call and the "permissionrequest" event in the
+  // injection) was already here, but nothing ever started it, so getUserMedia
+  // resolved without the app ever being consulted and AckPermission could only
+  // ever log "Not found request".
   MediaCaptureDevicesDispatcher::GetInstance()->ProcessMediaAccessRequest(
-      web_contents, request, std::move(callback));
+      web_contents, request,
+      base::BindOnce(&PageContents::OnMediaAccessDevicesResolved,
+                     weak_ptr_factory_.GetWeakPtr(),
+                     GetMediaPermissionName(request), std::move(callback)));
+}
+
+void PageContents::OnMediaAccessDevicesResolved(
+    const std::string& permission,
+    content::MediaResponseCallback callback,
+    const blink::mojom::StreamDevicesSet& stream_devices_set,
+    blink::mojom::MediaStreamRequestResult result,
+    std::unique_ptr<content::MediaStreamUI> ui) {
+  // The dispatcher already turned the request down (no hardware, bad request,
+  // policy). There is nothing for the user to decide, so do not prompt.
+  if (result != blink::mojom::MediaStreamRequestResult::OK) {
+    std::move(callback).Run(stream_devices_set, result, std::move(ui));
+    return;
+  }
+
+  // Holding the devices while we wait means the answer is applied to exactly the
+  // set the dispatcher picked. The MediaStreamUI is dropped: it belongs to the
+  // browser UI this platform does not have, and AckPermission passes nullptr.
+  MediaAccessPermissionInfo info(stream_devices_set, std::move(callback));
+  // The id counter is bumped by the constructor above, so it now names this
+  // request. emplace, not operator[]: MediaAccessPermissionInfo declares a move
+  // constructor and a destructor, which suppresses the implicit move assignment
+  // that operator[] would need.
+  const uint64_t id = MediaAccessPermissionInfo::id;
+  media_access_requests_.emplace(id, std::move(info));
+  delegate_->OnPermissionRequest(permission, id);
+}
+
+// static
+std::string PageContents::GetMediaPermissionName(
+    const content::MediaStreamRequest& request) {
+  const bool audio = request.audio_type !=
+                     blink::mojom::MediaStreamType::NO_SERVICE;
+  const bool video = request.video_type !=
+                     blink::mojom::MediaStreamType::NO_SERVICE;
+  // These spellings match the ones the shell app already understands.
+  if (audio && video)
+    return "media";
+  if (video)
+    return "videoCapture";
+  return "audioCapture";
 }
 
 bool PageContents::CheckMediaAccessPermission(
@@ -924,6 +980,85 @@ void PageContents::OverrideWebkitPrefs(
       create_params_.allow_file_access_from_file_urls;
   web_prefs->allow_universal_access_from_file_urls =
       create_params_.allow_universal_access_from_file_urls;
+  web_prefs->javascript_enabled = javascript_enabled_;
+}
+
+void PageContents::SetEnableJavascript(bool enable) {
+  if (javascript_enabled_ == enable)
+    return;
+
+  javascript_enabled_ = enable;
+  if (!web_contents_)
+    return;
+
+  // OverrideWebkitPrefs is only consulted when the preferences are recomputed,
+  // so ask for that explicitly; without it the change would not reach the
+  // renderer until the next navigation.
+  web_contents_->NotifyPreferencesChanged();
+}
+
+void PageContents::SetAcceptCookies(bool accept) {
+  if (!web_contents_)
+    return;
+
+  // Go through the content settings map rather than pushing rules straight at
+  // the CookieManager: the map is the source of truth this build already keeps
+  // (see HostContentSettingsMapFactory), it propagates the change to the
+  // network stack itself, and a rule set behind its back would be overwritten
+  // the next time the map syncs. The setting is profile-wide because the shell
+  // exposes one switch, not a per-site UI.
+  HostContentSettingsMap* settings_map =
+      HostContentSettingsMapFactory::GetForBrowserContext(
+          web_contents_->GetBrowserContext());
+  if (!settings_map)
+    return;
+
+  settings_map->SetDefaultContentSetting(
+      ContentSettingsType::COOKIES,
+      accept ? CONTENT_SETTING_ALLOW : CONTENT_SETTING_BLOCK);
+}
+
+void PageContents::FindInPage(int request_id,
+                              const std::string& search_text,
+                              bool forward,
+                              bool match_case,
+                              bool find_next) {
+  if (!web_contents_)
+    return;
+
+  // An empty needle means "stop searching" — passing it through to Find would
+  // be treated as a malformed request.
+  if (search_text.empty()) {
+    StopFindInPage(true);
+    return;
+  }
+
+  auto options = blink::mojom::FindOptions::New();
+  options->forward = forward;
+  options->match_case = match_case;
+  options->new_session = !find_next;
+
+  web_contents_->Find(request_id, base::UTF8ToUTF16(search_text),
+                      std::move(options), false /* skip_delay */);
+}
+
+void PageContents::StopFindInPage(bool clear_selection) {
+  if (!web_contents_)
+    return;
+
+  web_contents_->StopFinding(clear_selection
+                                 ? content::STOP_FIND_ACTION_CLEAR_SELECTION
+                                 : content::STOP_FIND_ACTION_KEEP_SELECTION);
+}
+
+void PageContents::FindReply(content::WebContents* web_contents,
+                             int request_id,
+                             int number_of_matches,
+                             const gfx::Rect& selection_rect,
+                             int active_match_ordinal,
+                             bool final_update) {
+  delegate_->OnFoundInPage(request_id, active_match_ordinal, number_of_matches,
+                           final_update);
 }
 
 void PageContents::PrimaryMainFrameRenderProcessGone(

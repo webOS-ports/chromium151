@@ -195,6 +195,27 @@ void PageContentsImpl::ScrollByY(int y_shift) {
   page_contents_->ScrollByY(y_shift);
 }
 
+void PageContentsImpl::SetEnableJavascript(bool enable) {
+  page_contents_->SetEnableJavascript(enable);
+}
+
+void PageContentsImpl::SetAcceptCookies(bool accept) {
+  page_contents_->SetAcceptCookies(accept);
+}
+
+void PageContentsImpl::FindInPage(int32_t request_id,
+                                  const std::string& search_text,
+                                  bool forward,
+                                  bool match_case,
+                                  bool find_next) {
+  page_contents_->FindInPage(request_id, search_text, forward, match_case,
+                             find_next);
+}
+
+void PageContentsImpl::StopFindInPage(bool clear_selection) {
+  page_contents_->StopFindInPage(clear_selection);
+}
+
 void PageContentsImpl::SetAcceptedLanguages(const std::string& languages) {
   page_contents_->SetAcceptedLanguages(languages);
 }
@@ -436,6 +457,15 @@ void PageContentsImpl::OnPermissionRequest(const std::string& permission,
                                            uint64_t id) {
   if (remote_client_.is_bound())
     remote_client_->OnPermissionRequest(permission, id);
+}
+
+void PageContentsImpl::OnFoundInPage(int request_id,
+                                     int active_match_ordinal,
+                                     int number_of_matches,
+                                     bool final_update) {
+  if (remote_client_.is_bound())
+    remote_client_->OnFoundInPage(request_id, active_match_ordinal,
+                                  number_of_matches, final_update);
 }
 
 void PageContentsImpl::OnVisibleRegionCaptured(const std::string& base64_data) {

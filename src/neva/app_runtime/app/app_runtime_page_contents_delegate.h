@@ -116,6 +116,10 @@ class PageContentsDelegate {
   virtual void OnRendererUnresponsive();
   virtual void OnRendererResponsive();
   virtual void OnPermissionRequest(const std::string& permission, uint64_t id);
+  virtual void OnFoundInPage(int request_id,
+                             int active_match_ordinal,
+                             int number_of_matches,
+                             bool final_update);
   virtual void OnVisibleRegionCaptured(const std::string& base64_data);
   virtual void OnZoomFactorChanged(double zoom_factor);
   virtual bool RunJSDialog(const std::string& type, const std::string& message,

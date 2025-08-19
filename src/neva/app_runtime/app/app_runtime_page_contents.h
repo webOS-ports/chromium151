@@ -30,6 +30,7 @@
 #include "neva/app_runtime/app/app_runtime_js_dialog_manager_delegate.h"
 #include "neva/app_runtime/app/app_runtime_page_contents_delegate.h"
 #include "neva/app_runtime/browser/app_runtime_web_contents_delegate.h"
+#include "ui/gfx/geometry/rect.h"
 #include "neva/app_runtime/public/app_runtime_constants.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 #include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
@@ -133,6 +134,14 @@ class PageContents : public AppRuntimeWebContentsDelegate,
   void ResumeDOM();
   void ResumeMedia();
   void ScrollByY(int y_shift);
+  void SetEnableJavascript(bool enable);
+  void SetAcceptCookies(bool accept);
+  void FindInPage(int request_id,
+                  const std::string& search_text,
+                  bool forward,
+                  bool match_case,
+                  bool find_next);
+  void StopFindInPage(bool clear_selection);
   void SetAcceptedLanguages(std::string languages);
   void SetErrorPageHiding(bool enable);
   void SetFocus();
@@ -219,6 +228,12 @@ class PageContents : public AppRuntimeWebContentsDelegate,
                                   const GURL& security_origin,
                                   blink::mojom::MediaStreamType type) override;
   void OverrideWebkitPrefs(blink::web_pref::WebPreferences* prefs) override;
+  void FindReply(content::WebContents* web_contents,
+                 int request_id,
+                 int number_of_matches,
+                 const gfx::Rect& selection_rect,
+                 int active_match_ordinal,
+                 bool final_update) override;
 
   // JSDialogManagerDelegate
   bool RunJSDialog(const std::string& type,
@@ -243,6 +258,17 @@ class PageContents : public AppRuntimeWebContentsDelegate,
   void OnCaptureVisibleRegion(std::string base64);
   void OnZoomLevelChanged(const content::HostZoomMap::ZoomLevelChange& change);
 
+  // Second half of RequestMediaAccessPermission: the dispatcher has chosen the
+  // devices, now the shell app decides whether the page may have them.
+  void OnMediaAccessDevicesResolved(
+      const std::string& permission,
+      content::MediaResponseCallback callback,
+      const blink::mojom::StreamDevicesSet& stream_devices_set,
+      blink::mojom::MediaStreamRequestResult result,
+      std::unique_ptr<content::MediaStreamUI> ui);
+  static std::string GetMediaPermissionName(
+      const content::MediaStreamRequest& request);
+
   struct MediaAccessPermissionInfo {
     MediaAccessPermissionInfo();
     MediaAccessPermissionInfo(
@@ -256,6 +282,11 @@ class PageContents : public AppRuntimeWebContentsDelegate,
     content::MediaResponseCallback callback;
   };
   std::map<uint64_t, MediaAccessPermissionInfo> media_access_requests_;
+
+  // Mirrors WebPreferences::javascript_enabled, which is recomputed rather than
+  // stored, so the requested value has to be kept here and reapplied from
+  // OverrideWebkitPrefs. Defaults to enabled, matching the WebPreferences default.
+  bool javascript_enabled_ = true;
 
   CreateParams create_params_;
   const uint64_t id_ = 0;

@@ -79,6 +79,10 @@ class BrowserShellPageContents
   static char kResumeDOMMethodName[];
   static char kResumeMediaMethodName[];
   static char kScrollByYMethodName[];
+  static char kFindInPageMethodName[];
+  static char kStopFindInPageMethodName[];
+  static char kSetAcceptCookiesMethodName[];
+  static char kSetEnableJavascriptMethodName[];
   static char kSetAcceptedLanguagesMethodName[];
   static char kSetFocusMethodName[];
   static char kSetPageBaseBackgroundColorMethodName[];
@@ -177,6 +181,10 @@ class BrowserShellPageContents
   void OnRendererUnresponsive() override;
   void OnRendererResponsive() override;
   void OnPermissionRequest(const std::string& permission, uint64_t id) override;
+  void OnFoundInPage(int32_t request_id,
+                     int32_t active_match_ordinal,
+                     int32_t number_of_matches,
+                     bool final_update) override;
   void OnZoomFactorChanged(double zoom_factor) override;
   void RunJSDialog(const std::string& type, const std::string& message,
                    const std::string& default_prompt_text) override;
@@ -224,6 +232,10 @@ class BrowserShellPageContents
   void ResumeDOM();
   void ResumeMedia();
   void ScrollByY(int y_shift);
+  int FindInPage(gin::Arguments* args);
+  void StopFindInPage(gin::Arguments* args);
+  void SetAcceptCookies(bool accept);
+  void SetEnableJavascript(bool enable);
   void SetAcceptedLanguages(const std::string& languages);
   void SetErrorPageHiding(bool enable);
   void SetFocus();
@@ -251,6 +263,9 @@ class BrowserShellPageContents
   State state_;
   std::string url_string_;
   double zoom_factor_;
+  // Per-page-contents counter handed back by findInPage so the app can tell
+  // which search a "found-in-page" event belongs to.
+  int32_t find_request_id_ = 0;
 
   mojo::Remote<browser_shell::mojom::PageContents> remote_;
   mojo::AssociatedReceiver<browser_shell::mojom::PageContentsClient>
