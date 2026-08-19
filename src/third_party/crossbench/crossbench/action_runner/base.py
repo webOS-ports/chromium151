@@ -1,0 +1,709 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+from __future__ import annotations
+
+import contextlib
+import datetime as dt
+import logging
+import sys
+import time
+from typing import TYPE_CHECKING, Any, Callable, Final, Iterable, Iterator, \
+    Sequence, cast
+
+from crossbench import exception
+from crossbench.action_runner.action_runner_listener import \
+    ActionRunnerListener
+from crossbench.action_runner.bond_action_runner import BondActionRunner
+from crossbench.action_runner.element_not_found_error import \
+    ElementNotFoundError
+from crossbench.benchmarks.loading.input_source import InputSource
+from crossbench.browsers.chromium.devtools import \
+    DevToolsInBrowserClient as DevToolsClient
+from crossbench.cli import ui
+from crossbench.probes.screenshot import ScreenshotProbe, \
+    ScreenshotProbeContext
+from crossbench.runner.probe_context_lookup_error import \
+    ProbeContextLookupError
+
+if TYPE_CHECKING:
+  from crossbench.action_runner.action import all as i_action
+  from crossbench.action_runner.action.base_probe import BaseProbeAction
+  from crossbench.action_runner.screenshot_annotation import \
+      ScreenshotAnnotation
+  from crossbench.benchmarks.loading.config.pages import ActionBlock
+  from crossbench.benchmarks.loading.page.base import Page
+  from crossbench.benchmarks.loading.page.combined import CombinedPage
+  from crossbench.benchmarks.loading.page.interactive import InteractivePage
+  from crossbench.benchmarks.loading.tab_controller import TabController
+  from crossbench.browsers.browser import Browser
+  from crossbench.plt.base import Platform
+  from crossbench.runner.actions import Actions
+  from crossbench.runner.run import Run
+
+
+class ActionNotImplementedError(NotImplementedError):
+
+  def __init__(
+      self,
+      runner: ActionRunner,
+      action: i_action.Action,
+      msg_context: str = "",
+  ) -> None:
+    self.runner = runner
+    self.action = action
+
+    if msg_context:
+      msg_context = f", context: {msg_context}"
+    message = (f"{action.TYPE!s}-action "
+               f"not implemented in {type(runner).__name__}{msg_context}")
+    super().__init__(message)
+
+
+class InputSourceNotImplementedError(ActionNotImplementedError):
+
+  def __init__(
+      self,
+      runner: ActionRunner,
+      action: i_action.Action,
+      input_source: InputSource,
+      msg_context: str = "",
+  ) -> None:
+    if msg_context:
+      msg_context = f", context: {msg_context}"
+    input_source_message = (
+        f"Source {input_source!r} not implemented{msg_context}")
+    super().__init__(runner, action, input_source_message)
+
+
+class ActionRunner:
+  """Default action runner that uses JavaScript for most page interactions."""
+
+  XPATH_SELECT_ELEMENT: Final[str] = """
+      let elements = [];
+      let xpathResult = document.evaluate(arguments[0], document);
+      let currentElement = xpathResult.iterateNext();
+      let element = currentElement;
+      while (currentElement) {
+        elements.push(currentElement);
+        currentElement = xpathResult.iterateNext();
+      }
+  """
+
+  CSS_SELECT_ELEMENT: Final[str] = """
+      let elements = document.querySelectorAll(arguments[0]);
+      let element = elements[0];
+  """
+
+  CHECK_ELEMENT_EXISTS: Final[str] = """
+      if (!element) return 0;
+  """
+
+  ELEMENT_SCROLL_INTO_VIEW: Final[str] = """
+      element.scrollIntoView({ block: 'nearest' });
+  """
+
+  CHECK_ELEMENT_RECT: Final[str] = """
+      const rect = element.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return 0;
+  """
+
+  ELEMENT_CLICK: Final[str] = """
+      element.click();
+  """
+
+  RETURN_SUCCESS: Final[str] = """
+      return elements.length;
+  """
+
+  SELECT_WINDOW: Final[str] = """
+      let elements = [window];
+      let element = window;
+  """
+
+  SCROLL_ELEMENT_TO: Final[str] = """
+      element.scrollTo({top:arguments[1], behavior:'smooth'});
+  """
+
+  GET_CURRENT_SCROLL_POSITION: Final[str] = """
+      if (!element) return [0, 0];
+      return [elements.length, element[arguments[1]]];
+  """
+
+  _bond: BondActionRunner | None = None
+
+  def __init__(self, run: Run, step_by_step_mode: bool = False) -> None:
+    self._run = run
+    self._listener = ActionRunnerListener()
+    # TODO: Don't share state across runs
+    self._info_stack: exception.TInfoStack | None = None
+    self._step_by_step_mode = step_by_step_mode
+    self._failure_screenshot_annotations: list[ScreenshotAnnotation] = []
+
+  @property
+  def run(self) -> Run:
+    return self._run
+
+  @run.setter
+  def run(self, value: Run) -> None:
+    self._run = value
+
+  @property
+  def browser(self) -> Browser:
+    return self.run.browser
+
+  @property
+  def host_platform(self) -> Platform:
+    return self.run.host_platform
+
+  @property
+  def browser_platform(self) -> Platform:
+    return self.run.browser_platform
+
+  def actions(self,
+              name: str,
+              verbose: bool = False,
+              measure: bool = True) -> Actions:
+    return self.run.actions(name, verbose=verbose, measure=measure)
+
+  def set_listener(self, listener: ActionRunnerListener) -> None:
+    self._listener = listener
+
+  # info_stack is a unique identifier for the currently running or most recently
+  # run action.
+  @property
+  def info_stack(self) -> exception.TInfoStack:
+    if not self._info_stack:
+      raise RuntimeError("info_stack can not be called before run_blocks")
+    return self._info_stack
+
+  @property
+  def bond(self) -> BondActionRunner:
+    if not self._bond:
+      self._bond = BondActionRunner(self, self.run)
+    return self._bond
+
+  def teardown(self) -> None:
+    if self._bond:
+      self._bond.teardown()
+
+  def get_selector_script(
+      self,
+      selector: str,
+      check_element_exists: bool = False,
+      scroll_into_view: bool = False,
+      check_element_rect: bool = False,
+      click: bool = False,
+      return_on_success: bool = False,
+  ) -> tuple[str, str]:
+    # TODO: support more selector types
+    script: str = ""
+
+    prefix = "xpath/"
+    if selector.startswith(prefix):
+      selector = selector[len(prefix):]
+      script = self.XPATH_SELECT_ELEMENT
+    else:
+      script = self.CSS_SELECT_ELEMENT
+
+    if check_element_exists:
+      script += self.CHECK_ELEMENT_EXISTS
+
+    if scroll_into_view:
+      script += self.ELEMENT_SCROLL_INTO_VIEW
+
+    if check_element_rect:
+      script += self.CHECK_ELEMENT_RECT
+
+    if click:
+      script += self.ELEMENT_CLICK
+
+    if return_on_success:
+      script += self.RETURN_SUCCESS
+
+    return selector, script
+
+  def run_blocks(self, run: Run, page: InteractivePage,
+                 blocks: Iterable[ActionBlock]) -> None:
+    for block in blocks:
+      block.run_with(self, run, page)
+
+  def run_block(self, run: Run, block: ActionBlock) -> None:
+    block_index = block.index
+    # TODO: Instead maybe just pass context down.
+    # Or pass unique path to every action __init__
+    with exception.annotate(f"block {block_index}: {block.label}"):
+      with self._info_stack_annotate(f"block_{block_index}"):
+        for action_index, action in enumerate(block, start=1):
+          with self._info_stack_annotate(f"action_{action_index}"):
+            with exception.annotate(f"action {action_index}: {action!s}"):
+              self._run_action_step(run, action)
+
+  def _run_action_step(self, run: Run, action: i_action.Action) -> None:
+    if self._step_by_step_mode:
+      logging.critical("[STEP-BY-STEP MODE] Next step: %s", action.to_json())
+      ui.prompt("[STEP-BY-STEP MODE] Press Enter to continue")
+    self._failure_screenshot_annotations = []
+    self.run_action(run, action)
+
+  def run_action(self, run: Run, action: i_action.Action) -> None:
+    message: str = action.TYPE.name
+    with run.exceptions.annotate(message):
+      sys.stdout.write(f"   {message.ljust(30)}\r")
+      action.run_with(self)
+
+  def wait(self, action: i_action.WaitAction) -> None:
+    with self.actions("WaitAction", measure=False) as actions:
+      actions.wait(action.duration)
+
+  def js(self, action: i_action.JsAction) -> None:
+    with self.actions("JS", measure=False) as actions:
+      actions.js(action.script, action.timeout)
+
+  def click(self, action: i_action.ClickAction) -> None:
+    input_source = action.input_source
+    if input_source is InputSource.JS:
+      do_click = self.click_js
+    elif input_source is InputSource.TOUCH:
+      do_click = self.click_touch
+    elif input_source is InputSource.MOUSE:
+      do_click = self.click_mouse
+    elif input_source is InputSource.DRIVER:
+      do_click = self.click_driver
+    else:
+      raise RuntimeError(f"Unsupported input source: '{input_source}'")
+
+    for i in range(action.attempts):
+      try:
+        do_click(action)
+        return
+      except Exception as e:
+        if i + 1 < action.attempts:
+          logging.warning("Click failed with %d attempts left: %s",
+                          action.attempts - i, e)
+          continue
+        raise e
+
+  def scroll(self, action: i_action.ScrollAction) -> None:
+    input_source = action.input_source
+    if input_source is InputSource.JS:
+      self.scroll_js(action)
+    elif input_source is InputSource.TOUCH:
+      self.scroll_touch(action)
+    elif input_source is InputSource.MOUSE:
+      self.scroll_mouse(action)
+    else:
+      raise RuntimeError(f"Unsupported input source: '{input_source}'")
+
+  def get(self, action: i_action.GetAction) -> None:
+    with self.actions(f"Get {action.url}", measure=False) as actions:
+      with actions.wait_until(action.duration):
+        actions.show_url(action.url, action.target, action.ready_state,
+                         action.timeout)
+
+  def clear_cache(self, action: i_action.ClearCacheAction) -> None:
+    del action
+    with self.actions("ClearCacheAction", measure=False):
+      self.browser.clear_cache()
+
+  def text_input(self, action: i_action.TextInputAction) -> None:
+    input_source = action.input_source
+    if input_source is InputSource.KEYBOARD:
+      self.text_input_keyboard(action)
+    elif input_source is InputSource.JS and not action.keyevent:
+      self.text_input_js(action)
+    else:
+      raise RuntimeError(f"Unsupported input source: '{input_source}'")
+
+  def click_js(self, action: i_action.ClickAction) -> None:
+    if action.duration > dt.timedelta():
+      raise InputSourceNotImplementedError(
+          self,
+          action,
+          action.input_source,
+          "Non-zero duration not implemented",
+      )
+    selector_config = action.position.selector
+    if not selector_config:
+      raise RuntimeError("Missing selector")
+
+    selector, script = self.get_selector_script(
+        selector_config.selector,
+        check_element_exists=True,
+        scroll_into_view=selector_config.scroll_into_view,
+        click=True,
+        return_on_success=True,
+    )
+
+    with self.actions("ClickAction", measure=False) as actions:
+      if selector_config.wait:
+        self.wait_for_element_impl(
+            actions,
+            selector=selector_config.selector,
+            timeout=action.timeout,
+            required=selector_config.required,
+        )
+      if (not actions.js(script, arguments=[selector]) and
+          selector_config.required):
+        raise ElementNotFoundError(selector)
+
+      if action.verify:
+        self.wait_for_element_impl(
+            actions, selector=action.verify, timeout=action.timeout)
+
+  def click_touch(self, action: i_action.ClickAction) -> None:
+    raise InputSourceNotImplementedError(self, action, action.input_source)
+
+  def click_mouse(self, action: i_action.ClickAction) -> None:
+    raise InputSourceNotImplementedError(self, action, action.input_source)
+
+  def click_driver(self, action: i_action.ClickAction) -> None:
+    if action.duration > dt.timedelta():
+      raise InputSourceNotImplementedError(self, action, action.input_source,
+                                           "Non-zero duration not implemented")
+    selector_config = action.position.selector
+    if not selector_config:
+      raise RuntimeError("Missing selector")
+
+    with self.actions("ClickAction (Driver)", measure=False) as actions:
+      if selector_config.wait:
+        self.wait_for_element_impl(
+            actions,
+            selector=selector_config.selector,
+            timeout=action.timeout,
+            required=selector_config.required)
+
+      self.browser.trusted_click(selector_config.selector)
+
+      if action.verify:
+        self.wait_for_element_impl(
+            actions, selector=action.verify, timeout=action.timeout)
+  def scroll_js(self, action: i_action.ScrollAction) -> None:
+    with self.actions("ScrollAction", measure=False) as actions:
+      selector = ""
+      selector_script = self.SELECT_WINDOW
+
+      if action.selector:
+        selector, selector_script = self.get_selector_script(action.selector)
+
+      current_scroll_position_script = (
+          selector_script + self.GET_CURRENT_SCROLL_POSITION)
+
+      found_element, initial_scroll_y = actions.js(
+          current_scroll_position_script,
+          arguments=[
+              selector,
+              self._get_scroll_field(bool(action.selector)),
+          ],
+      )
+
+      if not found_element:
+        if action.required:
+          raise ElementNotFoundError(selector)
+        return
+
+      do_scroll_script = selector_script + self.SCROLL_ELEMENT_TO
+
+      duration_s = action.duration.total_seconds()
+      distance = action.distance
+
+      start_time = time.time()
+      # TODO: use the chrome.gpuBenchmarking.smoothScrollBy extension
+      # if available.
+      while True:
+        time_delta = time.time() - start_time
+        if time_delta >= duration_s:
+          break
+        scroll_y = initial_scroll_y + time_delta / duration_s * distance
+        actions.js(do_scroll_script, arguments=[selector, scroll_y])
+        actions.wait(0.2)
+      scroll_y = initial_scroll_y + distance
+      actions.js(do_scroll_script, arguments=[selector, scroll_y])
+
+  def scroll_touch(self, action: i_action.ScrollAction) -> None:
+    raise InputSourceNotImplementedError(self, action, action.input_source)
+
+  def scroll_mouse(self, action: i_action.ScrollAction) -> None:
+    raise InputSourceNotImplementedError(self, action, action.input_source)
+
+  def text_input_js(self, action: i_action.TextInputAction) -> None:
+    with self.actions("TextInput", measure=False) as actions:
+      if text := action.text:
+        actions.js(
+            "document.activeElement.value = arguments[0]", arguments=[text])
+      else:
+        raise InputSourceNotImplementedError(self, action, action.input_source)
+
+  def text_input_keyboard(self, action: i_action.TextInputAction) -> None:
+    raise InputSourceNotImplementedError(self, action, action.input_source)
+
+  def swipe(self, action: i_action.SwipeAction) -> None:
+    raise ActionNotImplementedError(self, action)
+
+  def wait_for_condition(self, action: i_action.WaitForConditionAction) -> None:
+    with self.actions("WaitForConditionAction", measure=False) as actions:
+      actions.wait_js_condition(
+          action.condition, min_interval=0.1, timeout=action.timeout)
+
+  def wait_for_element_impl(
+      self,
+      actions: Actions,
+      selector: str,
+      timeout: dt.timedelta,
+      expected_count: int = 1,
+      or_more: bool = False,
+      scroll_into_view: bool = False,
+      check_element_rect: bool = False,
+      required: bool = True,
+  ) -> None:
+    selector, selector_script = self.get_selector_script(
+        selector=selector,
+        check_element_exists=True,
+        scroll_into_view=scroll_into_view,
+        check_element_rect=check_element_rect,
+        return_on_success=True,
+    )
+
+    # TODO: if check_element_rect, we should wait for the position to be the
+    # same
+
+    def _exact_match(js_result: int) -> bool:
+      return js_result == expected_count
+
+    def _or_more_match(js_result: int) -> bool:
+      return js_result >= expected_count
+
+    success_condition = _exact_match
+
+    if or_more:
+      success_condition = _or_more_match
+
+    try:
+      actions.wait_js_condition(
+          selector_script,
+          min_interval=0.2,
+          timeout=timeout,
+          arguments=(selector,),
+          success_condition=success_condition,
+      )
+    except (TimeoutError, ValueError) as e:
+      if required:
+        raise
+      logging.debug("Element %s not found: %s", selector, e)
+
+  def wait_for_element(self, action: i_action.WaitForElementAction) -> None:
+    with self.actions("WaitForElementAction", measure=False) as actions:
+      self.wait_for_element_impl(
+          actions=actions,
+          selector=action.selector,
+          expected_count=action.expected_count,
+          or_more=action.or_more,
+          timeout=action.timeout,
+          check_element_rect=action.check_rect,
+      )
+
+  def wait_for_ready_state(self,
+                           action: i_action.WaitForReadyStateAction) -> None:
+    with self.actions(
+        f"Wait for ready state {action.ready_state}", measure=False) as actions:
+      actions.wait_for_ready_state(action.ready_state, action.timeout)
+
+  def inject_new_document_script(
+      self, action: i_action.InjectNewDocumentScriptAction) -> None:
+    self.browser.run_script_on_new_document(action.script)
+
+  def invoke_probe(self, action: BaseProbeAction) -> None:
+    ctx = self.run.get_probe_context(action.probe_cls)
+    if ctx is None:
+      raise ProbeContextLookupError(action.probe_cls)
+
+    with self.actions(f"Invoke Probe ({action.probe_cls.NAME})", measure=False):
+      ctx.invoke(
+          info_stack=self.info_stack, timeout=action.timeout, **action.kwargs)
+
+  def open_devtools(self, action: i_action.OpenDevToolsAction) -> None:
+    logging.info("Opening DevTools panel '%s'...", action.panel_name)
+    DevToolsClient().open_frontend(self.browser, action.panel_name)
+
+  def screenshot_impl(
+      self,
+      run: Run,
+      suffix: str,
+      annotations: Sequence[ScreenshotAnnotation] | None = None,
+  ) -> None:
+    ctx = run.get_probe_context(ScreenshotProbe)
+    if not ctx:
+      logging.debug("No screenshot probe for screenshot on %s",
+                    repr(self.info_stack))
+      return
+    assert isinstance(ctx, ScreenshotProbeContext)
+    ctx.screenshot("_".join(self.info_stack) + f"_{suffix}", annotations)
+
+  def add_failure_screenshot_annotation(
+      self, annotation: ScreenshotAnnotation) -> None:
+    self._failure_screenshot_annotations.append(annotation)
+
+  def failure_screenshot(self, run: Run, suffix: str) -> None:
+    self.screenshot_impl(run, suffix, self._failure_screenshot_annotations)
+
+  def _maybe_navigate_to_about_blank(self, run: Run, page: Page) -> None:
+    if duration := page.about_blank_duration:
+      run.browser.show_url("about:blank")
+      run.runner.wait(duration)
+
+  def run_page_multiple_tabs(self, run: Run, tabs: TabController,
+                             pages: Iterable[Page]) -> None:
+    # TODO: refactor possible logics to TabController.
+    browser = run.browser
+    for _ in tabs:
+      try:
+        for i, page in enumerate(pages):
+          # Create a new tab for the multiple_tab case.
+          if i > 0:
+            browser.switch_to_new_tab()
+            self._listener.handle_new_tab(run)
+          page.run_with(run, self, False)
+          self._listener.handle_page_run(run)
+        browser.switch_to_new_tab()
+        self._listener.handle_new_tab(run)
+      except Exception as e:
+        self._listener.handle_error(run, e)
+        raise
+
+  def run_combined_page(self, run: Run, page: CombinedPage,
+                        multiple_tabs: bool) -> None:
+    if multiple_tabs:
+      self.run_page_multiple_tabs(run, page.tabs, page.pages)
+    else:
+      for sub_page in page.pages:
+        sub_page.run_with(run, self, False)
+
+  def run_interactive_page_once(self, run: Run, page: InteractivePage) -> None:
+    try:
+      self.run_blocks(run, page, page.blocks)
+      self._maybe_navigate_to_about_blank(run, page)
+    except Exception:
+      page.create_failure_artifacts(run)
+      raise
+
+  def run_interactive_page(self, run: Run, page: InteractivePage,
+                           multiple_tabs: bool) -> None:
+    if multiple_tabs:
+      self.run_page_multiple_tabs(run, page.tabs, [page])
+    else:
+      self.run_interactive_page_once(run, page)
+
+  def run_login(self, run: Run, page: InteractivePage,
+                login: ActionBlock) -> None:
+    with self._management_block_scope(run, page, "login"):
+      with run.browser.network.traffic_shaper.pause():
+        login.run_with(self, run, page)
+
+  def run_setup(self, run: Run, page: InteractivePage,
+                setup: ActionBlock) -> None:
+    with self._management_block_scope(run, page, "setup"):
+      setup.run_with(self, run, page)
+
+  def run_teardown(self, run: Run, page: InteractivePage,
+                   teardown: ActionBlock) -> None:
+    with self._management_block_scope(run, page, "teardown"):
+      teardown.run_with(self, run, page)
+
+  @contextlib.contextmanager
+  def playback_iteration(self, i: int) -> Iterator[None]:
+    assert self._info_stack is None, (
+        f"Got unexpected info stack {self._info_stack}")
+    with self._info_stack_annotate(f"playback_{i}"):
+      yield
+
+  @contextlib.contextmanager
+  def _info_stack_annotate(self, name: str) -> Iterator[None]:
+    parent_info_stack = self._info_stack
+    try:
+      if self._info_stack is not None:
+        self._info_stack = (*self._info_stack, name)
+      else:
+        self._info_stack = (name,)
+      yield
+    finally:
+      self._info_stack = parent_info_stack
+
+  @contextlib.contextmanager
+  def _management_block_scope(self, run: Run, page: InteractivePage,
+                              name: str) -> Iterator[None]:
+    try:
+      with exception.annotate(name):
+        with self._info_stack_annotate(name):
+          yield
+    except Exception:
+      page.create_failure_artifacts(run, "failure")
+      raise
+
+  def switch_tab(self, action: i_action.SwitchTabAction) -> None:
+    with self.actions("SwitchTabAction", measure=False):
+      self.browser.switch_tab(
+          action.title,
+          action.url,
+          action.tab_index,
+          action.relative_tab_index,
+          action.timeout,
+      )
+
+  def close_tab(self, action: i_action.CloseTabAction) -> None:
+    with self.actions("CloseTabAction", measure=False):
+      self.browser.close_tab(
+          action.title,
+          action.url,
+          action.tab_index,
+          action.relative_tab_index,
+          action.timeout,
+      )
+
+  def close_all_tabs(self, action: i_action.CloseAllTabsAction) -> None:
+    del action
+    with self.actions("CloseAllTabsAction", measure=False):
+      self.browser.close_all_tabs()
+
+  def _get_scroll_field(self, has_selector: bool) -> str:
+    if has_selector:
+      return "scrollTop"
+    return "scrollY"
+
+  def _rate_limit_keystrokes(
+      self,
+      action: i_action.TextInputAction,
+      do_type_function: Callable[[Actions, str], Any],
+  ) -> None:
+    action_text = cast(str, action.text)
+    character_delay_s = (action.duration / len(action_text)).total_seconds()
+    start_time = time.time()
+    action_expected_end_time = start_time + action.duration.total_seconds()
+
+    with self.actions("TextInput", measure=False) as actions:
+      # When no duration is specified, input the entire text at once.
+      if action.duration == dt.timedelta():
+        do_type_function(actions, action_text)
+        return
+
+      character_expected_end_time = start_time
+
+      for character in action_text:
+        character_expected_end_time += character_delay_s
+
+        do_type_function(actions, character)
+
+        expected_end_delta = character_expected_end_time - time.time()
+
+        if expected_end_delta > 0:
+          actions.wait(expected_end_delta)
+
+      overrun_time = time.time() - action_expected_end_time
+
+      # There will always be a slight overrun due to the overhead of the final
+      # actions.wait() call, but that is acceptable. Check if the overrun was
+      # significant.
+      if overrun_time > 0.01:
+        logging.warning(
+            "text_input action is behind schedule! Consider extending this "
+            "action's duration otherwise the action may timeout.")

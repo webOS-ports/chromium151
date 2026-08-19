@@ -1,0 +1,97 @@
+// Copyright 2023 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import {assert} from 'chai';
+import sinon from 'sinon';
+
+import type * as Platform from '../../core/platform/platform.js';
+import * as SDK from '../../core/sdk/sdk.js';
+import type * as Protocol from '../../generated/protocol.js';
+import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
+import {createTarget, stubNoopSettings} from '../../testing/EnvironmentHelpers.js';
+import {describeWithMockConnection, setMockConnectionResponseHandler} from '../../testing/MockConnection.js';
+import * as UI from '../../ui/legacy/legacy.js';
+
+import * as Accessibility from './accessibility.js';
+
+const NODE_ID = 1 as Protocol.DOM.NodeId;
+
+describeWithMockConnection('AccessibilitySidebarView', () => {
+  let target: SDK.Target.Target;
+  let view: Accessibility.AccessibilitySidebarView.AccessibilitySidebarView;
+
+  beforeEach(() => {
+    stubNoopSettings();
+    UI.ActionRegistration.maybeRemoveActionExtension('elements.toggle-a11y-tree');
+    UI.ActionRegistration.registerActionExtension({
+      actionId: 'elements.toggle-a11y-tree',
+      category: UI.ActionRegistration.ActionCategory.ELEMENTS,
+      title: () => 'Toggle Accessibility Tree' as Platform.UIString.LocalizedString,
+      toggleable: true,
+    });
+    target = createTarget();
+    setMockConnectionResponseHandler(
+        'DOM.getDocument', () => ({root: {nodeId: NODE_ID}} as Protocol.DOM.GetDocumentResponse));
+    setMockConnectionResponseHandler('DOM.getNodesForSubtreeByStyle', () => ({nodeIds: []}));
+  });
+
+  afterEach(() => {
+    UI.ActionRegistration.maybeRemoveActionExtension('elements.toggle-a11y-tree');
+    view.detach();
+  });
+
+  it('notifies ViewManager when visibility is toggled', async () => {
+    view = Accessibility.AccessibilitySidebarView.AccessibilitySidebarView.instance({forceNew: true});
+    renderElementIntoDOM(view);
+    const viewManager = UI.ViewManager.ViewManager.instance();
+    const visibilitySpy = sinon.spy();
+    viewManager.addEventListener(UI.ViewManager.Events.VIEW_VISIBILITY_CHANGED, visibilitySpy);
+
+    const action = UI.ActionRegistry.ActionRegistry.instance().getAction('elements.toggle-a11y-tree');
+    action.setToggled(true);
+
+    sinon.assert.calledWith(visibilitySpy, sinon.match({data: sinon.match({revealedViewId: 'aria-attributes'})}));
+
+    action.setToggled(false);
+
+    sinon.assert.calledWith(visibilitySpy, sinon.match({data: sinon.match({hiddenViewId: 'aria-attributes'})}));
+  });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatesUiOnEvent = (event: any, inScope: boolean) => async () => {
+    SDK.TargetManager.TargetManager.instance().setScopeTarget(inScope ? target : null);
+    const domModel = target.model(SDK.DOMModel.DOMModel);
+    assert.exists(domModel);
+    const accessibilityModel = target.model(SDK.AccessibilityModel.AccessibilityModel);
+    assert.exists(accessibilityModel);
+    const requestPartialAXTree = sinon.stub(accessibilityModel, 'requestPartialAXTree');
+    requestPartialAXTree.resolves();
+    const node = new SDK.DOMModel.DOMNode(domModel);
+
+    view = Accessibility.AccessibilitySidebarView.AccessibilitySidebarView.instance({forceNew: true});
+    renderElementIntoDOM(view);
+    view.setNode(node);
+    await view.updateComplete;
+
+    requestPartialAXTree.resetHistory();
+    domModel.dispatchEventToListeners(event, {node});
+    await view.updateComplete;
+    assert.strictEqual(requestPartialAXTree.called, inScope);
+  };
+
+  it('updates UI on in scope attribute modified event', updatesUiOnEvent(SDK.DOMModel.Events.AttrModified, true));
+  it('does not update UI on out of scope attribute modified event',
+     updatesUiOnEvent(SDK.DOMModel.Events.AttrModified, false));
+  it('updates UI on in scope attribute removed event', updatesUiOnEvent(SDK.DOMModel.Events.AttrRemoved, true));
+  it('does not update UI on out of scope attribute removed event',
+     updatesUiOnEvent(SDK.DOMModel.Events.AttrRemoved, false));
+  it('updates UI on in scope charachter data modified event',
+     updatesUiOnEvent(SDK.DOMModel.Events.CharacterDataModified, true));
+  it('does not update UI on out of scope charachter data modified event',
+     updatesUiOnEvent(SDK.DOMModel.Events.CharacterDataModified, false));
+  it('updates UI on in scope child node count updated event',
+     updatesUiOnEvent(SDK.DOMModel.Events.ChildNodeCountUpdated, true));
+  it('does not update UI on out of scope child node count updated event',
+     updatesUiOnEvent(SDK.DOMModel.Events.ChildNodeCountUpdated, false));
+});

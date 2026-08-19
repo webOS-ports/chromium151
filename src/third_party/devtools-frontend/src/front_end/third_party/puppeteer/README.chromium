@@ -1,0 +1,19 @@
+Name: Puppeteer Core
+Short Name: Puppeteer Core
+URL: https://github.com/puppeteer/puppeteer/tree/main/packages/puppeteer-core
+Version: 25.2.1
+License: Apache-2.0
+License File: LICENSE
+Revision: 4a56c699e50f0cd5ff87dd10e43f7defaf3d95a0
+Security Critical: no
+Shipped: yes
+Update Mechanism: Autoroll
+
+Description:
+Puppeteer is a Node library which provides a high-level API to control Chrome or Chromium over the DevTools Protocol.
+
+To update this package, run:
+
+```bash
+python3 scripts/deps/roll_front_end_third_party.py puppeteer-core puppeteer lib
+```

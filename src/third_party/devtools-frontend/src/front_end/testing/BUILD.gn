@@ -1,0 +1,129 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("../../scripts/build/ninja/copy.gni")
+import("../../scripts/build/typescript/typescript.gni")
+
+ts_library("testing") {
+  testonly = true
+
+  sources = [
+    "AiAssistanceHelpers.ts",
+    "ConsoleHelpers.ts",
+    "ConsoleInsightHelpers.ts",
+    "ContextMenuHelpers.ts",
+    "Cookies.ts",
+    "DOMHelpers.ts",
+    "DOMHooks.ts",
+    "DataGridHelpers.ts",
+    "EnvironmentHelpers.ts",
+    "ExpectStubCall.ts",
+    "ExtensionHelpers.ts",
+    "FileManagerHelpers.ts",
+    "InsightHelpers.ts",
+    "LanguagePluginHelpers.ts",
+    "LocaleHelpers.ts",
+    "MockCDPConnection.ts",
+    "MockConnection.ts",
+    "MockExecutionContext.ts",
+    "MockIssuesManager.ts",
+    "MockIssuesModel.ts",
+    "MockNetworkLog.ts",
+    "MockScopeChain.ts",
+    "MutationHelpers.ts",
+    "NetworkHelpers.ts",
+    "OverridesHelpers.ts",
+    "PersistenceHelpers.ts",
+    "PropertyParser.ts",
+    "ResourceHelpers.ts",
+    "ResourceTreeHelpers.ts",
+    "RuntimeHelpers.ts",
+    "SettingsHelpers.ts",
+    "SnapshotTester.ts",
+    "SourceMapEncoder.ts",
+    "SourceMapHelpers.ts",
+    "StackTraceHelpers.ts",
+    "StorageItemsViewHelpers.ts",
+    "StubIssue.ts",
+    "StyleHelpers.ts",
+    "TargetHelpers.ts",
+    "TestUniverse.ts",
+    "TraceHelpers.ts",
+    "TraceLoader.ts",
+    "TrackAsyncOperations.ts",
+    "UISourceCodeHelpers.ts",
+    "UserMetricsHelpers.ts",
+    "ViewFunctionHelpers.ts",
+    "VisualLoggingHelpers.ts",
+    "test_setup.ts",
+  ]
+
+  data_deps = [ "../core/i18n/locales" ]
+
+  deps = [
+    "../../extension-api",
+    "../core/common:bundle",
+    "../core/host:bundle",
+    "../core/i18n:bundle",
+    "../core/platform:bundle",
+    "../core/protocol_client:bundle",
+    "../core/root:bundle",
+    "../core/sdk:bundle",
+    "../foundation:bundle",
+    "../generated",
+    "../generated:protocol",
+    "../models/bindings:bundle",
+    "../models/breakpoints:bundle",
+    "../models/cpu_profile:bundle",
+    "../models/extensions:bundle",
+    "../models/formatter:bundle",
+    "../models/issues_manager:bundle",
+    "../models/logs:bundle",
+    "../models/persistence:bundle",
+    "../models/project_settings:bundle",
+    "../models/stack_trace:bundle",
+    "../models/text_utils:bundle",
+    "../models/trace:bundle",
+    "../models/trace_source_maps_resolver:bundle",
+    "../models/workspace:bundle",
+    "../models/workspace_diff:bundle",
+    "../panels/ai_assistance:bundle",
+    "../panels/common:bundle",
+    "../panels/console:bundle",
+    "../panels/explain:bundle",
+    "../panels/network:bundle",
+    "../panels/timeline:bundle",
+    "../services/trace_bounds:bundle",
+    "../third_party/codemirror.next:bundle",
+    "../ui/components/buttons:bundle",
+    "../ui/components/node_text:bundle",
+    "../ui/components/render_coordinator:bundle",
+    "../ui/legacy:bundle",
+    "../ui/legacy/components/data_grid:bundle",
+    "../ui/legacy/components/perf_ui:bundle",
+    "../ui/legacy/components/utils:bundle",
+    "../ui/legacy/theme_support:bundle",
+    "../ui/lit:bundle",
+    "../ui/visual_logging:testing",
+  ]
+}
+
+ts_library("unittests") {
+  testonly = true
+
+  sources = [
+    "MockCDPConnection.test.ts",
+    "MockScopeChain.test.ts",
+    "MutationHelpers.test.ts",
+    "SnapshotTester.test.ts",
+    "SourceMapEncoder.test.ts",
+  ]
+
+  deps = [
+    ":testing",
+    "../core/protocol_client:bundle",
+    "../generated",
+    "../ui/lit:bundle",
+  ]
+}
