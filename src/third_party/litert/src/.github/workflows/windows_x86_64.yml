@@ -1,0 +1,190 @@
+name: "windows_x86_64"
+on:
+  push:
+    tags:
+    - v*..
+  pull_request:
+    branches:
+    - main
+  schedule:
+    - cron: "0 10 * * *"  # Run at 2am PST (10am UTC) every day to refresh the cache.
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      REFRESH_CACHE:
+        description: 'Refresh cache to remove unused files'
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  presubmit:
+    name: "Presubmit-Win"
+    runs-on: windows-x86-n2-16
+    permissions:
+      actions: write  # For gh cache delete.
+      contents: read
+    env:
+      # Clear ANDROID_NDK_HOME as windows-latest has NDK where jobs don't have permission for
+      # androidndk rulesto create symlinks.
+      ANDROID_NDK_HOME:
+      LITERT_MODELS: ""
+      GH_TOKEN: ${{ github.token }}
+      REFRESH_CACHE: ${{ github.event_name == 'schedule' ||
+                         (github.event_name == 'workflow_dispatch' && inputs.REFRESH_CACHE) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Add GNU tar to PATH
+        shell: bash
+        run: echo "C:/Program Files/Git/usr/bin" >> $GITHUB_PATH
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure tensorflow & python path
+        run: |
+          $env:PYTHON_BIN_PATH = (Get-Command python).Source
+          $env:PYTHON_LIB_PATH = (python -c 'import site; print(site.getsitepackages()[0])')
+          $env:TF_NEED_ROCM = 0
+          $env:TF_NEED_CUDA = 0
+          $env:TF_SET_ANDROID_WORKSPACE = 0
+          $env:CC_OPT_FLAGS = '-Wno-sign-compare'
+          python configure.py
+      - name : Set up cache keys and bazel output base.
+        id: cache-keys
+        run: |
+          $CACHE_RESTORE_KEY_2="${{ github.workflow }}"
+          $CACHE_RESTORE_KEY_1="$CACHE_RESTORE_KEY_2-${{ hashFiles('**/WORKSPACE', '**/.bazelrc') }}"
+          $CACHE_RESTORE_KEY_0="$CACHE_RESTORE_KEY_1-${{ hashFiles('**/BUILD*') }}"
+          # If it's not a pull request, then it will be the same as $CACHE_RESTORE_KEY_1-.
+          $CACHE_RESTORE_KEY_HEAD="$CACHE_RESTORE_KEY_0-${{ github.event.pull_request.base.sha }}"
+          $CACHE_KEY="$CACHE_RESTORE_KEY_0-${{ github.sha }}"
+          echo "CACHE_RESTORE_KEY_2=$CACHE_RESTORE_KEY_2" >> "$env:GITHUB_OUTPUT"
+          echo "CACHE_RESTORE_KEY_1=$CACHE_RESTORE_KEY_1" >> "$env:GITHUB_OUTPUT"
+          echo "CACHE_RESTORE_KEY_0=$CACHE_RESTORE_KEY_0" >> "$env:GITHUB_OUTPUT"
+          echo "CACHE_RESTORE_KEY_HEAD=$CACHE_RESTORE_KEY_HEAD" >> "$env:GITHUB_OUTPUT"
+          echo "CACHE_KEY=$CACHE_KEY" >> "$env:GITHUB_OUTPUT"
+          $SHORT_SHA=$("${{ github.sha }}".SubString(0, 8))
+          echo "BAZEL_OUTPUT_BASE=C:/actions-runner/_work/bazel_output" >> "$env:GITHUB_ENV"
+          $CacheDir = Join-Path $env:USERPROFILE (Join-Path ".cache" "bazel-windows")
+          echo "BAZEL_DISK_CACHE=$CacheDir" >> "$env:GITHUB_ENV"
+
+      - name: Clean build outputs if cache is being refreshed.
+        if: env.REFRESH_CACHE == 'true'
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:BAZEL_OUTPUT_BASE"
+          bazel --output_base="$env:BAZEL_OUTPUT_BASE" clean --expunge
+
+      - name: Restore bazel cache if cache is not being refreshed.
+        id: bazel-cache
+        if: env.REFRESH_CACHE != 'true'
+        uses: actions/cache/restore@v4
+        env:
+          windir: ""
+          PATH: "C:/Program Files/Git/usr/bin;C:/Windows/System32;C:/Windows"
+        with:
+          path: ~/.cache/bazel-windows
+          key: ${{ steps.cache-keys.outputs.CACHE_KEY }}
+          restore-keys: |
+            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_HEAD }}
+            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_0 }}-
+            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_1 }}-
+            ${{ steps.cache-keys.outputs.CACHE_RESTORE_KEY_2 }}-
+
+      - name: Check cache hit
+        run: |
+          echo "Cache Hit: ${{ steps.bazel-cache.outputs.cache-hit }}"
+          echo "Cache Primary Key: ${{ steps.bazel-cache.outputs.cache-primary-key }}"
+          echo "Cache Matched Key: ${{ steps.bazel-cache.outputs.cache-matched-key }}"
+
+      - name: Run bazel test on Windows for litert
+        run: |
+          $BUILD_FLAGS = @(
+            "--config=bulk_test_cpu"
+            "--config=windows"
+            "--test_lang_filters=cc,py"
+            "--keep_going"
+            "--repo_env=USE_PYWRAP_RULES=True"
+            "--define=protobuf_allow_msvc=true"
+          )
+
+          $LITERT_EXCLUDED_TARGETS = @(
+            "-//litert/cc/dynamic_runtime/..."
+            "-//litert/python:converter_wrapper_test"
+            "-//litert/python/aot/..."
+            "-//litert/python/tools:mmap_utils_test"
+            "-//litert/python/tools:benchmark_litert_model_test"
+            "-//litert/python/tools/model_utils/test/..."
+            "-//litert/runtime:compiled_model_test"
+            "-//litert/runtime:profiler_summarizer_test"
+            "-//litert/tools:benchmark_litert_model_test"
+            "-//litert/tools/culprit_finder/..."
+            "-//litert/vendors/examples:end_to_end_test"
+            "-//litert/vendors/examples:example_plugin_so"
+            "-//litert/vendors/intel_openvino/compiler:decoder_test"
+            "-//litert/vendors/intel_openvino/dispatch:dispatch_api_openvino_test"
+            "-//litert/vendors/intel_openvino/compiler:openvino_compiler_plugin_test"
+          )
+
+          $BAZEL_ARGS = @(
+            "--output_base=$env:BAZEL_OUTPUT_BASE"
+            "test"
+            "--disk_cache=$env:BAZEL_DISK_CACHE"
+          ) + $BUILD_FLAGS + @(
+            "--"
+            "//litert/..."
+            "//weight_loader/..."
+          ) + $LITERT_EXCLUDED_TARGETS
+
+          & bazel @BAZEL_ARGS
+
+      - name: Upload failing bazel test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-bazel-testlogs-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test_attempts/attempt_*.log
+
+      - name: Build tools for Windows
+        run: |
+          bazel --output_base="$env:BAZEL_OUTPUT_BASE" build --disk_cache="$env:BAZEL_DISK_CACHE" --config=windows -- `
+            //litert/tools:run_model
+
+      - name: Build example plugin for Windows
+        run: |
+          bazel --output_base="$env:BAZEL_OUTPUT_BASE" build --disk_cache="$env:BAZEL_DISK_CACHE" --config=windows -- `
+            //litert/vendors/examples:LiteRtCompilerPlugin `
+            //litert/vendors/examples:LiteRtDispatch
+
+      - name: Build Intel OpenVINO plugin for Windows
+        run: |
+          bazel --output_base="$env:BAZEL_OUTPUT_BASE" build --disk_cache="$env:BAZEL_DISK_CACHE" --config=windows -- `
+            //litert/vendors/intel_openvino/compiler:LiteRtCompilerPlugin `
+            //litert/vendors/intel_openvino/dispatch:LiteRtDispatch
+
+      - name: Remove cache if cache is being refreshed.
+        if: env.REFRESH_CACHE == 'true'
+        continue-on-error: true  # Ignore errors when cache is not found.
+        run: gh cache delete ${{ steps.cache-keys.outputs.CACHE_KEY }}
+
+      - name: Shutdown bazel server before saving cache.
+        run: bazel --output_base="$env:BAZEL_OUTPUT_BASE" shutdown
+
+      - name: Save bazel cache if it's new or being refreshed.
+        uses: actions/cache/save@v4
+        if: env.REFRESH_CACHE == 'true' || steps.bazel-cache.outputs.cache-hit != 'true'
+        env:
+          windir: ""
+          PATH: "C:/Program Files/Git/usr/bin;C:/Windows/System32;C:/Windows"
+        with:
+          path: ~/.cache/bazel-windows
+          key: ${{ steps.cache-keys.outputs.CACHE_KEY }}

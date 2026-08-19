@@ -1,0 +1,134 @@
+
+// Copyright 2024 Google LLC.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "litert/core/model/litert_to_flatbuffer.h"
+
+#include <cstddef>
+#include <cstdint>
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include "absl/container/flat_hash_map.h"  // from @com_google_absl
+#include "litert/c/litert_common.h"
+#include "litert/c/litert_model_types.h"
+#include "litert/cc/litert_layout.h"
+#include "litert/core/model/model.h"
+#include "litert/core/util/flatbuffer_tools.h"
+#include "tflite/converter/schema/schema_generated.h"
+
+namespace litert::internal {
+namespace {
+
+using ::testing::ElementsAreArray;
+
+TEST(LiteRtToFlatbufferTest, MapNoQuantization) {
+  Quantization q;
+  auto tfl_q = MapQuantization(q);
+  ASSERT_TRUE(tfl_q);
+  EXPECT_EQ(tfl_q.Value(), nullptr);
+}
+
+TEST(LiteRtToFlatbufferTest, MapPerTensorQuantization) {
+  static constexpr float kScale = 1.0;
+  static constexpr int64_t kZp = 2;
+
+  Quantization q;
+  q.first = kLiteRtQuantizationPerTensor;
+  q.second.per_tensor.scale = kScale;
+  q.second.per_tensor.zero_point = kZp;
+
+  auto tfl_q = MapQuantization(q);
+  ASSERT_TRUE(tfl_q);
+  EXPECT_THAT(tfl_q->get()->scale, ElementsAreArray({kScale}));
+  EXPECT_THAT(tfl_q->get()->zero_point, ElementsAreArray({kZp}));
+}
+
+TEST(LiteRtToFlatbufferTest, MapPerChannelQuantization) {
+  static constexpr size_t kRank = 2;
+  static constexpr size_t kQuantizedDimension = 1;
+  static constexpr float kScales[kRank] = {1.0, 2.0};
+  static constexpr int64_t kZps[kRank] = {2, 3};
+
+  Quantization q;
+  q.first = kLiteRtQuantizationPerChannel;
+  q.second.per_channel.scales = const_cast<float*>(kScales);
+  q.second.per_channel.zero_points = const_cast<int64_t*>(kZps);
+  q.second.per_channel.num_channels = kRank;
+  q.second.per_channel.quantized_dimension = kQuantizedDimension;
+
+  auto tfl_q = MapQuantization(q);
+  ASSERT_TRUE(tfl_q);
+  EXPECT_THAT(tfl_q->get()->scale, ElementsAreArray(kScales));
+  EXPECT_THAT(tfl_q->get()->zero_point, ElementsAreArray(kZps));
+}
+
+TEST(LiteRtToFlatbufferTest, MapBlockWiseQuantization) {
+  LiteRtTensorT scales_tensor;
+  LiteRtTensorT zero_points_tensor;
+  constexpr int32_t kBlockSize = 32;
+
+  Quantization q = MakeBlockWiseQuantization(&scales_tensor,
+                                             &zero_points_tensor, kBlockSize);
+
+  absl::flat_hash_map<LiteRtTensor, int32_t> tensor_map;
+  tensor_map[&scales_tensor] = 10;
+  tensor_map[&zero_points_tensor] = 11;
+
+  auto tfl_q = MapQuantization(q, tensor_map);
+  ASSERT_TRUE(tfl_q);
+  ASSERT_EQ(tfl_q->get()->details.type,
+            tflite::QuantizationDetails_BlockwiseQuantization);
+
+  auto* details = tfl_q->get()->details.AsBlockwiseQuantization();
+  ASSERT_NE(details, nullptr);
+  EXPECT_EQ(details->scales, 10);
+  EXPECT_EQ(details->zero_points, 11);
+  EXPECT_EQ(details->block_size, kBlockSize);
+}
+
+TEST(LiteRtToFlatbufferTest, MapDynamicTensorType) {
+  static constexpr int32_t kDims[] = {-1, 2};
+
+  TensorType t;
+  t.first = kLiteRtRankedTensorType;
+  t.second.ranked_tensor_type.element_type = kLiteRtElementTypeFloat32;
+  t.second.ranked_tensor_type.layout = BuildLayout(kDims);
+
+  auto tfl_t = MapTensorType(t);
+  ASSERT_TRUE(tfl_t);
+  EXPECT_EQ(tfl_t->first, TflElementType::TensorType_FLOAT32);
+  EXPECT_TRUE(tfl_t->second.has_rank);
+  EXPECT_THAT(tfl_t->second.shape, ElementsAreArray({1, 2}));
+  EXPECT_THAT(tfl_t->second.shape_signature, ElementsAreArray(kDims));
+}
+
+TEST(LiteRtToFlatbufferTest, MapStaticTensorType) {
+  static constexpr int32_t kDims[] = {2, 2};
+
+  TensorType t;
+  t.first = kLiteRtRankedTensorType;
+  t.second.ranked_tensor_type.element_type = kLiteRtElementTypeFloat32;
+  t.second.ranked_tensor_type.layout = BuildLayout(kDims);
+
+  auto tfl_t = MapTensorType(t);
+  ASSERT_TRUE(tfl_t);
+  EXPECT_EQ(tfl_t->first, TflElementType::TensorType_FLOAT32);
+  EXPECT_TRUE(tfl_t->second.has_rank);
+  EXPECT_THAT(tfl_t->second.shape, ElementsAreArray({2, 2}));
+  EXPECT_TRUE(tfl_t->second.shape_signature.empty());
+}
+
+}  // namespace
+}  // namespace litert::internal

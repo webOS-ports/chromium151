@@ -1,0 +1,211 @@
+// Copyright 2025 Google LLC.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <windows.h>
+
+#include <algorithm>
+#include <cstdlib>
+#include <string>
+#include <vector>
+
+#include "absl/strings/match.h"  // from @com_google_absl
+#include "absl/strings/str_cat.h"  // from @com_google_absl
+#include "absl/strings/str_replace.h"  // from @com_google_absl
+#include "absl/strings/string_view.h"  // from @com_google_absl
+#include "litert/c/internal/litert_logging.h"
+#include "litert/c/litert_common.h"
+#include "litert/core/dynamic_loading.h"
+#include "litert/core/filesystem.h"
+
+namespace litert::internal {
+
+namespace {
+
+constexpr absl::string_view kDllExtension = ".dll";
+constexpr absl::string_view kSoExtension = ".so";
+
+std::string StripSharedLibExtension(absl::string_view lib_name) {
+  std::string name(lib_name);
+  if (absl::EndsWith(name, kSoExtension)) {
+    name.resize(name.size() - kSoExtension.size());
+  } else if (absl::EndsWith(name, kDllExtension)) {
+    name.resize(name.size() - kDllExtension.size());
+  }
+  return name;
+}
+
+// Convert forward slashes to backslashes for Windows paths
+std::string NormalizePath(absl::string_view path) {
+  return absl::StrReplaceAll(path, {{"/", "\\"}});
+}
+
+// Convert library name to Windows format
+std::string ToWindowsLibName(absl::string_view lib_name) {
+  std::string name(lib_name);
+  // Remove "lib" prefix if present
+  if (absl::StartsWith(name, "lib")) {
+    name = name.substr(3);
+  }
+  // Bazel still emits .so names for these Windows shared libraries on this
+  // branch, so strip the extension and let the finder accept either suffix.
+  if (absl::EndsWith(name, kSoExtension) ||
+      absl::EndsWith(name, kDllExtension)) {
+    name = StripSharedLibExtension(name);
+  }
+  return name;
+}
+
+std::vector<std::string> GetSearchPatterns(const std::string& lib_pattern,
+                                           bool full_match) {
+  if (!full_match) {
+    return {"*" + lib_pattern + "*" + std::string(kDllExtension),
+            "*" + lib_pattern + "*" + std::string(kSoExtension)};
+  }
+
+  // Some cross-platform callers pass POSIX-style .so names on Windows. Accept
+  // the requested name plus Windows/POSIX suffix variants from the same stem.
+  std::vector<std::string> patterns;
+  const auto add_pattern = [&](std::string pattern) {
+    if (std::find(patterns.begin(), patterns.end(), pattern) ==
+        patterns.end()) {
+      patterns.push_back(std::move(pattern));
+    }
+  };
+
+  const std::string stem = StripSharedLibExtension(lib_pattern);
+  add_pattern(lib_pattern);
+  add_pattern(stem + std::string(kDllExtension));
+  add_pattern(stem + std::string(kSoExtension));
+  return patterns;
+}
+
+// Get directory name from a path
+std::string Dirname(const std::string& path) {
+  size_t pos = path.find_last_of("\\/");
+  if (pos == std::string::npos) {
+    return ".";
+  }
+  if (pos == 0) {
+    return path.substr(0, 1);
+  }
+  return path.substr(0, pos);
+}
+
+}  // namespace
+
+LiteRtStatus FindLiteRtCompilerPluginSharedLibs(
+    absl::string_view search_path, std::vector<std::string>& results) {
+  const std::string lib_pattern =
+      absl::StrCat(ToWindowsLibName(kLiteRtSharedLibPrefix), "CompilerPlugin");
+  return FindLiteRtSharedLibsHelper(std::string(search_path), lib_pattern,
+                                    /*full_match=*/false, results);
+}
+
+LiteRtStatus FindLiteRtDispatchSharedLibs(absl::string_view search_path,
+                                          std::vector<std::string>& results) {
+  const std::string lib_pattern =
+      absl::StrCat(ToWindowsLibName(kLiteRtSharedLibPrefix), "Dispatch");
+  return FindLiteRtSharedLibsHelper(std::string(search_path), lib_pattern,
+                                    /*full_match=*/false, results);
+}
+
+LiteRtStatus FindLiteRtSharedLibsHelper(const std::string& search_path,
+                                        const std::string& lib_pattern,
+                                        bool full_match,
+                                        std::vector<std::string>& results) {
+  const size_t initial_result_count = results.size();
+  std::string normalized_path = NormalizePath(search_path);
+  if (!Exists(normalized_path)) {
+    LITERT_LOG(LITERT_ERROR, "Search path doesn't exist: %s",
+               normalized_path.c_str());
+    return kLiteRtStatusErrorInvalidArgument;
+  }
+
+  // Prepare search pattern
+  std::string search_pattern = normalized_path;
+  if (!search_pattern.empty() && search_pattern.back() != '\\') {
+    search_pattern += '\\';
+  }
+  const auto maybe_add_matches = [&](const std::string& pattern) {
+    const std::string full_pattern = search_pattern + pattern;
+    WIN32_FIND_DATAA find_data;
+    HANDLE find_handle = FindFirstFileA(full_pattern.c_str(), &find_data);
+    if (find_handle == INVALID_HANDLE_VALUE) {
+      return;
+    }
+
+    do {
+      if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+        continue;
+      }
+
+      std::string filename(find_data.cFileName);
+      results.push_back(Join({normalized_path, filename}));
+    } while (FindNextFileA(find_handle, &find_data));
+
+    FindClose(find_handle);
+  };
+
+  for (const auto& pattern : GetSearchPatterns(lib_pattern, full_match)) {
+    maybe_add_matches(pattern);
+  }
+
+  auto new_results_begin = results.begin() + initial_result_count;
+  std::sort(new_results_begin, results.end());
+  results.erase(std::unique(new_results_begin, results.end()), results.end());
+  std::sort(results.begin(), results.end());
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus PutLibOnLdPath(absl::string_view search_path,
+                            absl::string_view lib_pattern) {
+  std::vector<std::string> results;
+  auto status = FindLiteRtSharedLibsHelper(std::string(search_path),
+                                           std::string(lib_pattern),
+                                           /*full_match=*/true, results);
+
+  if (status != kLiteRtStatusOk) {
+    return status;
+  }
+
+  if (results.empty()) {
+    LITERT_LOG(LITERT_ERROR, "No libraries found matching pattern: %s",
+               std::string(lib_pattern).c_str());
+    return kLiteRtStatusErrorNotFound;
+  }
+
+  // Get the directory of the first matching library
+  std::string lib_dir = Dirname(results[0]);
+
+  // Get current PATH
+  char* current_path = std::getenv("PATH");
+  std::string new_path;
+
+  if (current_path != nullptr) {
+    new_path = absl::StrCat(lib_dir, ";", current_path);
+  } else {
+    new_path = lib_dir;
+  }
+
+  // Update PATH environment variable
+  if (_putenv_s("PATH", new_path.c_str()) != 0) {
+    LITERT_LOG(LITERT_ERROR, "Failed to update PATH environment variable");
+    return kLiteRtStatusErrorRuntimeFailure;
+  }
+
+  LITERT_LOG(LITERT_INFO, "Added to PATH: %s", lib_dir.c_str());
+  return kLiteRtStatusOk;
+}
+
+}  // namespace litert::internal

@@ -1,0 +1,177 @@
+// Copyright 2025 Google LLC.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef THIRD_PARTY_ODML_LITERT_LITERT_TOOLS_FLAGS_VENDORS_QUALCOMM_FLAGS_H_
+#define THIRD_PARTY_ODML_LITERT_LITERT_TOOLS_FLAGS_VENDORS_QUALCOMM_FLAGS_H_
+
+#include <cstdint>
+#include <string>
+
+#include "absl/flags/declare.h"  // from @com_google_absl
+#include "absl/strings/string_view.h"  // from @com_google_absl
+#include "litert/cc/litert_expected.h"
+#include "litert/cc/options/litert_qualcomm_options.h"
+#include "litert/tools/flags/flag_types.h"
+
+// GENERAL SDK SETTINGS ////////////////////////////////////////////////////////
+
+ABSL_DECLARE_FLAG(litert::qualcomm::QualcommOptions::LogLevel,
+                  qualcomm_log_level);
+
+namespace litert::qualcomm {
+
+std::string AbslUnparseFlag(QualcommOptions::LogLevel options);
+
+bool AbslParseFlag(absl::string_view text, QualcommOptions::LogLevel* options,
+                   std::string* error);
+
+}  // namespace litert::qualcomm
+
+ABSL_DECLARE_FLAG(litert::qualcomm::QualcommOptions::Backend, qualcomm_backend);
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text, QualcommOptions::Backend* options,
+                   std::string* error);
+
+std::string AbslUnparseFlag(QualcommOptions::Backend options);
+
+}  // namespace litert::qualcomm
+
+ABSL_DECLARE_FLAG(litert::qualcomm::QualcommOptions::CustomOpPackage,
+                  qualcomm_custom_op_package);
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::CustomOpPackage* options,
+                   std::string* error);
+
+std::string AbslUnparseFlag(QualcommOptions::CustomOpPackage options);
+
+}  // namespace litert::qualcomm
+
+// COMPILATION OPTIONS /////////////////////////////////////////////////////////
+
+ABSL_DECLARE_FLAG(bool, qualcomm_enable_weight_sharing);
+
+ABSL_DECLARE_FLAG(bool, qualcomm_enable_just_in_time);
+
+// @deprecated This flag is deprecated and will be no-op.
+ABSL_DECLARE_FLAG(bool, qualcomm_use_htp_preference);
+
+// @deprecated This flag is deprecated and will be no-op.
+ABSL_DECLARE_FLAG(bool, qualcomm_use_qint16_as_quint16);
+
+ABSL_DECLARE_FLAG(bool, qualcomm_use_int64_bias_as_int32);
+
+ABSL_DECLARE_FLAG(::litert::tools::IntList, qualcomm_dump_tensor_ids);
+
+ABSL_DECLARE_FLAG(std::string, qualcomm_ir_json_dir);
+
+ABSL_DECLARE_FLAG(std::string, qualcomm_dlc_dir);
+
+ABSL_DECLARE_FLAG(std::string, qualcomm_saver_output_dir);
+
+ABSL_DECLARE_FLAG(uint32_t, qualcomm_vtcm_size);
+
+ABSL_DECLARE_FLAG(uint32_t, qualcomm_num_hvx_thread);
+
+ABSL_DECLARE_FLAG(litert::qualcomm::QualcommOptions::OptimizationLevel,
+                  qualcomm_optimization_level);
+ABSL_DECLARE_FLAG(litert::qualcomm::QualcommOptions::GraphPriority,
+                  qualcomm_graph_priority);
+ABSL_DECLARE_FLAG(litert::qualcomm::QualcommOptions::GraphIOTensorMemType,
+                  qualcomm_graph_io_tensor_mem_type);
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::OptimizationLevel* optimization_level,
+                   std::string* error);
+
+std::string AbslUnparseFlag(
+    QualcommOptions::OptimizationLevel optimization_level);
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::GraphPriority* graph_priority,
+                   std::string* error);
+
+std::string AbslUnparseFlag(QualcommOptions::GraphPriority graph_priority);
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::GraphIOTensorMemType* memory_type,
+                   std::string* error);
+
+std::string AbslUnparseFlag(QualcommOptions::GraphIOTensorMemType memory_type);
+
+}  // namespace litert::qualcomm
+
+ABSL_DECLARE_FLAG(bool, qualcomm_use_conv_hmx);
+
+ABSL_DECLARE_FLAG(bool, qualcomm_use_fold_relu);
+
+ABSL_DECLARE_FLAG(int32_t, qualcomm_htp_p_point);
+
+// DISPATCH OPTIONS ////////////////////////////////////////////////////////////
+
+ABSL_DECLARE_FLAG(litert::qualcomm::QualcommOptions::HtpPerformanceMode,
+                  qualcomm_htp_performance_mode);
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::HtpPerformanceMode* options,
+                   std::string* error);
+
+std::string AbslUnparseFlag(QualcommOptions::HtpPerformanceMode options);
+
+}  // namespace litert::qualcomm
+
+ABSL_DECLARE_FLAG(litert::qualcomm::QualcommOptions::DspPerformanceMode,
+                  qualcomm_dsp_performance_mode);
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::DspPerformanceMode* options,
+                   std::string* error);
+
+std::string AbslUnparseFlag(QualcommOptions::DspPerformanceMode options);
+
+}  // namespace litert::qualcomm
+
+ABSL_DECLARE_FLAG(litert::qualcomm::QualcommOptions::Profiling,
+                  qualcomm_profiling);
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text, QualcommOptions::Profiling* options,
+                   std::string* error);
+
+std::string AbslUnparseFlag(QualcommOptions::Profiling options);
+
+}  // namespace litert::qualcomm
+
+// TO OBJECT (internal) ////////////////////////////////////////////////////////
+
+namespace litert::qualcomm {
+
+// Updates the provided QualcommOptions based on the values of the
+// Qualcomm-specific command-line flags defined in this file.
+Expected<void> UpdateQualcommOptionsFromFlags(QualcommOptions& opts);
+
+}  // namespace litert::qualcomm
+
+#endif  // THIRD_PARTY_ODML_LITERT_LITERT_TOOLS_FLAGS_VENDORS_QUALCOMM_FLAGS_H_

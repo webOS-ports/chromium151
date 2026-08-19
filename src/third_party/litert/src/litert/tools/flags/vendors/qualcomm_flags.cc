@@ -1,0 +1,697 @@
+// Copyright 2025 Google LLC.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "litert/tools/flags/vendors/qualcomm_flags.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "absl/flags/flag.h"  // from @com_google_absl
+#include "absl/log/absl_check.h"  // from @com_google_absl
+#include "absl/strings/string_view.h"  // from @com_google_absl
+#include "litert/cc/litert_expected.h"
+#include "litert/cc/litert_macros.h"
+#include "litert/cc/litert_options.h"
+#include "litert/cc/options/litert_qualcomm_options.h"
+#include "litert/tools/flags/flag_types.h"
+#include "litert/tools/flags/options_parser_registry.h"
+
+// NOLINTBEGIN(*alien-types*)
+// TODO: Move absl parse/unparse function to same file as enum types if
+// it becomes an issue.
+
+ABSL_FLAG(litert::qualcomm::QualcommOptions::LogLevel, qualcomm_log_level,
+          litert::qualcomm::QualcommOptions::LogLevel::kInfo,
+          "Log level for Qualcomm.");
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text, QualcommOptions::LogLevel* options,
+                   std::string* error) {
+  if (text == "off") {
+    *options = QualcommOptions::LogLevel::kOff;
+    return true;
+  }
+  if (text == "error") {
+    *options = QualcommOptions::LogLevel::kError;
+    return true;
+  }
+  if (text == "warn") {
+    *options = QualcommOptions::LogLevel::kWarn;
+    return true;
+  }
+  if (text == "info") {
+    *options = QualcommOptions::LogLevel::kInfo;
+    return true;
+  }
+  if (text == "verbose") {
+    *options = QualcommOptions::LogLevel::kVerbose;
+    return true;
+  }
+  if (text == "debug") {
+    *options = QualcommOptions::LogLevel::kDebug;
+    return true;
+  }
+  *error = "Unknown log level";
+  return false;
+}
+
+std::string AbslUnparseFlag(QualcommOptions::LogLevel options) {
+  switch (options) {
+    case QualcommOptions::LogLevel::kOff:
+      return "off";
+    case QualcommOptions::LogLevel::kError:
+      return "error";
+    case QualcommOptions::LogLevel::kWarn:
+      return "warn";
+    case QualcommOptions::LogLevel::kInfo:
+      return "info";
+    case QualcommOptions::LogLevel::kVerbose:
+      return "verbose";
+    case QualcommOptions::LogLevel::kDebug:
+      return "debug";
+  }
+}
+
+}  // namespace litert::qualcomm
+
+ABSL_FLAG(bool, qualcomm_enable_weight_sharing, false,
+          "Whether to enable weight sharing, this is unsupported on mobile "
+          "platforms.");
+
+ABSL_FLAG(bool, qualcomm_enable_just_in_time, false,
+          "Whether to enable Just-In-Time in QNN, bypassing serialization.");
+
+ABSL_RETIRED_FLAG(
+    bool, qualcomm_use_htp_preference, false,
+    "DEPRECATED: Whether to transform a litert op into the HTP prefered "
+    "pattern.");
+
+ABSL_RETIRED_FLAG(
+    bool, qualcomm_use_qint16_as_quint16, false,
+    "DEPRECATED: Whether to automatically convert a quantized int16 "
+    "model into a quantized uin16 model.");
+
+ABSL_FLAG(bool, qualcomm_use_int64_bias_as_int32, true,
+          "Whether to convert bias tensors of FullyConnected "
+          "and Conv2D Ops from int64 to int32. Defaults to true.");
+
+// Default should be
+// litert::qualcomm::QualcommOptions::HtpPerformanceMode::kDefault since we need
+// default performance model during compilation.
+ABSL_FLAG(litert::qualcomm::QualcommOptions::HtpPerformanceMode,
+          qualcomm_htp_performance_mode,
+          litert::qualcomm::QualcommOptions::HtpPerformanceMode::kDefault,
+          "HTP performance mode.");
+
+ABSL_FLAG(litert::qualcomm::QualcommOptions::DspPerformanceMode,
+          qualcomm_dsp_performance_mode,
+          litert::qualcomm::QualcommOptions::DspPerformanceMode::kDefault,
+          "DSP performance mode.");
+
+ABSL_FLAG(::litert::tools::IntList, qualcomm_dump_tensor_ids, {},
+          "Debug Feature. Ids to dump as outputs. Comma-separated list of "
+          "string. Use -1 to dump all op outputs.");
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::HtpPerformanceMode* options,
+                   std::string* error) {
+  if (text == "default") {
+    *options = QualcommOptions::HtpPerformanceMode::kDefault;
+    return true;
+  }
+  if (text == "sustained_high_performance") {
+    *options = QualcommOptions::HtpPerformanceMode::kSustainedHighPerformance;
+    return true;
+  }
+  if (text == "burst") {
+    *options = QualcommOptions::HtpPerformanceMode::kBurst;
+    return true;
+  }
+  if (text == "high_performance") {
+    *options = QualcommOptions::HtpPerformanceMode::kHighPerformance;
+    return true;
+  }
+  if (text == "power_saver") {
+    *options = QualcommOptions::HtpPerformanceMode::kPowerSaver;
+    return true;
+  }
+  if (text == "low_power_saver") {
+    *options = QualcommOptions::HtpPerformanceMode::kLowPowerSaver;
+    return true;
+  }
+  if (text == "high_power_saver") {
+    *options = QualcommOptions::HtpPerformanceMode::kHighPowerSaver;
+    return true;
+  }
+  if (text == "low_balanced") {
+    *options = QualcommOptions::HtpPerformanceMode::kLowBalanced;
+    return true;
+  }
+  if (text == "balanced") {
+    *options = QualcommOptions::HtpPerformanceMode::kBalanced;
+    return true;
+  }
+  if (text == "extreme_power_saver") {
+    *options = QualcommOptions::HtpPerformanceMode::kExtremePowerSaver;
+    return true;
+  }
+  *error = "Unknown htp performance mode";
+  return false;
+}
+
+std::string AbslUnparseFlag(QualcommOptions::HtpPerformanceMode options) {
+  switch (options) {
+    case QualcommOptions::HtpPerformanceMode::kDefault:
+      return "default";
+    case QualcommOptions::HtpPerformanceMode::kSustainedHighPerformance:
+      return "sustained_high_performance";
+    case QualcommOptions::HtpPerformanceMode::kBurst:
+      return "burst";
+    case QualcommOptions::HtpPerformanceMode::kHighPerformance:
+      return "high_performance";
+    case QualcommOptions::HtpPerformanceMode::kPowerSaver:
+      return "power_saver";
+    case QualcommOptions::HtpPerformanceMode::kLowPowerSaver:
+      return "low_power_saver";
+    case QualcommOptions::HtpPerformanceMode::kHighPowerSaver:
+      return "high_power_saver";
+    case QualcommOptions::HtpPerformanceMode::kLowBalanced:
+      return "low_balanced";
+    case QualcommOptions::HtpPerformanceMode::kBalanced:
+      return "balanced";
+    case QualcommOptions::HtpPerformanceMode::kExtremePowerSaver:
+      return "extreme_power_saver";
+  }
+}
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::DspPerformanceMode* options,
+                   std::string* error) {
+  if (text == "default") {
+    *options = QualcommOptions::DspPerformanceMode::kDefault;
+    return true;
+  }
+  if (text == "sustained_high_performance") {
+    *options = QualcommOptions::DspPerformanceMode::kSustainedHighPerformance;
+    return true;
+  }
+  if (text == "burst") {
+    *options = QualcommOptions::DspPerformanceMode::kBurst;
+    return true;
+  }
+  if (text == "high_performance") {
+    *options = QualcommOptions::DspPerformanceMode::kHighPerformance;
+    return true;
+  }
+  if (text == "power_saver") {
+    *options = QualcommOptions::DspPerformanceMode::kPowerSaver;
+    return true;
+  }
+  if (text == "low_power_saver") {
+    *options = QualcommOptions::DspPerformanceMode::kLowPowerSaver;
+    return true;
+  }
+  if (text == "high_power_saver") {
+    *options = QualcommOptions::DspPerformanceMode::kHighPowerSaver;
+    return true;
+  }
+  if (text == "low_balanced") {
+    *options = QualcommOptions::DspPerformanceMode::kLowBalanced;
+    return true;
+  }
+  if (text == "balanced") {
+    *options = QualcommOptions::DspPerformanceMode::kBalanced;
+    return true;
+  }
+  *error = "Unknown dsp performance mode";
+  return false;
+}
+
+std::string AbslUnparseFlag(QualcommOptions::DspPerformanceMode options) {
+  switch (options) {
+    case QualcommOptions::DspPerformanceMode::kDefault:
+      return "default";
+    case QualcommOptions::DspPerformanceMode::kSustainedHighPerformance:
+      return "sustained_high_performance";
+    case QualcommOptions::DspPerformanceMode::kBurst:
+      return "burst";
+    case QualcommOptions::DspPerformanceMode::kHighPerformance:
+      return "high_performance";
+    case QualcommOptions::DspPerformanceMode::kPowerSaver:
+      return "power_saver";
+    case QualcommOptions::DspPerformanceMode::kLowPowerSaver:
+      return "low_power_saver";
+    case QualcommOptions::DspPerformanceMode::kHighPowerSaver:
+      return "high_power_saver";
+    case QualcommOptions::DspPerformanceMode::kLowBalanced:
+      return "low_balanced";
+    case QualcommOptions::DspPerformanceMode::kBalanced:
+      return "balanced";
+  }
+}
+
+}  // namespace litert::qualcomm
+
+ABSL_FLAG(litert::qualcomm::QualcommOptions::GraphIOTensorMemType,
+          qualcomm_graph_io_tensor_mem_type,
+          litert::qualcomm::QualcommOptions::GraphIOTensorMemType::kMemHandle,
+          "Specifies mem type to be used for input and output tensors during "
+          "graph creation. Valid settings:\"raw\" and \"memhandle\"");
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::GraphIOTensorMemType* memory_type,
+                   std::string* error) {
+  if (text == "raw") {
+    *memory_type = QualcommOptions::GraphIOTensorMemType::kRaw;
+    return true;
+  }
+  if (text == "memhandle") {
+    *memory_type = QualcommOptions::GraphIOTensorMemType::kMemHandle;
+    return true;
+  }
+  *error = "Unknown graph input output tensor mem type";
+  return false;
+}
+
+std::string AbslUnparseFlag(QualcommOptions::GraphIOTensorMemType memory_type) {
+  switch (memory_type) {
+    case QualcommOptions::GraphIOTensorMemType::kRaw:
+      return "raw";
+    case QualcommOptions::GraphIOTensorMemType::kMemHandle:
+      return "memhandle";
+    default:
+      ABSL_CHECK(false) << "Unknown GraphIOTensorMemType: "
+                        << static_cast<int>(memory_type);
+  }
+}
+}  // namespace litert::qualcomm
+
+ABSL_FLAG(litert::qualcomm::QualcommOptions::Profiling, qualcomm_profiling,
+          litert::qualcomm::QualcommOptions::Profiling::kOff,
+          "QNN profiling mode");
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text, QualcommOptions::Profiling* options,
+                   std::string* error) {
+  if (text == "off") {
+    *options = QualcommOptions::Profiling::kOff;
+    return true;
+  }
+  if (text == "basic") {
+    *options = QualcommOptions::Profiling::kBasic;
+    return true;
+  }
+  if (text == "detailed") {
+    *options = QualcommOptions::Profiling::kDetailed;
+    return true;
+  }
+  if (text == "linting") {
+    *options = QualcommOptions::Profiling::kLinting;
+    return true;
+  }
+  if (text == "optrace") {
+    *options = QualcommOptions::Profiling::kOptrace;
+    return true;
+  }
+  *error = "Unknown htp performance mode";
+  return false;
+}
+
+std::string AbslUnparseFlag(QualcommOptions::Profiling options) {
+  switch (options) {
+    case QualcommOptions::Profiling::kOff:
+      return "off";
+    case QualcommOptions::Profiling::kBasic:
+      return "basic";
+    case QualcommOptions::Profiling::kDetailed:
+      return "detailed";
+    case QualcommOptions::Profiling::kLinting:
+      return "linting";
+    case QualcommOptions::Profiling::kOptrace:
+      return "optrace";
+  }
+}
+
+}  // namespace litert::qualcomm
+
+ABSL_FLAG(
+    std::string, qualcomm_ir_json_dir, "",
+    "Qnn IR JSON directory. If provided, you can obtain Qnn IR in Qnn JSON "
+    "format.");
+
+ABSL_FLAG(
+    std::string, qualcomm_dlc_dir, "",
+    "DLC directory. If provided, you can obtain Qnn graphs in DLC format.");
+
+ABSL_FLAG(uint32_t, qualcomm_vtcm_size, 0,
+          "The vtcm size of the target device. If this option is set to 0, the "
+          "max size of vtcm size will be used.");
+
+ABSL_FLAG(uint32_t, qualcomm_num_hvx_thread, 0,
+          "The number of hvx threads for the target device. If this option is "
+          "set to 0, the max number of hvx threads will be used.");
+
+ABSL_FLAG(litert::qualcomm::QualcommOptions::OptimizationLevel,
+          qualcomm_optimization_level,
+          litert::qualcomm::QualcommOptions::OptimizationLevel::
+              kOptimizeForInferenceO3,
+          "QNN optimization level");
+
+ABSL_FLAG(litert::qualcomm::QualcommOptions::GraphPriority,
+          qualcomm_graph_priority,
+          litert::qualcomm::QualcommOptions::GraphPriority::kDefault,
+          "QNN graph priority, If the option is set to 'default', the "
+          "QNN_PRIORITY_DEFAULT (Equal to QNN_PRIORITY_NORMAL) will be used.");
+
+ABSL_FLAG(std::string, qualcomm_saver_output_dir, "",
+          "Saver output directory. If provided, you can obtain saver_output.c "
+          "and params.bin. Saver records all QNN API calls into files which "
+          "can be replayed on any QNN backend. See Qualcomm "
+          "AI Runtime (QAIRT) SDK document for more details.");
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::OptimizationLevel* optimization_level,
+                   std::string* error) {
+  if (text == "O1") {
+    *optimization_level =
+        QualcommOptions::OptimizationLevel::kOptimizeForInference;
+    return true;
+  }
+  if (text == "O2") {
+    *optimization_level =
+        QualcommOptions::OptimizationLevel::kOptimizeForPrepare;
+    return true;
+  }
+  if (text == "O3") {
+    *optimization_level =
+        QualcommOptions::OptimizationLevel::kOptimizeForInferenceO3;
+    return true;
+  }
+  *error = "Unknown optimization level";
+  return false;
+}
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::GraphPriority* graph_priority,
+                   std::string* error) {
+  if (text == "default") {
+    *graph_priority = QualcommOptions::GraphPriority::kDefault;
+    return true;
+  }
+  if (text == "low") {
+    *graph_priority = QualcommOptions::GraphPriority::kLow;
+    return true;
+  }
+  if (text == "normal") {
+    *graph_priority = QualcommOptions::GraphPriority::kNormal;
+    return true;
+  }
+  if (text == "normal_high") {
+    *graph_priority = QualcommOptions::GraphPriority::kNormalHigh;
+    return true;
+  }
+  if (text == "high") {
+    *graph_priority = QualcommOptions::GraphPriority::kHigh;
+    return true;
+  }
+  *error = "Unknown graph priority";
+  return false;
+}
+
+std::string AbslUnparseFlag(QualcommOptions::GraphPriority graph_priority) {
+  switch (graph_priority) {
+    case QualcommOptions::GraphPriority::kDefault:
+      return "default";
+    case QualcommOptions::GraphPriority::kLow:
+      return "low";
+    case QualcommOptions::GraphPriority::kNormal:
+      return "normal";
+    case QualcommOptions::GraphPriority::kNormalHigh:
+      return "normal_high";
+    case QualcommOptions::GraphPriority::kHigh:
+      return "high";
+  }
+  return "default";
+}
+
+std::string AbslUnparseFlag(
+    QualcommOptions::OptimizationLevel optimization_level) {
+  switch (optimization_level) {
+    case QualcommOptions::OptimizationLevel::kOptimizeForInference:
+      return "O1";
+    case QualcommOptions::OptimizationLevel::kOptimizeForPrepare:
+      return "O2";
+    case QualcommOptions::OptimizationLevel::kOptimizeForInferenceO3:
+      return "O3";
+  }
+  return "O1";
+}
+
+}  // namespace litert::qualcomm
+
+ABSL_FLAG(bool, qualcomm_use_conv_hmx, true,
+          "When using short conv hmx, one might have better performance, but "
+          "convolution that have short depth and/or weights that are not "
+          "symmetric could exhibit inaccurate results.");
+
+ABSL_FLAG(bool, qualcomm_use_fold_relu, true,
+          "When using fold relu, one might have better performance. This "
+          "optimization is correct when quantization ranges for convolution "
+          "are equal to or are subset of the Relu operation.");
+
+ABSL_FLAG(
+    std::int32_t, qualcomm_htp_p_point, 0,
+    "P points are experimental (HTP backend with O3 only) and map to "
+    "predefined compiler configurations affecting latency and DRAM bandwidth.");
+
+ABSL_FLAG(litert::qualcomm::QualcommOptions::Backend, qualcomm_backend,
+          litert::qualcomm::QualcommOptions::Backend::kHtp,
+          "QNN backend to use.");
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text, QualcommOptions::Backend* options,
+                   std::string* error) {
+  if (text == "gpu") {
+    *options = QualcommOptions::Backend::kGpu;
+    return true;
+  }
+  if (text == "htp") {
+    *options = QualcommOptions::Backend::kHtp;
+    return true;
+  }
+  if (text == "dsp") {
+    *options = QualcommOptions::Backend::kDsp;
+    return true;
+  }
+  if (text == "ir") {
+    *options = QualcommOptions::Backend::kIr;
+    return true;
+  }
+  *error = "Unknown QNN backend";
+  return false;
+}
+
+std::string AbslUnparseFlag(QualcommOptions::Backend options) {
+  switch (options) {
+    case QualcommOptions::Backend::kUndefined:
+      return "undefined";
+    case QualcommOptions::Backend::kGpu:
+      return "gpu";
+    case QualcommOptions::Backend::kHtp:
+      return "htp";
+    case QualcommOptions::Backend::kDsp:
+      return "dsp";
+    case QualcommOptions::Backend::kIr:
+      return "ir";
+  }
+}
+
+}  // namespace litert::qualcomm
+
+ABSL_FLAG(
+    litert::qualcomm::QualcommOptions::CustomOpPackage,
+    qualcomm_custom_op_package, {},
+    "Custom op package settings as key:value pairs separated by ';'. "
+    "Required keys: name, interface_provider, compile_package_path, "
+    "dispatch_package_path, target. "
+    "target MUST match the chosen QNN backend (e.g., 'HTP' for the HTP "
+    "backend, 'GPU' for the GPU backend). "
+    "For compiler plugin, name/interface_provider/compile_package_path are "
+    "used. For dispatch plugin, name/interface_provider/"
+    "dispatch_package_path/target are used. Example: "
+    "\"name:TestPackage;interface_provider:Provider;compile_package_path:"
+    "libQnnTestPackage.so;dispatch_package_path:"
+    "libQnnTestPackage.so;target:HTP;\"");
+
+namespace litert::qualcomm {
+
+bool AbslParseFlag(absl::string_view text,
+                   QualcommOptions::CustomOpPackage* options,
+                   std::string* error) {
+  if (!text.empty()) {
+    size_t start = 0;
+    while (start <= text.size()) {
+      const size_t end = text.find(';', start);
+      const size_t token_end =
+          end == absl::string_view::npos ? text.size() : end;
+      const absl::string_view token = text.substr(start, token_end - start);
+      start = token_end + 1;
+
+      if (token.empty()) {
+        continue;
+      }
+
+      const size_t colon_pos = token.find(':');
+      if (colon_pos == absl::string_view::npos) {
+        *error = "Invalid custom op package flag.";
+        return false;
+      }
+
+      const absl::string_view key = token.substr(0, colon_pos);
+      const absl::string_view value = token.substr(colon_pos + 1);
+      if (key == "name") {
+        options->name = value;
+      } else if (key == "interface_provider") {
+        options->interface_provider = value;
+      } else if (key == "compile_package_path") {
+        options->compile_package_path = value;
+      } else if (key == "dispatch_package_path") {
+        options->dispatch_package_path = value;
+      } else if (key == "target") {
+        options->target = value;
+      } else {
+        *error = "Unsupported key in custom op package flag.";
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+std::string AbslUnparseFlag(QualcommOptions::CustomOpPackage options) {
+  std::string value;
+  value.reserve(256);
+  auto append_pair = [&value](absl::string_view key, absl::string_view val) {
+    value.append(key).append(":").append(val).append(";");
+  };
+
+  append_pair("name", options.name);
+  append_pair("interface_provider", options.interface_provider);
+  append_pair("compile_package_path", options.compile_package_path);
+  append_pair("dispatch_package_path", options.dispatch_package_path);
+  append_pair("target", options.target);
+  return value;
+}
+
+}  // namespace litert::qualcomm
+
+// NOLINTEND(*alien-types*)
+
+namespace litert::qualcomm {
+
+Expected<void> UpdateQualcommOptionsFromFlags(QualcommOptions& opts) {
+  const auto weight_share = absl::GetFlag(FLAGS_qualcomm_enable_weight_sharing);
+  opts.SetEnableWeightSharing(weight_share);
+
+  const auto just_in_time = absl::GetFlag(FLAGS_qualcomm_enable_just_in_time);
+  opts.SetEnableJustInTime(just_in_time);
+
+  const auto log_level = absl::GetFlag(FLAGS_qualcomm_log_level);
+  opts.SetLogLevel(log_level);
+
+  const auto use_int64_bias_as_int32 =
+      absl::GetFlag(FLAGS_qualcomm_use_int64_bias_as_int32);
+  opts.SetUseInt64BiasAsInt32(use_int64_bias_as_int32);
+
+  const auto htp_performance_mode =
+      absl::GetFlag(FLAGS_qualcomm_htp_performance_mode);
+  opts.SetHtpPerformanceMode(htp_performance_mode);
+
+  const auto dsp_performance_mode =
+      absl::GetFlag(FLAGS_qualcomm_dsp_performance_mode);
+  opts.SetDspPerformanceMode(dsp_performance_mode);
+
+  const auto profiling = absl::GetFlag(FLAGS_qualcomm_profiling);
+  opts.SetProfiling(profiling);
+
+  const auto dump_tensor_ids =
+      absl::GetFlag(FLAGS_qualcomm_dump_tensor_ids).elements;
+  opts.SetDumpTensorIds(dump_tensor_ids);
+
+  const std::string ir_json_dir = absl::GetFlag(FLAGS_qualcomm_ir_json_dir);
+  opts.SetIrJsonDir(ir_json_dir);
+
+  const std::string dlc_dir = absl::GetFlag(FLAGS_qualcomm_dlc_dir);
+  opts.SetDlcDir(dlc_dir);
+
+  const auto vtcm_size = absl::GetFlag(FLAGS_qualcomm_vtcm_size);
+  opts.SetVtcmSize(vtcm_size);
+
+  const auto num_hvx_threads = absl::GetFlag(FLAGS_qualcomm_num_hvx_thread);
+  opts.SetNumHvxThreads(num_hvx_threads);
+
+  const auto optimization_level =
+      absl::GetFlag(FLAGS_qualcomm_optimization_level);
+  opts.SetOptimizationLevel(optimization_level);
+
+  const auto graph_priority = absl::GetFlag(FLAGS_qualcomm_graph_priority);
+  opts.SetGraphPriority(graph_priority);
+
+  const auto use_conv_hmx = absl::GetFlag(FLAGS_qualcomm_use_conv_hmx);
+  opts.SetUseConvHMX(use_conv_hmx);
+
+  const auto use_fold_relu = absl::GetFlag(FLAGS_qualcomm_use_fold_relu);
+  opts.SetUseFoldReLU(use_fold_relu);
+
+  const auto htp_p_point = absl::GetFlag(FLAGS_qualcomm_htp_p_point);
+  opts.SetHtpPPoint(htp_p_point);
+
+  const auto qnn_backend = absl::GetFlag(FLAGS_qualcomm_backend);
+  opts.SetBackend(qnn_backend);
+
+  const std::string saver_output_dir =
+      absl::GetFlag(FLAGS_qualcomm_saver_output_dir);
+  opts.SetSaverOutputDir(saver_output_dir);
+
+  const auto graph_io_tensor_mem_type =
+      absl::GetFlag(FLAGS_qualcomm_graph_io_tensor_mem_type);
+  opts.SetGraphIOTensorMemType(graph_io_tensor_mem_type);
+
+  const auto custom_op_package =
+      absl::GetFlag(FLAGS_qualcomm_custom_op_package);
+  LITERT_RETURN_IF_ERROR(opts.SetCustomOpPackage(custom_op_package));
+
+  return {};
+}
+
+}  // namespace litert::qualcomm
+
+namespace litert::qualcomm {
+
+LITERT_REGISTER_OPTIONS_PARSER([](Options& options) -> Expected<void> {
+  LITERT_ASSIGN_OR_RETURN(auto& qualcomm_opts, options.GetQualcommOptions());
+  return UpdateQualcommOptionsFromFlags(qualcomm_opts);
+});
+
+}  // namespace litert::qualcomm

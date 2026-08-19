@@ -1,0 +1,24 @@
+// Copyright (c) Qualcomm Innovation Center, Inc.
+// All Rights Reserved.
+
+#include "litert/vendors/qualcomm/core/builders/softmax_op_builder.h"
+
+#include "litert/vendors/qualcomm/core/builders/op_builder.h"
+#include "litert/vendors/qualcomm/core/op_code.h"
+#include "litert/vendors/qualcomm/core/wrappers/op_wrapper.h"
+#include "litert/vendors/qualcomm/core/wrappers/tensor_wrapper.h"
+#include "QnnOpDef.h"  // from @qairt
+
+namespace qnn {
+
+OpWrapper CreateSoftmaxOp(const TensorWrapper& input_0,
+                          const TensorWrapper& output_0, float beta) {
+  OpWrapper op(GetUniqueOpName(QNN_OP_SOFTMAX), QNN_OP_SOFTMAX,
+               QnnOpCode::kSoftmax);
+  op.AddInputTensor(input_0);
+  op.AddOutputTensor(output_0);
+  op.AddScalarParam<float>(QNN_OP_SOFTMAX_PARAM_BETA, beta);
+  return op;
+}
+
+}  // namespace qnn

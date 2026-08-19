@@ -1,0 +1,436 @@
+// Copyright 2025 Google LLC.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <string>
+#include <type_traits>
+#include <vector>
+
+#include <gtest/gtest.h>
+#include "absl/flags/flag.h"  // from @com_google_absl
+#include "absl/flags/parse.h"  // from @com_google_absl
+#include "absl/log/absl_check.h"  // from @com_google_absl
+#include "absl/strings/string_view.h"  // from @com_google_absl
+#include "litert/ats/compile_fixture.h"
+#include "litert/ats/configure.h"
+#include "litert/ats/inference_fixture.h"
+#include "litert/ats/register.h"
+#include "litert/c/internal/litert_logging.h"
+#include "litert/c/litert_op_code.h"
+#include "litert/cc/internal/litert_c_types_printing.h"  // IWYU pragma: keep
+#include "litert/cc/internal/litert_detail.h"
+#include "litert/test/generators/common.h"
+#include "litert/test/generators/generators.h"
+#include "litert/test/generators/one_hot.h"
+#include "tflite/schema/schema_generated.h"
+#include "tflite/types/half.h"
+
+ABSL_FLAG(std::string, gtest_filter, "", "GTest filter override for ATS");
+
+namespace litert::testing {
+namespace {
+
+constexpr const char* kArt = R"(
+   __   _ __      ___  __      ___ __________
+  / /  (_) /____ / _ \/ /_____/ _ /_  __/ __/
+ / /__/ / __/ -_) , _/ __/___/ __ |/ / _\ \
+/____/_/\__/\__/_/|_|\__/   /_/ |_/_/ /___/
+)";
+
+template <typename Fixture>
+void RegisterNoOp(const AtsConf& options, size_t& test_id, size_t iters,
+                  typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      NoOp,
+      SizeListC<1, 2, 3, 4>,
+      TypeList<float, int32_t>>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterBinaryNoBroadcast(const AtsConf& options, size_t& test_id,
+                               size_t iters, typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      BinaryNoBroadcast,
+      SizeListC<1, 2, 3, 4, 5, 6>,
+      TypeList<float, int32_t>,
+      OpCodeListC<kLiteRtOpCodeTflAdd, kLiteRtOpCodeTflSub,
+                  kLiteRtOpCodeTflMul, kLiteRtOpCodeTflDiv>,
+      FaListC<::tflite::ActivationFunctionType_NONE>>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterUnary(const AtsConf& options, size_t& test_id, size_t iters,
+                   typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      Unary,
+      SizeListC<1, 2, 3, 4, 5, 6>,
+      TypeList<float, tflite::half>,
+      OpCodeListC<
+          kLiteRtOpCodeTflFloor,
+          kLiteRtOpCodeTflLogistic,
+          kLiteRtOpCodeTflRelu,
+          kLiteRtOpCodeTflReluN1To1,
+          kLiteRtOpCodeTflRelu6,
+          kLiteRtOpCodeTflTanh,
+          kLiteRtOpCodeTflExp,
+          kLiteRtOpCodeTflNeg,
+          kLiteRtOpCodeTflSin,
+          kLiteRtOpCodeTflLog,
+          kLiteRtOpCodeTflSqrt,
+          kLiteRtOpCodeTflRsqrt,
+          kLiteRtOpCodeTflSquare,
+          kLiteRtOpCodeTflZerosLike,
+          kLiteRtOpCodeTflAbs,
+          kLiteRtOpCodeTflCeil,
+          kLiteRtOpCodeTflCos,
+          kLiteRtOpCodeTflElu,
+          kLiteRtOpCodeTflRound,
+          kLiteRtOpCodeTflHardSwish,
+          kLiteRtOpCodeTflGelu,
+          kLiteRtOpCodeTflRelu0To1,
+          kLiteRtOpCodeTflSign
+      >>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterConv2d(const AtsConf& options, size_t& test_id, size_t iters,
+                    typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      Conv2d,
+      SizeListC<4>,
+      TypeList<TypeTuple<float, float>,
+               TypeTuple<tflite::half, tflite::half>,
+               TypeTuple<tflite::half, float>>,
+      OpCodeListC<kLiteRtOpCodeTflConv2d>,
+      TypeList<std::integral_constant<tflite::Padding, tflite::Padding_VALID>,
+               std::integral_constant<tflite::Padding, tflite::Padding_SAME>>,
+      SizeListC<1, 2>,
+      SizeListC<1, 2>,
+      SizeListC<1>,
+      SizeListC<1>,
+      TypeList<FaC<tflite::ActivationFunctionType_NONE>,
+               FaC<tflite::ActivationFunctionType_RELU>>>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterDepthwiseConv2d(const AtsConf& options, size_t& test_id,
+                             size_t iters, typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      DepthwiseConv2d,
+      SizeListC<4>,
+      TypeList<TypeTuple<float, float>,
+               TypeTuple<tflite::half, tflite::half>,
+               TypeTuple<tflite::half, float>>,
+      OpCodeListC<kLiteRtOpCodeTflDepthwiseConv2d>,
+      TypeList<std::integral_constant<tflite::Padding, tflite::Padding_VALID>,
+               std::integral_constant<tflite::Padding, tflite::Padding_SAME>>,
+      SizeListC<1, 2>,
+      SizeListC<1, 2>,
+      SizeListC<1>,
+      SizeListC<1>,
+      TypeList<FaC<tflite::ActivationFunctionType_NONE>,
+               FaC<tflite::ActivationFunctionType_RELU>>,
+      SizeListC<1>>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterReduction(const AtsConf& options, size_t& test_id, size_t iters,
+                       typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      Reduction,
+      SizeListC<1, 2, 3, 4>,
+      TypeList<float>,
+      OpCodeListC<kLiteRtOpCodeTflReduceMax, kLiteRtOpCodeTflReduceMin,
+                  kLiteRtOpCodeTflReduceProd, kLiteRtOpCodeTflSum>,
+      TypeList<std::true_type, std::false_type>>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterPooling(const AtsConf& options, size_t& test_id, size_t iters,
+                     typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      Pooling,
+      TypeList<float>,
+      OpCodeListC<kLiteRtOpCodeTflMaxPool2d, kLiteRtOpCodeTflAveragePool2d>,
+      TypeList<std::integral_constant<tflite::Padding, tflite::Padding_SAME>,
+               std::integral_constant<tflite::Padding, tflite::Padding_VALID>>,
+      TypeList<FaC<tflite::ActivationFunctionType_NONE>,
+               FaC<tflite::ActivationFunctionType_RELU>>>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterOneHot(const AtsConf& options, size_t& test_id, size_t iters,
+                    typename Fixture::Capture& cap) {
+  // clang-format off
+  // Rank 1
+  RegisterCombinations<
+      Fixture,
+      OneHot,
+      TypeList<float>,
+      SizeListC<1>,
+      SizeListC<0, 1>>
+    (iters, test_id, options, cap);
+
+  // Rank 2
+  RegisterCombinations<
+      Fixture,
+      OneHot,
+      TypeList<float>,
+      SizeListC<2>,
+      SizeListC<0, 1, 2>>
+    (iters, test_id, options, cap);
+
+  // Rank 3
+  RegisterCombinations<
+      Fixture,
+      OneHot,
+      TypeList<float>,
+      SizeListC<3>,
+      SizeListC<0, 1, 2, 3>>
+    (iters, test_id, options, cap);
+
+  // Rank 4
+  RegisterCombinations<
+      Fixture,
+      OneHot,
+      TypeList<float>,
+      SizeListC<4>,
+      SizeListC<0, 1, 2, 3, 4>>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterBinaryBroadcast(const AtsConf& options, size_t& test_id,
+                             size_t iters, typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      BinaryBroadcast,
+      SizeListC<1, 2, 3, 4>,
+      SizeListC<1, 2, 3, 4>,
+      TypeList<float>,
+      OpCodeListC<kLiteRtOpCodeTflAdd, kLiteRtOpCodeTflMul,
+                  kLiteRtOpCodeTflSub, kLiteRtOpCodeTflDiv>,
+      TypeList<FaC<tflite::ActivationFunctionType_NONE>,
+               FaC<tflite::ActivationFunctionType_RELU>>>
+    (iters, test_id, options, cap);
+
+  RegisterCombinations<
+      Fixture,
+      BinaryBroadcast,
+      SizeListC<1, 2, 3, 4>,
+      SizeListC<1, 2, 3, 4>,
+      TypeList<float>,
+      OpCodeListC<kLiteRtOpCodeTflMaximum, kLiteRtOpCodeTflMinimum,
+                  kLiteRtOpCodeTflSquaredDifference,
+                  kLiteRtOpCodeTflFloorDiv, kLiteRtOpCodeTflPow>,
+      TypeList<FaC<tflite::ActivationFunctionType_NONE>>>
+    (iters, test_id, options, cap);
+
+  // Prelu requires Rank2 <= Rank1!
+  // We generate all valid pairs (R1 >= R2) up to rank 4.
+  RegisterCombinations<
+      Fixture,
+      BinaryBroadcast,
+      SizeListC<1, 2, 3, 4>,
+      SizeListC<1>,
+      TypeList<float>,
+      OpCodeListC<kLiteRtOpCodeTflPrelu>,
+      TypeList<FaC<tflite::ActivationFunctionType_NONE>>>
+    (iters, test_id, options, cap);
+  RegisterCombinations<
+      Fixture,
+      BinaryBroadcast,
+      SizeListC<2, 3, 4>,
+      SizeListC<2>,
+      TypeList<float>,
+      OpCodeListC<kLiteRtOpCodeTflPrelu>,
+      TypeList<FaC<tflite::ActivationFunctionType_NONE>>>
+    (iters, test_id, options, cap);
+  RegisterCombinations<
+      Fixture,
+      BinaryBroadcast,
+      SizeListC<3, 4>,
+      SizeListC<3>,
+      TypeList<float>,
+      OpCodeListC<kLiteRtOpCodeTflPrelu>,
+      TypeList<FaC<tflite::ActivationFunctionType_NONE>>>
+    (iters, test_id, options, cap);
+  RegisterCombinations<
+      Fixture,
+      BinaryBroadcast,
+      SizeListC<4>,
+      SizeListC<4>,
+      TypeList<float>,
+      OpCodeListC<kLiteRtOpCodeTflPrelu>,
+      TypeList<FaC<tflite::ActivationFunctionType_NONE>>>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterReshape(const AtsConf& options, size_t& test_id, size_t iters,
+                     typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      Reshape,
+      SizeListC<1, 2, 3, 4, 5, 6>,
+      SizeListC<1, 2, 3, 4, 5, 6>,
+      TypeList<float>>
+    (iters, test_id, options, cap);
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterTransformerLayer(const AtsConf& options, size_t& test_id,
+                              size_t iters, typename Fixture::Capture& cap) {
+  // clang-format off
+  RegisterCombinations<
+      Fixture,
+      TransformerLayer,
+      TypeList<std::integral_constant<AttentionType, AttentionType::kMHA>,
+               std::integral_constant<AttentionType, AttentionType::kGQA>>,
+      TypeList<std::integral_constant<NormType, NormType::kLayerNorm>,
+               std::integral_constant<NormType, NormType::kRMSNorm>>,
+      TypeList<std::integral_constant<FfnType, FfnType::kStandard>,
+               std::integral_constant<FfnType, FfnType::kSwiGLU>>,
+      TypeList<float>>
+    (iters, test_id, options, cap, "Transformer");
+  // clang-format on
+}
+
+template <typename Fixture>
+void RegisterAll(const AtsConf& options, size_t& test_id,
+                 typename Fixture::Capture& cap) {
+  RegisterExtraModels<Fixture>(test_id, options, cap);
+  RegisterNoOp<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterBinaryNoBroadcast<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterBinaryBroadcast<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterUnary<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterConv2d<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterDepthwiseConv2d<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterReduction<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterPooling<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterOneHot<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterReshape<Fixture>(options, test_id, /*iters=*/10, cap);
+  RegisterTransformerLayer<Fixture>(options, test_id, /*iters=*/2, cap);
+}
+
+int Ats() {
+  std::cerr << kArt << std::endl;
+
+  auto options = AtsConf::ParseFlagsAndDoSetup();
+  ABSL_CHECK(options);
+
+  size_t test_id = 0;
+  AtsInferenceTest::Capture i_cap;
+  AtsCompileTest::Capture c_cap;
+
+  if (!options->CompileMode()) {
+    RegisterAll<AtsInferenceTest>(*options, test_id, i_cap);
+  } else {
+    RegisterAll<AtsCompileTest>(*options, test_id, c_cap);
+  }
+
+  // Preliminary report.
+  {
+    const auto* unit_test = ::testing::UnitTest::GetInstance();
+    LITERT_LOG(LITERT_INFO, "Registered %lu tests",
+               unit_test->total_test_count());
+  }
+
+  const auto res = RUN_ALL_TESTS();
+
+  // Final report.
+  if (!options->Quiet()) {
+    if (options->CompileMode()) {
+      options->Csv(c_cap);
+      options->Print(c_cap);
+    } else {
+      options->Csv(i_cap);
+      options->Print(i_cap);
+    }
+  }
+
+  return res;
+}
+
+}  // namespace
+}  // namespace litert::testing
+
+int main(int argc, char** argv) {
+  // Shim to support repeatable flags which absl does not.
+  std::vector<char*> absl_flags;
+  static constexpr absl::string_view kDoRegisterPrefix = "--do_register=";
+  static constexpr absl::string_view kDontRegisterPrefix = "--dont_register=";
+  std::vector<std::string> do_register;
+  std::vector<std::string> dont_register;
+  for (int i = 0; i < argc; ++i) {
+    if (::litert::StartsWith(argv[i], kDoRegisterPrefix)) {
+      do_register.push_back(std::string(
+          absl::string_view(argv[i]).substr(kDoRegisterPrefix.size())));
+    } else if (::litert::StartsWith(argv[i], kDontRegisterPrefix)) {
+      dont_register.push_back(std::string(
+          absl::string_view(argv[i]).substr(kDontRegisterPrefix.size())));
+    } else {
+      absl_flags.push_back(argv[i]);
+    }
+  }
+
+  absl::SetFlag(&FLAGS_do_register, do_register);
+  absl::SetFlag(&FLAGS_dont_register, dont_register);
+
+  int absl_argc = absl_flags.size();
+  ::testing::InitGoogleTest(&absl_argc, absl_flags.data());
+  absl::ParseCommandLine(absl_argc, absl_flags.data());
+
+  std::string filter = absl::GetFlag(FLAGS_gtest_filter);
+  if (!filter.empty()) {
+    GTEST_FLAG_SET(filter, filter);
+  }
+
+  return litert::testing::Ats();
+}

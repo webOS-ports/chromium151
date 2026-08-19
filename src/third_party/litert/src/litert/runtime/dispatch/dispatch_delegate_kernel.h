@@ -1,0 +1,207 @@
+// Copyright 2024 Google LLC.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef ODML_LITERT_LITERT_RUNTIME_DISPATCH_DISPATCH_DELEGATE_KERNEL_H_
+#define ODML_LITERT_LITERT_RUNTIME_DISPATCH_DISPATCH_DELEGATE_KERNEL_H_
+
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "absl/container/flat_hash_map.h"  // from @com_google_absl
+#include "absl/container/flat_hash_set.h"  // from @com_google_absl
+#include "absl/container/node_hash_map.h"  // from @com_google_absl
+#include "litert/c/litert_common.h"
+#include "litert/cc/litert_expected.h"
+#include "litert/core/dispatch_op_schema.h"
+#include "litert/runtime/external_litert_buffer_context.h"
+#include "litert/runtime/metrics.h"
+#include "litert/vendors/c/litert_dispatch.h"
+#include "tflite/c/c_api_types.h"
+#include "tflite/c/common.h"
+#include "tflite/delegates/utils/simple_opaque_delegate.h"
+
+class LiteRtExternalLiteRtBufferContextT;
+
+namespace litert::internal {
+
+// Builds a memory buffer containing the executable bytecode for a dispatch op,
+// using the provided dispatch options and allocation base information.
+Expected<LiteRtMemBuffer> BuildExecutableBytecodeBuffer(
+    const DispatchOpOptions& dispatch_options, const void* alloc_base,
+    int alloc_base_fd, size_t alloc_base_file_offset, size_t alloc_base_size,
+    bool has_alloc_base_file_region);
+
+// A TFL kernel that the interpreter calls to dispatch execution through the
+// Dispatch API.
+class DispatchDelegateKernel
+    : public tflite::SimpleOpaqueDelegateKernelInterface {
+ public:
+  ~DispatchDelegateKernel() override;
+
+  static Expected<std::unique_ptr<DispatchDelegateKernel>> Create(
+      std::string&& graph_name, LiteRtEnvironmentOptions environment_options,
+      LiteRtOptions options, LiteRtDispatchDeviceContext device_context);
+
+  TfLiteStatus Init(TfLiteOpaqueContext* context,
+                    const TfLiteOpaqueDelegateParams* params) override;
+
+  TfLiteStatus Prepare(TfLiteOpaqueContext* context,
+                       TfLiteOpaqueNode* node) override;
+
+  TfLiteStatus Eval(TfLiteOpaqueContext* context,
+                    TfLiteOpaqueNode* node) override;
+
+  Expected<void> StartMetricsCollection(int detail_level);
+
+  Expected<LiteRtMetricsT> StopMetricsCollection();
+
+ private:
+  DispatchDelegateKernel(LiteRtEnvironmentOptions environment_options,
+                         LiteRtOptions options, std::string&& graph_name,
+                         LiteRtDispatchDeviceContext device_context,
+                         bool async_dispatch)
+      : environment_options_(environment_options),
+        options_(options),
+        graph_name_(std::move(graph_name)),
+        device_context_(std::move(device_context)),
+        async_dispatch_(async_dispatch) {}
+
+  static Expected<std::vector<TfLiteOpaqueNode*>> GetNodes(
+      TfLiteOpaqueContext* context, const TfLiteOpaqueDelegateParams& params);
+  static Expected<std::vector<TfLiteOpaqueTensor*>> GetTensors(
+      const TfLiteOpaqueContext* context, const TfLiteIntArray& tensor_ids);
+  static Expected<std::vector<TfLiteOpaqueTensor*>> GetInternalTensors(
+      TfLiteOpaqueContext* context, const std::vector<TfLiteOpaqueNode*>& nodes,
+      const std::vector<TfLiteOpaqueTensor*>& input_tensors,
+      const std::vector<TfLiteOpaqueTensor*>& output_tensors);
+
+  Expected<void> InitHelper(TfLiteOpaqueContext* context,
+                            const TfLiteOpaqueDelegateParams& params);
+  Expected<void> PrepareHelper(TfLiteOpaqueContext* context,
+                               TfLiteOpaqueNode* node);
+  Expected<void> EvalHelper(TfLiteOpaqueContext* context,
+                            TfLiteOpaqueNode* node);
+
+  Expected<LiteRtDispatchInvocationContext> CreateNodeInvocationContext(
+      TfLiteOpaqueContext* context, TfLiteOpaqueNode* node);
+
+  Expected<LiteRtTensorBufferRequirementsPtr> GetBufferRequirements(
+      int node_idx, TfLiteOpaqueTensor* io_tfl_tensor, int io_tensor_index,
+      bool is_input) const;
+
+  Expected<void> ComputeRequirements(TfLiteOpaqueContext* context);
+  Expected<void> ComputeTensorPortConnections(TfLiteOpaqueContext* context);
+
+  Expected<void> AllocateTensorBuffersIfNeeded(TfLiteOpaqueContext* context);
+  Expected<LiteRtTensorBufferPtr> AllocateTensorBuffer(
+      TfLiteOpaqueTensor* tfl_tensor);
+  Expected<void> RegisterBufferWithDispatchApi(
+      int tensor_id, LiteRtTensorBufferPtr&& tensor_buffer);
+
+  Expected<void> AttachBuffersToInvocationContextsIfNeeded(
+      TfLiteOpaqueContext* context);
+
+  // Allocates a new tensor buffer or reuses an existing one, registering it
+  // with the dispatch API. Defers unregistration of replaced buffers if needed.
+  Expected<void> AllocateAndRegisterBuffer(
+      int tensor_id, TfLiteOpaqueContext* context,
+      const absl::flat_hash_set<int>& io_tensor_ids);
+
+  // Polls fences for stale buffers in deferred_unregistrations_ and unregisters
+  // them if their execution has completed.
+  void ProcessDeferredUnregistrations();
+
+  Expected<void> ScheduleAsyncExecution(TfLiteOpaqueContext* context);
+  Expected<void> ScheduleSyncExecution(TfLiteOpaqueContext* context);
+
+  // Retrieves the allocation base from the options.
+  Expected<const void*> FindAllocBase() const;
+  // Retrieves the allocation base file descriptor from the options.
+  Expected<int> FindAllocBaseFd() const;
+  // Retrieves the allocation base file offset from the options.
+  Expected<size_t> FindAllocBaseFileOffset() const;
+  // Retrieves the allocation base size from the options.
+  Expected<size_t> FindAllocBaseSize() const;
+  // Checks if the allocation base file region (offset and size) is set in the
+  // options.
+  Expected<bool> HasAllocBaseFileRegion() const;
+
+  LiteRtEnvironmentOptions environment_options_;
+  LiteRtOptions options_;
+  const std::string graph_name_;
+  LiteRtDispatchDeviceContext device_context_;
+  const bool async_dispatch_;  // Indicates whether the Dispatch API can be
+                               // invoked asynchronously.
+
+  LiteRtExternalLiteRtBufferContextT* buffer_context_ = nullptr;
+  std::vector<TfLiteOpaqueNode*> nodes_;
+  std::vector<LiteRtDispatchInvocationContext> node_invocation_contexts_;
+  std::vector<std::vector<int>> node_input_tensor_indices_;
+  std::vector<std::vector<int>> node_output_tensor_indices_;
+
+  // Store TFlite Tensor indices - get tensors on demand to avoid stale pointers
+  std::vector<int> input_tensor_ids_;
+  std::vector<int> output_tensor_ids_;
+  std::vector<int> internal_tensor_ids_;
+
+  std::unordered_map<int, LiteRtTensorBufferHandle>
+      tensor_idx_to_handle_;  // NOLINT
+
+  struct TensorInfo {
+    LiteRtTensorBufferPtr tensor_buffer;
+    LiteRtTensorBufferHandle buffer_handle;
+    bool maybe_sync_with_cpu = false;
+    size_t tensor_buffer_used_size = 0;
+    bool attached = false;
+    // Tensor buffer that holds out-fence, allowing for deferred unregistration
+    // of tensor_buffer.
+    LiteRtTensorBufferPtr out_fence_buffer;
+
+    TensorInfo() = default;
+
+    void MarkAsMaybeSyncWithCpu(size_t used_size) {
+      maybe_sync_with_cpu = true;
+      tensor_buffer_used_size = used_size;
+    }
+  };
+
+  // Keep the mapping from tensor ID to tensor info. Using this map to avoid
+  // TfLiteOpaqueTensor* pointer being stale during reallocations.
+  // Tensor ID will be stable across reallocations.
+  absl::node_hash_map<int, TensorInfo> tensor_buffer_infos_;
+
+  struct PortConnection {
+    int node_idx;
+    int port_idx;        // The index of the I/O node port.
+    bool is_input_port;  // Wheter this connection is to a node input or to a
+                         // node output.
+  };
+
+  // Keep the mapping from tensor ID to port connections. Using this map to
+  // avoid TfLiteOpaqueTensor* pointer being stale during reallocations.
+  // Tensor ID will be stable across reallocations.
+  absl::flat_hash_map<int, std::vector<PortConnection>>
+      io_tensors_port_connections_;
+
+  // Hold stale TensorInfo records for non-blocking out-fence unregistration.
+  std::vector<std::pair<int, TensorInfo>> deferred_unregistrations_;
+};
+
+}  // namespace litert::internal
+
+#endif  // ODML_LITERT_LITERT_RUNTIME_DISPATCH_DISPATCH_DELEGATE_KERNEL_H_

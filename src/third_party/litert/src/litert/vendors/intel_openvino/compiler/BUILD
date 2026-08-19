@@ -1,0 +1,309 @@
+# Copyright 2025 Google LLC.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+load("//litert/build_common:litert_build_defs.bzl", "litert_bin", "litert_dynamic_lib", "litert_lib", "litert_test")
+
+package(
+    # copybara:uncomment default_applicable_licenses = ["@org_tensorflow//tensorflow:license"],
+    default_visibility = ["//litert:__subpackages__"],
+)
+
+litert_lib(
+    name = "openvino_soc_config",
+    srcs = ["openvino_soc_config.cc"],
+    hdrs = ["openvino_soc_config.h"],
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    deps = [
+        "//litert/c:litert_common",
+        "//litert/c/internal:litert_logging",
+        "//litert/cc:litert_macros",
+        "@com_google_absl//absl/strings:string_view",
+        "@intel_openvino//:openvino",
+    ],
+)
+
+litert_lib(
+    name = "npu_optimizer",
+    srcs = ["npu_optimizer.cc"],
+    hdrs = ["npu_optimizer.h"],
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    deps = [
+        "@intel_openvino//:openvino",
+    ],
+)
+
+litert_lib(
+    name = "openvino_compile_context",
+    srcs = ["openvino_compile_context.cc"],
+    hdrs = ["openvino_compile_context.h"],
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    deps = [
+        ":npu_optimizer",
+        ":openvino_soc_config",
+        "//litert/c:litert_common",
+        "//litert/c/internal:litert_logging",
+        "//litert/c/options:litert_intel_openvino_options",
+        "//litert/cc:litert_expected",
+        "//litert/cc/options:litert_intel_openvino_options",
+        "@intel_openvino//:openvino",
+    ],
+)
+
+litert_dynamic_lib(
+    name = "openvino_compiler_plugin",
+    srcs = ["openvino_compiler_plugin.cc"],
+    hdrs = [
+        "//litert/vendors/c:litert_compiler_plugin.h",
+    ],
+    copts = ["-fexceptions"] + select({
+        "//litert/runtime/dispatch:windows_msvc": [
+            "/DLITERT_COMPILE_LIBRARY",
+            "/wd4018",  # -Wno-sign-compare
+        ],
+        "//litert/runtime/dispatch:windows_lexan": [
+            "-DLITERT_COMPILE_LIBRARY",
+            "-Wno-sign-compare",
+        ],
+        "//conditions:default": [],
+    }),
+    export_litert_only = True,
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    shared_lib_name = "intel_openvino_compiler_plugin_so",
+    so_name = "libLiteRtCompilerPlugin_IntelOpenvino.so",
+    ungrte = True,
+    visibility = [
+        "//ci/tools/python/wheel:__subpackages__",
+        "//litert:__subpackages__",
+    ],
+    deps = [
+        ":graph_iterator",
+        ":openvino_compile_context",
+        ":openvino_soc_config",
+        "//litert/c:litert_builder_header",
+        "//litert/c:litert_common",
+        "//litert/c:litert_op_code",
+        "//litert/c/internal:litert_logging",
+        "//litert/c/internal:litert_logging_helper_with_compiler_context",
+        "//litert/c/options:litert_intel_openvino_options",
+        "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
+        "//litert/cc/internal:litert_context_wrapper",
+        "//litert/cc/internal:litert_handle",
+        "//litert/cc/internal:litert_opaque_options_wrapper",
+        "//litert/cc/internal:litert_options_wrapper",
+        "//litert/cc/options:litert_intel_openvino_options",
+        "//litert/compiler/cc:litert_model",
+        "@com_google_absl//absl/strings:str_format",
+        "@intel_openvino//:openvino",
+    ],
+)
+
+litert_bin(
+    name = "LiteRtCompilerPlugin",
+    srcs = ["openvino_compiler_plugin.cc"],
+    copts = ["-fexceptions"] + select({
+        "//litert/runtime/dispatch:windows_msvc": [
+            "/DLITERT_COMPILE_LIBRARY",
+            "/wd4018",  # -Wno-sign-compare
+        ],
+        "//litert/runtime/dispatch:windows_lexan": [
+            "-DLITERT_COMPILE_LIBRARY",
+            "-Wno-sign-compare",
+        ],
+        "//conditions:default": [],
+    }),
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    linkshared = 1,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":graph_iterator",
+        ":litert_compiler_plugin_c_api",
+        ":openvino_compile_context",
+        ":openvino_soc_config",
+        "//litert/c:litert_common",
+        "//litert/c:litert_op_code",
+        "//litert/c/internal:litert_logging",
+        "//litert/c/internal:litert_logging_helper_with_compiler_context",
+        "//litert/c/options:litert_compiler_options",
+        "//litert/c/options:litert_intel_openvino_options",
+        "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
+        "//litert/cc/internal:litert_context_wrapper",
+        "//litert/cc/internal:litert_handle",
+        "//litert/cc/internal:litert_opaque_options_wrapper",
+        "//litert/cc/internal:litert_options_wrapper",
+        "//litert/cc/options:litert_intel_openvino_options",
+        "//litert/compiler/cc:litert_model",
+        "@com_google_absl//absl/strings:str_format",
+        "@intel_openvino//:openvino",
+    ],
+)
+
+litert_lib(
+    name = "litert_compiler_plugin_c_api",
+    hdrs = [
+        "//litert/vendors/c:litert_compiler_plugin.h",
+    ],
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    deps = [
+        "//litert/c:litert_builder_header",
+        "//litert/c:litert_common",
+    ],
+)
+
+litert_lib(
+    name = "graph_iterator",
+    srcs = ["graph_iterator.cc"],
+    hdrs = [
+        "graph_iterator.h",
+    ],
+    copts = ["-fexceptions"] + select({
+        "//litert:windows": [],
+        "//conditions:default": ["-Wno-unused-variable"],
+    }),
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    deps = [
+        ":decoder",
+        "//litert/c:litert_common",
+        "//litert/c:litert_model_types",
+        "//litert/c/internal:litert_compiler_context_header",
+        "//litert/c/internal:litert_logging",
+        "//litert/cc:litert_element_type",
+        "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
+        "//litert/cc:litert_ranked_tensor_type",
+        "//litert/compiler/cc:litert_model",
+        "//litert/vendors/intel_openvino:ov_utils",
+        "@intel_openvino//:openvino",
+    ],
+)
+
+litert_lib(
+    name = "decoder",
+    srcs = ["decoder.cc"],
+    hdrs = ["decoder.h"],
+    copts = ["-fexceptions"],
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    deps = [
+        "//litert/c:litert_common",
+        "//litert/c:litert_model_types",
+        "//litert/c:litert_op_code",
+        "//litert/c:litert_op_options_header",
+        "//litert/c/internal:litert_compiler_context_header",
+        "//litert/c/internal:litert_logging",
+        "//litert/cc:litert_element_type",
+        "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
+        "//litert/compiler/cc:litert_model",
+        "//litert/vendors/intel_openvino:ov_utils",
+        "//tflite/schema:schema_fbs",
+        "@intel_openvino//:openvino",
+    ],
+)
+
+litert_test(
+    name = "decoder_test",
+    srcs = [
+        "decoder_test.cc",
+    ],
+    copts = ["-fexceptions"],
+    data = [
+        "//litert/test:mlir_test_data",
+        "//litert/test:tflite_test_data",
+    ],
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    tags = [
+        "manual",
+        "nobuilder",
+        "notap",
+    ],
+    deps = [
+        ":decoder",
+        "//litert/c:litert_runtime_c_api_shared_lib",
+        "//litert/c/internal:litert_compiler_context",
+        "//litert/c/internal:litert_logging",
+        "//litert/cc/dynamic_runtime:litert_extended_model",
+        "//litert/compiler/cc:litert_model",
+        "//litert/test:common",
+        "//litert/test:matchers_oss",
+        "//litert/test:test_models",
+        "//litert/vendors/cc:litert_compiler_plugin",
+        "@com_google_absl//absl/log:absl_check",
+        "@com_google_absl//absl/strings:string_view",
+        "@intel_openvino//:openvino",
+    ],
+)
+
+litert_test(
+    name = "openvino_compiler_plugin_test",
+    srcs = [
+        "openvino_compiler_plugin_test.cc",
+    ],
+    copts = ["-fexceptions"],
+    data = [
+        "//litert/test:mlir_test_data",
+        "//litert/test:tflite_test_data",
+    ],
+    features = ["-use_header_modules"],  # Incompatible with -fexceptions.
+    tags = [
+        # Tests with ungrte deps do not currently work on forge.
+        "no-remote-exec",
+        "notap",
+        "no_oss",
+        "manual",
+        "nobuilder",
+    ],
+    target_compatible_with = select({
+        "//litert:android": [],
+        "//litert:linux": [],
+        "//litert:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    ungrte = True,
+    use_sys_malloc = True,
+    deps = [
+        ":openvino_compiler_plugin",  # buildcleaner: keep
+        ":openvino_soc_config",
+        "//litert/c:litert_common",
+        "//litert/c:litert_runtime_c_api_shared_lib",
+        "//litert/c/internal:litert_logging",
+        "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
+        "//litert/cc/dynamic_runtime:litert_extended_model",
+        "//litert/cc/dynamic_runtime:litert_model_predicates",
+        "//litert/test:common",
+        "//litert/test:matchers_oss",
+        "//litert/test:test_models",
+        "//litert/vendors/cc:litert_compiler_plugin",
+        "@com_google_absl//absl/log:absl_check",
+        "@com_google_absl//absl/strings:string_view",
+        "@intel_openvino//:openvino",
+    ],
+)
+
+sh_test(
+    name = "intel_openvino_compiler_plugin_so_symbol_test",
+    srcs = ["//litert/test:litert_compiler_plugin_symbol_test.sh"],
+    args = [
+        "$(location :intel_openvino_compiler_plugin_so)",
+    ],
+    data = [
+        ":intel_openvino_compiler_plugin_so",
+    ],
+)
