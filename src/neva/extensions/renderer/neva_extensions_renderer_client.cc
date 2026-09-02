@@ -25,17 +25,18 @@
 
 namespace neva {
 
-NevaExtensionsRendererClient::NevaExtensionsRendererClient()
-    : dispatcher_(std::make_unique<extensions::Dispatcher>(
-          [] {
-            std::vector<
-                std::unique_ptr<const extensions::ExtensionsRendererAPIProvider>>
-                providers;
-            providers.push_back(
-                std::make_unique<NevaExtensionsDispatcherDelegate>());
-            return providers;
-          }())) {
-  dispatcher_->OnRenderThreadStarted(content::RenderThread::Get());
+// Only register the API provider here.
+//
+// Building a Dispatcher directly and calling OnRenderThreadStarted() on it was
+// the M120 sequence. In M151 ExtensionsRendererClient owns the Dispatcher and
+// RenderThreadStarted() is what constructs it, registers it as a render thread
+// observer, creates the ResourceRequestPolicy and runs FinishInitialization().
+// Doing the first half by hand left resource_request_policy_ null, and the
+// first Renderer::LoadExtensions message a renderer received then dereferenced
+// it in ExtensionsRendererClient::OnExtensionLoaded() and killed the process -
+// so every tab renderer died and no page ever loaded.
+NevaExtensionsRendererClient::NevaExtensionsRendererClient() {
+  AddAPIProvider(std::make_unique<NevaExtensionsDispatcherDelegate>());
 }
 
 NevaExtensionsRendererClient::~NevaExtensionsRendererClient() = default;
@@ -53,7 +54,7 @@ int NevaExtensionsRendererClient::GetLowestIsolatedWorldId() const {
 }
 
 extensions::Dispatcher* NevaExtensionsRendererClient::GetDispatcher() {
-  return dispatcher_.get();
+  return dispatcher();
 }
 
 bool NevaExtensionsRendererClient::ExtensionAPIEnabledForServiceWorkerScript(
