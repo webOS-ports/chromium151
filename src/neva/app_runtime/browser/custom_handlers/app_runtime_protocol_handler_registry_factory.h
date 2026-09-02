@@ -64,6 +64,8 @@ class AppRuntimeProtocolHandlerRegistryFactory
   // BrowserContextKeyedServiceFactory implementation.
   bool ServiceIsCreatedWithBrowserContext() const override;
   bool ServiceIsNULLWhileTesting() const override;
+  content::BrowserContext* GetBrowserContextToUse(
+      content::BrowserContext* context) const override;
 
  private:
   friend base::NoDestructor<AppRuntimeProtocolHandlerRegistryFactory>;
