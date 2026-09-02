@@ -28,6 +28,7 @@
 #include "base/no_destructor.h"
 #include "build/build_config.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "content/public/browser/browser_context.h"
 #include "neva/app_runtime/browser/custom_handlers/app_runtime_protocol_handler_registry_delegate.h"
 
 namespace neva_app_runtime {
@@ -69,13 +70,35 @@ bool AppRuntimeProtocolHandlerRegistryFactory::ServiceIsNULLWhileTesting()
   return true;
 }
 
+// Off-the-record contexts get their own registry rather than none.
+//
+// BrowserContextKeyedServiceFactory's default returns nullptr for an
+// off-the-record context, and nothing here overrode it. That was survivable
+// until M151 added extensions/browser/api/protocol_handlers, whose
+// ProtocolHandlersSanityCheck() and OnExtensionUnloaded() treat a null
+// registry as reachable only from a test and CHECK_IS_TEST() on it. Browser
+// shell builds an off-the-record context for its private partition, so the
+// check fires there and aborts the process as soon as the first tab is
+// created - which is every launch of the Enact browser.
+//
+// Chrome's own ProtocolHandlerRegistryFactory has always returned the
+// context's own instance in incognito for the same reason; this is that,
+// without the //chrome helper. The registry is told it is off the record so
+// it keeps handlers in memory instead of persisting them.
+content::BrowserContext*
+AppRuntimeProtocolHandlerRegistryFactory::GetBrowserContextToUse(
+    content::BrowserContext* context) const {
+  return context;
+}
+
 std::unique_ptr<KeyedService>
 AppRuntimeProtocolHandlerRegistryFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   // We can't ensure the UserPref has been set, so we pass a nullptr
   // PrefService.
   return custom_handlers::ProtocolHandlerRegistry::Create(
-      nullptr, std::make_unique<AppRuntimeProtocolHandlerRegistryDelegate>());
+      nullptr, std::make_unique<AppRuntimeProtocolHandlerRegistryDelegate>(),
+      context->IsOffTheRecord());
 }
 
 }  // namespace neva_app_runtime
