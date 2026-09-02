@@ -54,7 +54,9 @@ using content::BrowserThread;
 namespace neva {
 
 NevaExtensionsBrowserClient::NevaExtensionsBrowserClient()
-    : api_client_(new NevaExtensionsAPIClient) {
+    : api_client_(new NevaExtensionsAPIClient),
+      safe_browsing_delegate_(
+          std::make_unique<extensions::SafeBrowsingDelegate>()) {
   // app_shell does not have a concept of channel yet, so leave UNKNOWN to
   // enable all channel-dependent extension APIs.
   extensions::SetCurrentChannel(version_info::Channel::UNKNOWN);
@@ -325,8 +327,14 @@ void NevaExtensionsBrowserClient::CreateExtensionWebContentsObserver(
 
 extensions::SafeBrowsingDelegate*
 NevaExtensionsBrowserClient::GetSafeBrowsingDelegate() {
-  // No safe browsing integration in the neva extensions host.
-  return nullptr;
+  // No safe browsing integration here, but this must not be null: callers in
+  // //extensions dereference it without checking - ExtensionHost's constructor
+  // calls CreatePasswordReuseDetectionManager() on it for every extension
+  // background page, which segfaulted browser_shell on every launch of an app
+  // whose extension has one. SafeBrowsingDelegate's base implementation is
+  // documented as usable as a stub and every method is a no-op, so hand that
+  // back rather than nullptr.
+  return safe_browsing_delegate_.get();
 }
 
 extensions::KioskDelegate* NevaExtensionsBrowserClient::GetKioskDelegate() {

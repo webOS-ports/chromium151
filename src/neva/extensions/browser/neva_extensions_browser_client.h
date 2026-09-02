@@ -20,6 +20,7 @@
 #include "extensions/browser/extensions_browser_client.h"
 #include <map>
 #include "extensions/browser/kiosk/kiosk_delegate.h"
+#include "extensions/browser/safe_browsing_delegate.h"
 
 class PrefService;
 
@@ -170,6 +171,7 @@ class NevaExtensionsBrowserClient : public extensions::ExtensionsBrowserClient {
   std::unique_ptr<extensions::ExtensionsAPIClient> api_client_;
 
   std::unique_ptr<extensions::KioskDelegate> kiosk_delegate_;
+  std::unique_ptr<extensions::SafeBrowsingDelegate> safe_browsing_delegate_;
 };
 
 }  // namespace neva
