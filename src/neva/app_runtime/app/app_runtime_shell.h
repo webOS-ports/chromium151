@@ -64,6 +64,10 @@ class APP_RUNTIME_EXPORT Shell : public neva_app_runtime::ShellWindowObserver {
   static void SetQuitClosure(base::OnceClosure quit_main_message_loop);
   static void Shutdown();
 
+  // Destroys the Widget of every window. Call once the message loop has
+  // returned; see ShellWindow::DestroyWidget().
+  static void DestroyWindowWidgets();
+
  private:
   std::string GetAcceptedLanguages() const;
 

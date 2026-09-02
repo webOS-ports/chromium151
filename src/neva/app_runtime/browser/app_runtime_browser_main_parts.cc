@@ -30,6 +30,7 @@
 #include "device/bluetooth/dbus/dbus_bluez_manager_wrapper_linux.h"
 #include "net/base/network_change_notifier_factory.h"
 #include "neva/app_runtime/browser/app_runtime_browser_context.h"
+#include "neva/app_runtime/app/app_runtime_shell.h"
 #include "neva/app_runtime/browser/app_runtime_browser_main_extra_parts.h"
 #include "neva/app_runtime/browser/app_runtime_browser_switches.h"
 #include "neva/app_runtime/browser/app_runtime_devtools_manager_delegate.h"
@@ -300,6 +301,12 @@ void AppRuntimeBrowserMainParts::PostCreateThreads() {
 }
 
 void AppRuntimeBrowserMainParts::PostMainMessageLoopRun() {
+  // The message loop has returned, so the Widget teardown that ran inside it
+  // has fully unwound; BrowserMainLoop has not torn down ui::AXPlatform yet.
+  // This is the only point where the shell's Widgets can safely be dropped -
+  // see ShellWindow::DestroyWidget().
+  Shell::DestroyWindowWidgets();
+
   DisableDevTools();
   AppRuntimeBrowserContext::Clear();
 }

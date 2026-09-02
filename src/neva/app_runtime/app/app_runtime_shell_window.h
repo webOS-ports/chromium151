@@ -61,6 +61,9 @@ class ShellWindow : public views::NativeEventDelegate,
   ShellWindow& operator=(const ShellWindow&) = delete;
   ~ShellWindow() override;
 
+  // Destroys the views::Widget this window owns. See the implementation.
+  void DestroyWidget();
+
   void SetDelegate(ShellWindowDelegate* delegate);
   void AddObserver(ShellWindowObserver* observer);
   void RemoveObserver(ShellWindowObserver* observer);
@@ -98,7 +101,7 @@ class ShellWindow : public views::NativeEventDelegate,
  private:
   void Init(const CreateParams& params);
   bool IsTextInputOverlapped(gfx::Rect& input_panel_rect);
-  raw_ptr<views::Widget> window_widget_ = nullptr;
+  std::unique_ptr<views::Widget> window_widget_;
   std::u16string title_;
   ShellWindowDelegate* delegate_;
   ShellWindowDelegate stub_delegate_;

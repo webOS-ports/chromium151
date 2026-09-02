@@ -188,8 +188,32 @@ void ShellWindow::CloseNow() {
   }
 }
 
+// Drop the Widget, and with it the WidgetAXManager it owns.
+//
+// Nothing else does: the Widget is client-owned and ShellWindow itself is never
+// destroyed. While it survives, its WidgetAXManager stays registered with
+// ui::AXPlatform - it only unregisters in its destructor - and AXPlatform's
+// check_empty ObserverList hits NOTREACHED when BrowserMainLoop tears it down.
+//
+// Must not be called from Shell::Shutdown(): that runs inside
+// Widget::HandleWidgetDestroying() (via WindowClosing()), so the Widget would
+// be freed with its own frame still on the stack. AppRuntimeBrowserMainParts
+// calls this from PostMainMessageLoopRun() instead, after the message loop has
+// returned and everything has unwound, but before BrowserMainLoop destroys
+// AXPlatform.
+void ShellWindow::DestroyWidget() {
+  window_widget_.reset();
+}
+
 void ShellWindow::WindowClosing() {
   is_closing_ = true;
+
+  // Under CLIENT_OWNS_WIDGET the NativeWidget deletes itself once the platform
+  // window is gone, and it owns the DesktopWindowTreeHost. Drop both here so
+  // nothing reaches them afterwards - IsTextInputOverlapped() already checks
+  // host_ for null.
+  host_ = nullptr;
+  desktop_native_widget_aura_ = nullptr;
   if (delegate_)
     delegate_->OnWindowClosing();
 
@@ -198,12 +222,25 @@ void ShellWindow::WindowClosing() {
 }
 
 void ShellWindow::Init(const CreateParams& params) {
-  // widget will be removed by its NativeWidget, or when closing with CloseNow.
-  window_widget_ = new views::Widget;
-  // M151 requires the ownership mode up front. The widget owns this delegate
-  // (see init_params.delegate below), which is WIDGET_OWNS_NATIVE_WIDGET.
+  // This window owns its Widget.
+  //
+  // WIDGET_OWNS_NATIVE_WIDGET was wrong for a window whose platform surface the
+  // compositor can close underneath it. In that mode the NativeWidget is kept
+  // alive by Widget::owned_native_widget_ after the platform window goes away,
+  // so the Widget can only be destroyed by re-entering ~DesktopNativeWidgetAura
+  // -> CloseNow() -> Widget::HandleWidgetDestroying(), which opens with
+  // CHECK(!widget_destroying_handled_) and has already run by then. The Widget
+  // therefore could not be destroyed at all, and a live Widget keeps its
+  // WidgetAXManager registered with ui::AXPlatform, whose check_empty
+  // ObserverList aborts the process in ~BrowserMainLoop.
+  //
+  // CLIENT_OWNS_WIDGET is what M151 says every widget should use and is
+  // documented for exactly this case: the NativeWidget deletes itself when the
+  // platform window closes and the Widget stays valid until we drop it, with
+  // ~Widget guarding each teardown step on whether it already happened.
+  window_widget_ = std::make_unique<views::Widget>();
   views::Widget::InitParams init_params(
-      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+      views::Widget::InitParams::CLIENT_OWNS_WIDGET,
       params.frameless ? views::Widget::InitParams::TYPE_WINDOW_FRAMELESS
                        : views::Widget::InitParams::TYPE_WINDOW);
   init_params.bounds = gfx::Rect(0, 0, params.width, params.height);
@@ -214,11 +251,11 @@ void ShellWindow::Init(const CreateParams& params) {
   display::Screen::Get()->AddObserver(this);
 
   desktop_native_widget_aura_ =
-      new AppRuntimeDesktopNativeWidgetAura(window_widget_);
+      new AppRuntimeDesktopNativeWidgetAura(window_widget_.get());
   desktop_native_widget_aura_->SetNativeEventDelegate(this);
   init_params.native_widget = desktop_native_widget_aura_;
   host_ = views::DesktopWindowTreeHost::Create(
-      window_widget_, desktop_native_widget_aura_);
+      window_widget_.get(), desktop_native_widget_aura_);
   aura::Window* root_window = host_->AsWindowTreeHost()->window();
   tooltip_controller_ = std::make_unique<views::corewm::TooltipController>(
       std::make_unique<views::corewm::TooltipAura>(),
