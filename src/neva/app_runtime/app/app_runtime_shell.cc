@@ -165,6 +165,12 @@ void Shell::SetQuitClosure(base::OnceClosure quit_main_message_loop) {
 }
 
 // static
+void Shell::DestroyWindowWidgets() {
+  for (auto* window : windows_)
+    window->DestroyWidget();
+}
+
+// static
 void Shell::Shutdown() {
   static bool shutdown_called = false;
   if (shutdown_called)
