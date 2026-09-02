@@ -298,14 +298,14 @@ void AppRuntimeContentRendererClient::WebViewCreated(
 }
 
 void AppRuntimeContentRendererClient::InitRenderThreadForExtension() {
-  content::RenderThread* thread = content::RenderThread::Get();
-
   extensions_client_.reset(new neva::NevaExtensionsClient);
   extensions::ExtensionsClient::Set(extensions_client_.get());
 
   extensions_renderer_client_.reset(new neva::NevaExtensionsRendererClient);
   extensions::ExtensionsRendererClient::Set(extensions_renderer_client_.get());
-  thread->AddObserver(extensions_renderer_client_->GetDispatcher());
+  // Creates the Dispatcher, adds it as a render thread observer and builds the
+  // ResourceRequestPolicy. Doing those by hand here skipped the last one.
+  extensions_renderer_client_->RenderThreadStarted();
 
   const bool is_extension = base::CommandLine::ForCurrentProcess()->HasSwitch(
       extensions::switches::kExtensionProcess);

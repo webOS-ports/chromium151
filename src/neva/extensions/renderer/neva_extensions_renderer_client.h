@@ -48,8 +48,6 @@ class NevaExtensionsRendererClient
   void WebViewCreated(blink::WebView* web_view,
                       const url::Origin* outermost_origin);
 
- private:
-  std::unique_ptr<extensions::Dispatcher> dispatcher_;
 };
 
 }  // namespace neva
