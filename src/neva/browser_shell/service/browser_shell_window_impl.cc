@@ -19,6 +19,7 @@
 
 #include "base/logging.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
+#include "neva/app_runtime/app/app_runtime_page_contents.h"
 #include "neva/app_runtime/app/app_runtime_page_view.h"
 #include "neva/app_runtime/app/app_runtime_shell_window.h"
 #include "neva/browser_shell/service/browser_shell_page_view_impl.h"
@@ -27,6 +28,29 @@
 #include "ui/gfx/geometry/rect.h"
 
 namespace browser_shell {
+
+namespace {
+
+// Window px -> css px of |page_view|'s page. Rects handed to the application
+// are compared with its DOM, which is laid out at the page zoom (the platform
+// UI scale, see Shell::CreateMainWindow).
+browser_shell::mojom::RectPtr ToPageRect(
+    neva_app_runtime::PageView* page_view,
+    const gfx::Rect& bounds) {
+  gfx::Rect rect = bounds;
+  auto* contents = page_view ? page_view->GetPageContents() : nullptr;
+  const double zoom = contents ? contents->GetZoomFactor() : 1.0;
+  if (zoom > 0 && zoom != 1.0)
+    rect = gfx::ScaleToRoundedRect(rect, 1.0 / zoom);
+  auto result = browser_shell::mojom::Rect::New();
+  result->x = rect.x();
+  result->y = rect.y();
+  result->width = rect.width();
+  result->height = rect.height();
+  return result;
+}
+
+}  // namespace
 
 ShellWindowImpl::ShellWindowImpl(ShellServiceImpl* shell_service,
                                  neva_app_runtime::ShellWindow* shell_window,
@@ -69,13 +93,8 @@ void ShellWindowImpl::SyncName(SyncNameCallback callback) {
 }
 
 void ShellWindowImpl::OnDisplaySizeChanged(const gfx::Rect& bounds) {
-  auto display_bounds = browser_shell::mojom::Rect::New();
-  display_bounds->x = bounds.x();
-  display_bounds->y = bounds.y();
-  display_bounds->width = bounds.width();
-  display_bounds->height = bounds.height();
-
-  remote_client_->OnDisplaySizeChanged(std::move(display_bounds));
+  remote_client_->OnDisplaySizeChanged(
+      ToPageRect(shell_window_->GetPageView(), bounds));
 }
 
 void ShellWindowImpl::OnWindowClosing() {
@@ -87,13 +106,8 @@ void ShellWindowImpl::VirtuaKeyboardChangeState(bool visible) {
 }
 
 void ShellWindowImpl::VirtuaKeyboardOverlapTextField(const gfx::Rect& bounds) {
-  auto vkb_bounds = browser_shell::mojom::Rect::New();
-  vkb_bounds->x = bounds.x();
-  vkb_bounds->y = bounds.y();
-  vkb_bounds->width = bounds.width();
-  vkb_bounds->height = bounds.height();
-
-  remote_client_->VirtuaKeyboardOverlapTextField(std::move(vkb_bounds));
+  remote_client_->VirtuaKeyboardOverlapTextField(
+      ToPageRect(shell_window_->GetPageView(), bounds));
 }
 
 }  // namespace browser_shell

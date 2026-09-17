@@ -57,6 +57,7 @@ Shell::Shell(const CreateParams& params)
       display_id_(params.display_id),
       launch_params_(params.launch_params),
       user_agent_(params.user_agent),
+      page_zoom_factor_(params.page_zoom_factor),
       enable_dev_tools_(params.enable_dev_tools) {}
 
 Shell::~Shell() = default;
@@ -100,6 +101,14 @@ ShellWindow* Shell::CreateMainWindow(std::string url,
   // Main page contents shouldn't be able to pinch-to-zoom
   page_contents_params.pinch_to_zoom_enabled = false;
   page_contents_params.type = PageContents::Type::kMain;
+  // The platform UI scale, applied the way WebAppMgr applies it: as page
+  // zoom. --force-device-scale-factor is TEST ONLY on Wayland and on this
+  // stack allocates the buffer at the DIP size while Blink rasterises at the
+  // factor, so the page ends up magnified by the factor squared and cropped.
+  // Page zoom keeps the window 1:1 with the panel and reflows the page to
+  // panel/factor css px. PageContents re-applies it after the first
+  // cross-origin commit, which is the application's own url.
+  page_contents_params.zoom_factor = page_zoom_factor_;
 
   auto page_contents = std::make_unique<PageContents>(page_contents_params);
   page_contents->LoadURL(std::move(url));
@@ -144,6 +153,10 @@ PageContents::CreateParams Shell::GetDefaultContentsParams() {
   nested_params.type = PageContents::Type::kTab;
   nested_params.accepted_languages = GetAcceptedLanguages();
   nested_params.user_agent = user_agent_;
+  // Pages the application creates default to its own scale, so their css px
+  // match the application's and the coordinates they report need no
+  // conversion. "zoom-factor" in the page-contents params overrides it.
+  nested_params.zoom_factor = page_zoom_factor_;
   return nested_params;
 }
 

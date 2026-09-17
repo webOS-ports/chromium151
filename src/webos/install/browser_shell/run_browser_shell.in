@@ -121,6 +121,17 @@ if test -n ${LS2_NAME}; then
   CHROME_LS2_NAME_FLAG="--webos-luna-service-name=${LS2_NAME}"
 fi
 
+# UI scale for the legacy frameworks - the configd value WebAppMgr applies to
+# the same applications (see webapp-mgr.sh). The shell applies it as page zoom,
+# and only when the application's entry document loads Mojo or Enyo:
+# --force-device-scale-factor is TEST ONLY on Wayland and magnifies and crops
+# the page on this stack.
+SHELL_LEGACY_UI_ZOOM_FACTOR=$(luna-send -n 1 -a com.webos.surfacemanager luna://com.webos.service.config/getConfigs '{"configNames":["com.webos.surfacemanager.devicePixelRatio"]}' 2>/dev/null | grep -oE "[0-9]+(\.[0-9]+)?" | head -n 1)
+CHROME_ZOOM_FLAG=""
+if [ -n "${SHELL_LEGACY_UI_ZOOM_FACTOR}" ]; then
+  CHROME_ZOOM_FLAG="--shell-legacy-ui-zoom-factor=${SHELL_LEGACY_UI_ZOOM_FACTOR}"
+fi
+
 CHROME_DISPLAY_FLAG=""
 if test -n ${DISPLAY_ID}; then
   CHROME_DISPLAY_FLAG="--webos-displayid=${DISPLAY_ID}"
@@ -158,6 +169,7 @@ CHROME_FLAGS=" \
   --user-data-dir=${CHROME_CACHE}\
   --shell-app-id=${BROWSER_APP_ID}\
   ${CHROME_DISPLAY_FLAG}\
+  ${CHROME_ZOOM_FLAG}\
   --shell-app-path=${BROWSER_APP_PATH}\
   --shell-fullscreen=true\
   --shell-web-apis="@@INJECTIONS@@"\

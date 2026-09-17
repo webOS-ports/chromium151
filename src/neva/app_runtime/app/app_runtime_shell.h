@@ -43,6 +43,11 @@ class APP_RUNTIME_EXPORT Shell : public neva_app_runtime::ShellWindowObserver {
     std::string launch_params;
     std::string user_agent;
     bool enable_dev_tools = false;
+    // Page zoom for the main page and the default for every page created
+    // after it. This is how the platform UI scale reaches a legacy-framework
+    // application (see BrowserShellMainDelegate and
+    // Shell::CreateMainWindow); 1 for everything else.
+    double page_zoom_factor = 1.0;
   };
 
   explicit Shell(const CreateParams& params);
@@ -57,6 +62,7 @@ class APP_RUNTIME_EXPORT Shell : public neva_app_runtime::ShellWindowObserver {
   ShellWindow* GetMainWindow();
   PageContents::CreateParams GetDefaultContentsParams();
   const std::string& GetLaunchParams() const;
+  double GetPageZoomFactor() const { return page_zoom_factor_; }
 
   // neva_app_runtime::ShellWindowObserver
   void OnWindowClosing(ShellWindow* window) override;
@@ -75,6 +81,7 @@ class APP_RUNTIME_EXPORT Shell : public neva_app_runtime::ShellWindowObserver {
   const std::string display_id_;
   const std::string launch_params_;
   std::string user_agent_;
+  double page_zoom_factor_ = 1.0;
   base::ObserverList<ShellObserver> observers_;
   bool enable_dev_tools_;
   ShellWindow* main_window_ = nullptr;

@@ -35,6 +35,13 @@ const char kShellFullscreen[] = "shell-fullscreen";
 // List for specify WEB API modules that will be connected to browser-shell.
 const char kShellWebAPIs[] = "shell-web-apis";
 
+// UI scale for applications built on the legacy frameworks (Mojo, Enyo 1/2).
+// run_browser_shell passes the configd value
+// com.webos.surfacemanager.devicePixelRatio, the value WebAppMgr applies to the
+// same applications. Other applications ignore it; see
+// BrowserShellMainDelegate.
+const char kShellLegacyUiZoomFactor[] = "shell-legacy-ui-zoom-factor";
+
 // Pass luna service name to browser
 const char kWebOSLunaServiceName[] = "webos-luna-service-name";
 
