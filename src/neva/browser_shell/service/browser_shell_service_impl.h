@@ -78,6 +78,9 @@ class COMPONENT_EXPORT(BROWSER_SHELL_SERVICE) ShellServiceImpl :
   void AddUniqueReceiver(std::unique_ptr<PageViewImpl> page_view_impl,
                          mojo::PendingReceiver<mojom::PageView> receiver);
 
+  // The platform UI scale, the zoom every page the shell creates starts at.
+  double GetPageZoomFactor() const;
+
   // neva_app_runtime::ShellObserver
   void OnMainWindowClosing() override;
 

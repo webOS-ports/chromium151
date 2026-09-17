@@ -16,10 +16,18 @@
 
 #include "neva/browser_shell/app/browser_shell_main_delegate.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <fstream>
+#include <string_view>
+
 #include "base/command_line.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/run_loop.h"
+#include "base/strings/escape.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "components/embedder_support/switches.h"
@@ -66,6 +74,70 @@ std::string GetUserAgentFromArgs() {
 
   return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
       embedder_support::kUserAgent);
+}
+
+// The legacy UI scale follows WebAppMgr's rule for the same applications
+// (WAM's ApplicationDescription::UsesLegacyFramework): Mojo and Enyo 1/2
+// applications are fixed-pixel layouts written for the ~450 css px viewport of
+// a Palm-era handset, so the panel is zoomed to fit them. Everything else keeps
+// the panel's own viewport - Enact picks its screen tier from innerWidth, and
+// its smallest tier is 1280x720, so the legacy viewport breaks it.
+//
+// Keep the markers and the sniff size in step with WAM's. They match how the
+// framework is loaded rather than the word "enyo", which turns up in
+// unrelated applications as a leftover class name.
+constexpr size_t kFrameworkSniffBytes = 512 * 1024;
+constexpr std::string_view kLegacyFrameworkMarkers[] = {
+    "frameworks/mojo",
+    "mojoloader.js",
+    "frameworks/enyo",
+    "enyo.js",
+    "enyo.css",
+    "enyo.min.js",
+    "enyo.min.css",
+    "hasownproperty(\"enyo\")",
+    "hasownproperty('enyo')",
+    "enyo-body-fit",
+    "enyo-document-fit",
+};
+
+bool UsesLegacyFramework(const GURL& url) {
+  // Those frameworks are only ever loaded off the device.
+  if (!url.SchemeIsFile())
+    return false;
+  // A plain stream, as WAM does: this runs once, before the message loop,
+  // where base::File's blocking-call assertion does not allow file access.
+  std::ifstream file(base::UnescapeBinaryURLComponent(url.path()),
+                     std::ios::binary);
+  if (!file)
+    return false;
+  std::string head(kFrameworkSniffBytes, '\0');
+  file.read(head.data(), static_cast<std::streamsize>(head.size()));
+  head.resize(static_cast<size_t>(file.gcount()));
+  std::transform(head.begin(), head.end(), head.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return std::any_of(std::begin(kLegacyFrameworkMarkers),
+                     std::end(kLegacyFrameworkMarkers),
+                     [&head](std::string_view marker) {
+                       return head.find(marker) != std::string::npos;
+                     });
+}
+
+double GetLegacyUiZoomFactorFromArgs() {
+  const std::string value =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+          switches::kShellLegacyUiZoomFactor);
+  if (value.empty())
+    return 1.0;
+  double factor = 0;
+  // A partially numeric value is a mistake, not a scale.
+  if (!base::StringToDouble(value, &factor) || !std::isfinite(factor) ||
+      factor <= 0 || factor > 8) {
+    LOG(ERROR) << "Ignoring invalid --" << switches::kShellLegacyUiZoomFactor
+               << "=" << value;
+    return 1.0;
+  }
+  return factor;
 }
 
 base::DictValue ReadLaunchArgs() {
@@ -142,6 +214,8 @@ void BrowserShellMainDelegate::PreMainMessageLoopRun() {
           switches::kWebOSDisplayId);
 
   shell_params.enable_dev_tools = enable_dev_tools;
+  shell_params.page_zoom_factor =
+      UsesLegacyFramework(url) ? GetLegacyUiZoomFactorFromArgs() : 1.0;
   shell_params.user_agent = GetUserAgentFromArgs();
 
   base::DictValue launch_params_dict = ReadLaunchArgs();

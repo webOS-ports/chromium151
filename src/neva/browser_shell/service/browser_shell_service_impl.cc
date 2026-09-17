@@ -89,7 +89,8 @@ void SetContentParams(neva_app_runtime::PageContents::CreateParams& params,
   params.allow_universal_access_from_file_urls =
       dict.FindBool("allow-universal-access").value_or(false);
   params.error_page_hiding = dict.FindBool("error-page-hiding").value_or(false);
-  params.zoom_factor = dict.FindDouble("zoom-factor");
+  if (std::optional<double> zoom = dict.FindDouble("zoom-factor"))
+    params.zoom_factor = zoom;
   params.type = GetTypeFromDict(dict);
   params.site_page_contents_id =
       dict.FindIntByDottedPath("site-page-contents.id");
@@ -142,6 +143,10 @@ void ShellServiceImpl::BindShellWindow(
     return;
   }
   std::move(callback).Run(std::string());
+}
+
+double ShellServiceImpl::GetPageZoomFactor() const {
+  return shell_->GetPageZoomFactor();
 }
 
 void ShellServiceImpl::CreatePageView(

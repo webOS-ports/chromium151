@@ -21,6 +21,7 @@ extern const char kShellAppPath[];
 extern const char kShellLaunchArgs[];
 extern const char kShellFullscreen[];
 extern const char kShellWebAPIs[];
+extern const char kShellLegacyUiZoomFactor[];
 extern const char kWebOSLunaServiceName[];
 extern const char kWebOSDisplayId[];
 

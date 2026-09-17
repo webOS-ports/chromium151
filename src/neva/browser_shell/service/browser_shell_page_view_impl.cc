@@ -24,6 +24,7 @@
 #include "neva/browser_shell/service/browser_shell_service_impl.h"
 #include "neva/browser_shell/service/browser_shell_page_contents_impl.h"
 #include "neva/logging.h"
+#include "ui/gfx/geometry/rect.h"
 
 namespace browser_shell {
 
@@ -75,7 +76,23 @@ void PageViewImpl::SyncId(SyncIdCallback callback) {
 }
 
 void PageViewImpl::SetBounds(int32_t x, int32_t y, int32_t w, int32_t h) {
-  page_view_->SetBounds(x, y, w, h);
+  // The application computes the rect from its own DOM, so it is in the css
+  // px of the page this view is a child of. Views are positioned in window
+  // px, which differ from those by that page's zoom - the platform UI scale
+  // (see Shell::CreateMainWindow). Scaling the edges keeps adjacent views
+  // from ending up a pixel apart.
+  double zoom = 1.0;
+  if (auto* parent = page_view_->GetParentPageView()) {
+    if (auto* contents = parent->GetPageContents())
+      zoom = contents->GetZoomFactor();
+  } else if (!page_view_->GetParentShellWindow()) {
+    zoom = shell_service_->GetPageZoomFactor();  // not attached yet
+  }
+  gfx::Rect bounds(x, y, w, h);
+  if (zoom > 0 && zoom != 1.0)
+    bounds = gfx::ScaleToRoundedRect(bounds, zoom);
+  page_view_->SetBounds(bounds.x(), bounds.y(), bounds.width(),
+                        bounds.height());
 }
 
 void PageViewImpl::SetVisible(bool visible) {
