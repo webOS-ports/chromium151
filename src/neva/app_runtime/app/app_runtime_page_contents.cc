@@ -37,6 +37,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_details.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
@@ -772,9 +773,16 @@ void PageContents::DidStopLoading() {
 }
 
 void PageContents::DidUpdateFaviconURL(
-    content::RenderFrameHost*,
+    content::RenderFrameHost* render_frame_host,
     const std::vector<blink::mojom::FaviconURLPtr>& candidates,
     blink::mojom::FaviconUpdateReason) {
+  // Only the primary main frame's icons describe the page the user is looking at. Chromium announces
+  // candidates for other frames and other pages too - a page kept in the back/forward cache, a
+  // pending or prerendered one - and forwarding those put the PREVIOUS page's icon on the current
+  // one: a tab showing telegraaf.nl ended up wearing tweakers.net's icon, while the tab actually
+  // showing tweakers.net had none.
+  if (!render_frame_host || !render_frame_host->IsInPrimaryMainFrame())
+    return;
   std::vector<FaviconInfo> sending_info;
   sending_info.reserve(candidates.size());
   for (const auto& candidate : candidates) {
