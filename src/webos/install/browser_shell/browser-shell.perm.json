@@ -2,21 +2,15 @@
   "com.webos.app.enactbrowser*": [
     "application.operation",
     "application.launcher",
-    "applications",
-    "settings.read",
-    "signals.all"
+    "settings.query"
   ],
   "com.webos.app.test.browsershell*": [
-    "application.operation",
-    "applications"
+    "application.operation"
   ],
   "com.webos.settingsservice.client*": [
-    "settings.read",
     "settings.query"
   ],
   "com.webos.chromium.memory.*": [
-    "signals.all",
-    "system",
     "memorymanager.query"
   ],
   "com.webos.chromium.audio*": [
@@ -28,7 +22,7 @@
     "camera.operation"
   ],
   "com.webos.rm.client.*": [
-    "media"
+    "media.operation"
   ],
   "com.webos.chromium.installablemanager*": [
     "applicationinstall.management",
