@@ -2,13 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-CANVAS_DIMENSIONS, 39,
-MOVE_TO, 8.19, 33.94,
-R_CUBIC_TO, 6.25, 6.25, 16.38, 6.25, 22.63, 0,
-R_CUBIC_TO, 6.25, -6.25, 6.25, -16.38, 0, -22.63,
-R_LINE_TO, 0, 0,
-LINE_TO, 19.5, 0,
-LINE_TO, 8.19, 11.31,
-R_LINE_TO, 0, 0,
-R_CUBIC_TO, -6.25, 6.25, -6.25, 16.38, 0, 22.63,
+// webOS drew the ends of a selection as small shields that point at the text -
+// topmarker.png and bottommarker.png, 18x15, a band of full width tapering to
+// a point. This is that shape on Chromium's 32 unit canvas: legacy's 14x11 of
+// ink scaled to the width, so the proportions are its own.
+//
+// Pointing up in all three, because these handles are drawn below the line
+// they belong to. Legacy put the one at the start of a selection above the
+// line and pointed it down, which is a matter of where the handle is placed
+// rather than how it is drawn - see TouchHandle's layout.
+
+CANVAS_DIMENSIONS, 32,
+MOVE_TO, 16, 0,
+LINE_TO, 32, 13.7,
+V_LINE_TO, 25.1,
+H_LINE_TO, 0,
+V_LINE_TO, 13.7,
 CLOSE
