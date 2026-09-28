@@ -68,8 +68,11 @@ class LayoutThemeMobile : public LayoutThemeDefault {
   static Color inactive_selection_foreground_color_;
   static constexpr Color kDefaultTapHighlightColor =
       Color::FromRGBA32(0x6633b5e5);
+  // The same webOS yellow the rest of the system selects in; see
+  // kDefaultActiveSelectionBgColor. The mobile theme is the one in force when
+  // the mobile layout theme is enabled, so it has to say it too.
   static constexpr Color kDefaultActiveSelectionBackgroundColor =
-      Color::FromRGBA32(0x6633b5e5);
+      Color::FromRGBA32(0xFFFFEA58);
   static constexpr Color kDefaultActiveSelectionForegroundColor =
       Color::FromRGBA32(0xFF000000);
 };
