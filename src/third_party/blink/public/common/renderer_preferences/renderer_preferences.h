@@ -22,8 +22,14 @@
 namespace blink {
 
 // Note: these must match the values in renderer_preferences.mojom.
-constexpr uint32_t kDefaultActiveSelectionBgColor = 0xFF1967D2;
-constexpr uint32_t kDefaultActiveSelectionFgColor = 0xFFFFFFFF;
+// webOS highlighted selected text in yellow with black letters on it, and named
+// the pair in the stylesheet every application of the era loaded - Mojo's
+// global-base.css: "::selection { background: #ffea58; color: #000 }". Blink's
+// blue matches nothing else on the device, and this is the one place that
+// reaches every page - the browser's own chrome, every web application, and
+// anything they load.
+constexpr uint32_t kDefaultActiveSelectionBgColor = 0xFFFFEA58;
+constexpr uint32_t kDefaultActiveSelectionFgColor = 0xFF000000;
 constexpr uint32_t kDefaultInactiveSelectionBgColor = 0xFFC8C8C8;
 constexpr uint32_t kDefaultInactiveSelectionFgColor = 0xFF323232;
 
