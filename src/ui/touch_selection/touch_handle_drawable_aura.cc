@@ -4,6 +4,7 @@
 
 #include "ui/touch_selection/touch_handle_drawable_aura.h"
 
+#include "third_party/skia/include/core/SkColor.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_targeter.h"
 #include "ui/base/cursor/cursor.h"
@@ -52,8 +53,12 @@ ImageModel GetHandleVectorIcon(TouchHandleOrientation orientation) {
     case TouchHandleOrientation::UNDEFINED:
       NOTREACHED() << "Invalid touch handle bound type.";
   }
+  // webOS drew its selection markers in a near-white grey - the legacy
+  // topmarker.png/bottommarker.png the browser carried are #F2F2F2 shading to
+  // #C8C8C8 - and nothing on this device is the theme's primary blue, which is
+  // what these handles are otherwise painted in.
   return ImageModel::FromVectorIcon(*icon,
-                                    /*color_id=*/kColorSysPrimary);
+                                    /*color=*/SkColorSetRGB(0xF2, 0xF2, 0xF2));
 }
 
 bool IsNearlyZero(float value) {
