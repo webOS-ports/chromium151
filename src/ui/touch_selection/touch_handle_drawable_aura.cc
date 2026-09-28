@@ -19,7 +19,9 @@
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/outsets_f.h"
 #include "ui/gfx/geometry/point_conversions.h"
+#include "ui/gfx/geometry/vector2d.h"
 #include "ui/gfx/image/image.h"
+#include "ui/gfx/image/image_skia.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/native_theme/native_theme_observer.h"
 #include "ui/touch_selection//vector_icons/vector_icons.h"
@@ -111,13 +113,17 @@ void TouchHandleDrawableAura::SetEnabled(bool enabled) {
 void TouchHandleDrawableAura::SetOrientation(TouchHandleOrientation orientation,
                                              bool mirror_vertical,
                                              bool mirror_horizontal) {
-  // TODO(AviD): Implement adaptive handle orientation logic for Aura
-  DCHECK(!mirror_vertical);
-  DCHECK(!mirror_horizontal);
-
-  if (orientation_ == orientation)
+  // Mirroring vertically is how a handle is put above the line it belongs to
+  // rather than below it, which is where webOS drew the one at the start of a
+  // selection - pointing down at the text. Drawing it is a matter of turning
+  // the same image over, so there is no second icon for it.
+  //
+  // Mirroring horizontally is still not implemented here, and is ignored
+  // rather than fatal: nothing asks for it on this platform.
+  if (orientation_ == orientation && mirror_vertical_ == mirror_vertical)
     return;
   orientation_ = orientation;
+  mirror_vertical_ = mirror_vertical;
 
   handle_image_ = GetHandleVectorIcon(orientation);
   UpdateWindowBounds();
@@ -164,13 +170,27 @@ float TouchHandleDrawableAura::GetDrawableHorizontalPaddingRatio() const {
 
 void TouchHandleDrawableAura::OnPaintLayer(const PaintContext& context) {
   PaintRecorder recorder(context, window_->bounds().size());
-  if (!handle_image_.IsEmpty()) {
-    recorder.canvas()->DrawImageInt(
-        handle_image_.Rasterize(ColorProviderManager::Get().GetColorProviderFor(
-            NativeTheme::GetInstanceForNativeUi()->GetColorProviderKey(
-                nullptr))),
-        0, 0);
+  if (handle_image_.IsEmpty()) {
+    return;
   }
+
+  const gfx::ImageSkia image =
+      handle_image_.Rasterize(ColorProviderManager::Get().GetColorProviderFor(
+          NativeTheme::GetInstanceForNativeUi()->GetColorProviderKey(nullptr)));
+  gfx::Canvas* canvas = recorder.canvas();
+
+  if (!mirror_vertical_) {
+    canvas->DrawImageInt(image, 0, 0);
+    return;
+  }
+
+  // Turned over, so the point that marks the text is at the bottom of the
+  // image rather than the top.
+  canvas->Save();
+  canvas->Translate(gfx::Vector2d(0, image.height()));
+  canvas->Scale(1, -1);
+  canvas->DrawImageInt(image, 0, 0);
+  canvas->Restore();
 }
 
 void TouchHandleDrawableAura::OnNativeThemeUpdated(

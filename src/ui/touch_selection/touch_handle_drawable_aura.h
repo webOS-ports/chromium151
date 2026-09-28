@@ -67,6 +67,9 @@ class UI_TOUCH_SELECTION_EXPORT TouchHandleDrawableAura
   // transparent by default).
   float alpha_;
   TouchHandleOrientation orientation_;
+  // Whether the image is drawn turned over, which is how a handle sits above
+  // the line it marks - see SetOrientation().
+  bool mirror_vertical_ = false;
 
   // The origin of the targetable area of the touch handle, in coordinates of
   // the handle window's parent. When drawing the handle image, an additional

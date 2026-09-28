@@ -287,6 +287,14 @@ void TouchHandle::UpdateHandleLayout() {
 
     mirror_vertical = top_y_clipped < bottom_y_clipped;
 
+    // webOS put the marker at the start of a selection above the line, pointing
+    // down at the text, and only the one at its end below. That is this same
+    // mirror - the one the layout already reaches for when a handle would fall
+    // off the bottom of the viewport - asked for outright, unless there is no
+    // room above the line to put it in.
+    const bool start_handle_above_line =
+        orientation_ == TouchHandleOrientation::LEFT && top_y_clipped <= 0;
+
     if (orientation_ == TouchHandleOrientation::LEFT) {
       const float left_x_clipped = std::max(
           viewport_rect_.x() - (focus_bottom_.x() - handle_width), 0.f);
@@ -301,7 +309,11 @@ void TouchHandle::UpdateHandleLayout() {
 
     if (client_->IsAdaptiveHandleOrientationEnabled()) {
       mirror_horizontal_ = mirror_horizontal;
-      mirror_vertical_ = mirror_vertical;
+      mirror_vertical_ = mirror_vertical || start_handle_above_line;
+    } else {
+      // Where the start handle goes is not a matter of adapting to the
+      // viewport, so it does not wait on that policy.
+      mirror_vertical_ = start_handle_above_line;
     }
   }
 
