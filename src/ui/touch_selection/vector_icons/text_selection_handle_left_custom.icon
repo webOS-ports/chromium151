@@ -13,9 +13,24 @@
 // rather than how it is drawn - see TouchHandle's layout.
 
 CANVAS_DIMENSIONS, 32,
+
+// The edge first, at full size, in the dark olive-grey legacy outlined these
+// with - sampled off a legacy screenshot at (126, 120, 91).
+PATH_COLOR_ARGB, 0xFF, 0x7E, 0x78, 0x5B,
 MOVE_TO, 16, 0,
 LINE_TO, 32, 13.7,
 V_LINE_TO, 25.1,
 H_LINE_TO, 0,
 V_LINE_TO, 13.7,
+CLOSE,
+
+// Then the body, inset so the edge shows all the way round. Grey rather than
+// the near-white it was: legacy's shield runs about #D9D9D8, and white with no
+// edge disappears entirely on anything pale - a memo's paper, for one.
+PATH_COLOR_ARGB, 0xFF, 0xD9, 0xD9, 0xD8,
+MOVE_TO, 16, 2.4,
+LINE_TO, 30.4, 14.6,
+V_LINE_TO, 23.5,
+H_LINE_TO, 1.6,
+V_LINE_TO, 14.6,
 CLOSE

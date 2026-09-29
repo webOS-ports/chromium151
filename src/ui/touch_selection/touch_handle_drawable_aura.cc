@@ -55,12 +55,13 @@ ImageModel GetHandleVectorIcon(TouchHandleOrientation orientation) {
     case TouchHandleOrientation::UNDEFINED:
       NOTREACHED() << "Invalid touch handle bound type.";
   }
-  // webOS drew its selection markers in a near-white grey - the legacy
-  // topmarker.png/bottommarker.png the browser carried are #F2F2F2 shading to
-  // #C8C8C8 - and nothing on this device is the theme's primary blue, which is
-  // what these handles are otherwise painted in.
+  // The colours live in the icons themselves, which give the shield a grey body
+  // and the dark edge legacy outlined it with; a single colour here cannot
+  // describe both, and a near-white one on its own left the handles invisible
+  // against anything pale. Passed all the same because the icon wants one, and
+  // ignored for every path that names its own.
   return ImageModel::FromVectorIcon(*icon,
-                                    /*color=*/SkColorSetRGB(0xF2, 0xF2, 0xF2));
+                                    /*color=*/SkColorSetRGB(0xD9, 0xD9, 0xD8));
 }
 
 bool IsNearlyZero(float value) {
