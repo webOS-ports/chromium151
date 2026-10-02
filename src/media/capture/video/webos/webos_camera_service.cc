@@ -17,6 +17,7 @@
 #include "media/capture/video/webos/webos_camera_service.h"
 #include "media/capture/video/webos/webos_camera_constants.h"
 
+#include "base/compiler_specific.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
@@ -419,7 +420,9 @@ base::span<uint8_t> WebOSCameraService::ReadCameraBuffer() {
   uint8_t* buffer = nullptr;
   size_t size;
   if (camera_buffer_ && camera_buffer_->ReadData(&buffer, &size))
-    return base::make_span(buffer, size);
+    // The pointer and size come from the camera buffer library, which owns
+    // the memory and reports exactly |size| readable bytes.
+    return UNSAFE_BUFFERS(base::span<uint8_t>(buffer, size));
   return {};
 }
 
@@ -436,7 +439,8 @@ std::optional<base::DictValue> WebOSCameraService::GetRootDictionary(
   if (payload.empty())
     return std::nullopt;
 
-  std::optional<base::Value> root = base::JSONReader::Read(payload);
+  std::optional<base::Value> root = base::JSONReader::Read(
+      payload, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!root || !root->is_dict()) {
     return std::nullopt;
   }

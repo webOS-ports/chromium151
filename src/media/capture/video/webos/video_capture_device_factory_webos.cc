@@ -16,6 +16,8 @@
 
 #include "media/capture/video/webos/video_capture_device_factory_webos.h"
 
+#include <algorithm>
+
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/bind_post_task.h"
@@ -108,7 +110,7 @@ void VideoCaptureDeviceFactoryWebOS::GetDevicesInfo(
   // Remove old entries from |supported_formats_cache_| if necessary.
   if (supported_formats_cache_.size() > devices_info.size()) {
     base::EraseIf(supported_formats_cache_, [&devices_info](const auto& entry) {
-      return base::ranges::none_of(
+      return std::ranges::none_of(
           devices_info, [&entry](const VideoCaptureDeviceInfo& info) {
             return entry.first == info.descriptor.device_id;
           });
@@ -118,7 +120,7 @@ void VideoCaptureDeviceFactoryWebOS::GetDevicesInfo(
   // Remove old entries from |controls_cache_| if necessary.
   if (controls_cache_.size() > devices_info.size()) {
     base::EraseIf(controls_cache_, [&devices_info](const auto& entry) {
-      return base::ranges::none_of(
+      return std::ranges::none_of(
           devices_info, [&entry](const VideoCaptureDeviceInfo& info) {
             return entry.first == info.descriptor.device_id;
           });
