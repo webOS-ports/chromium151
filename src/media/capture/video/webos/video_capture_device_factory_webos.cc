@@ -42,6 +42,19 @@ bool IsControlSupported(base::DictValue* property) {
   return (max && min && current && step);
 }
 
+// Which way the camera service says a camera faces. A service that does not
+// say, or a camera that is not fixed to the device, leaves it unspecified.
+VideoFacingMode GetFacingMode(const base::DictValue& info) {
+  const std::string* facing = info.FindStringByDottedPath(kFacing);
+  if (!facing)
+    return VideoFacingMode::MEDIA_VIDEO_FACING_NONE;
+  if (*facing == kFacingFront)
+    return VideoFacingMode::MEDIA_VIDEO_FACING_USER;
+  if (*facing == kFacingBack)
+    return VideoFacingMode::MEDIA_VIDEO_FACING_ENVIRONMENT;
+  return VideoFacingMode::MEDIA_VIDEO_FACING_NONE;
+}
+
 }  // namespace
 
 VideoCaptureDeviceFactoryWebOS::VideoCaptureDeviceFactoryWebOS()
@@ -101,7 +114,8 @@ void VideoCaptureDeviceFactoryWebOS::GetDevicesInfo(
 
     devices_info.emplace_back(VideoCaptureDeviceDescriptor(
         *device_name, device_id, device_id, VideoCaptureApi::UNKNOWN,
-        supported_control.value()));
+        supported_control.value(), VideoCaptureTransportType::OTHER_TRANSPORT,
+        GetFacingMode(info.GetDict())));
 
     devices_info.back().supported_formats =
         std::move(supported_formats.value());
