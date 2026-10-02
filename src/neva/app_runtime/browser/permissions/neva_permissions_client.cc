@@ -10,8 +10,10 @@
 #include "base/notreached.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
 #include "components/permissions/origin_keyed_permission_action_service.h"
+#include "components/permissions/permission_actions_history.h"
 #include "neva/app_runtime/browser/host_content_settings_map_factory.h"
 #include "neva/app_runtime/browser/permissions/origin_keyed_permission_action_service_factory.h"
+#include "neva/app_runtime/browser/permissions/permission_actions_history_factory.h"
 #include "neva/app_runtime/browser/permissions/permission_decision_auto_blocker_factory.h"
 #include "neva/app_runtime/browser/permissions/permission_manager_factory.h"
 #include "neva/app_runtime/browser/permissions/permission_prompt.h"
@@ -57,8 +59,9 @@ NevaPermissionsClient::GetOriginKeyedPermissionActionService(
 permissions::PermissionActionsHistory*
 NevaPermissionsClient::GetPermissionActionsHistory(
     content::BrowserContext* browser_context) {
-  NOTIMPLEMENTED();
-  return nullptr;
+  // PermissionRequestManager records every camera, microphone and geolocation
+  // decision in this history, so it must not be null.
+  return PermissionActionsHistoryFactory::GetForBrowserContext(browser_context);
 }
 
 permissions::PermissionDecisionAutoBlocker*
