@@ -17,7 +17,9 @@
 #include "media/capture/video/webos/webos_capture_delegate.h"
 
 #include "base/logging.h"
+#include "base/strings/stringprintf.h"
 #include "base/task/bind_post_task.h"
+#include "media/base/video_frame.h"
 #include "media/capture/mojom/image_capture_types.h"
 #include "media/capture/video/blob_utils.h"
 #include "media/capture/video/webos/webos_camera_constants.h"
@@ -342,6 +344,25 @@ void WebOSCaptureDelegate::DoCapture() {
     if (first_ref_time_.is_null())
       first_ref_time_ = now;
     const base::TimeDelta timestamp = now - first_ref_time_;
+
+    // VideoCaptureDeviceClient CHECKs that a frame is at least as big as its
+    // format says (a bigger one is fine, for padding), and a failed CHECK
+    // takes the whole video capture service down. A frame that is too small
+    // means the camera is not producing the layout capture_format_ names, so
+    // report that to the page as an error instead.
+    const size_t required_size = VideoFrame::AllocationSize(
+        capture_format_.pixel_format, capture_format_.frame_size);
+    if (static_cast<size_t>(buffer_size) < required_size) {
+      SetErrorState(
+          VideoCaptureError::kV4L2UnsupportedPixelFormat, FROM_HERE,
+          base::StringPrintf(
+              "Camera frame of %d bytes is smaller than the %zu bytes that %s "
+              "needs at %s",
+              buffer_size, required_size,
+              VideoPixelFormatToString(capture_format_.pixel_format).c_str(),
+              capture_format_.frame_size.ToString().c_str()));
+      return;
+    }
 
     if (client_)
       client_->OnIncomingCapturedData(
