@@ -42,7 +42,7 @@ WebOSAudioInputStream::WebOSAudioInputStream(
       audio_manager_webos_(audio_manager_webos) {
   VLOG(1) << __func__ << " this[" << this << "]";
 
-  device_name_ = kDefaultWebCall;
+  source_name_ = kDefaultWebCall;
   if (AudioDeviceDescription::IsDefaultDevice(device_name) ||
       AudioDeviceDescription::IsDisplayDefaultDevice(device_name)) {
     std::string display_id = device_name.substr(
@@ -50,7 +50,7 @@ WebOSAudioInputStream::WebOSAudioInputStream(
     if (!display_id.empty()) {
       int device_number = std::stoi(display_id);
       if (device_number >= 1) {
-        device_name_ = std::string(kDefaultWebCall) + display_id;
+        source_name_ = std::string(kDefaultWebCall) + display_id;
       }
     }
   } else {
@@ -67,7 +67,7 @@ AudioInputStream::OpenOutcome WebOSAudioInputStream::Open() {
 
   pulse::AutoPulseLock auto_lock(pa_mainloop_);
   if (!pulse::CreateInputStream(pa_mainloop_, pa_context_, &handle_, params_,
-                                device_name_, &StreamNotifyCallback, this,
+                                source_name_, &StreamNotifyCallback, this,
                                 preferred_device_)) {
     return OpenOutcome::kFailed;
   }

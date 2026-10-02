@@ -64,8 +64,8 @@ class PulseAudioOutputStream : public AudioOutputStream {
  protected:
 #else
  private:
-  bool ShouldLog() const { return !log_callback_.is_null(); }
 #endif
+  bool ShouldLog() const { return !log_callback_.is_null(); }
 
   // Helper method used for sending native logs to the registered client.
   void SendLogMessage(const std::string& message);

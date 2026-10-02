@@ -37,7 +37,7 @@ class MEDIA_EXPORT AudioManagerWebOS : public AudioManagerPulse {
   AudioManagerWebOS& operator=(const AudioManagerWebOS&) = delete;
 
   // Implementation of AudioManager.
-  const char* GetName() override;
+  const std::string_view GetName() override;
 
   // Implementation of AudioManagerBase.
   AudioOutputStream* MakeLinearOutputStream(
@@ -57,7 +57,7 @@ class MEDIA_EXPORT AudioManagerWebOS : public AudioManagerPulse {
       const LogCallback& log_callback) override;
 
   // AudioManagerPulse override.
-  void GetAudioDeviceNames(bool input, AudioDeviceNames* device_names) override;
+  bool GetAudioDeviceNames(bool input, AudioDeviceNames* device_names) override;
   AudioParameters GetPreferredOutputStreamParameters(
       const std::string& output_device_id,
       const AudioParameters& input_params) override;
