@@ -25,6 +25,7 @@
 #include "base/path_service.h"
 #include "base/strings/escape.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
+#include "components/permissions/permission_actions_history.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/json_pref_store.h"
@@ -305,6 +306,7 @@ AppRuntimeBrowserContext::AppRuntimeBrowserContext(const std::string& partition,
   PlatformNotificationServiceImpl::RegisterProfilePrefs(pref_registry);
   PushMessagingAppIdentifier::RegisterProfilePrefs(pref_registry);
   HostContentSettingsMap::RegisterProfilePrefs(pref_registry);
+  permissions::PermissionActionsHistory::RegisterProfilePrefs(pref_registry);
   MediaCaptureDevicesDispatcher::RegisterProfilePrefs(pref_registry);
   DeviceMediaStreamAccessHandler::RegisterProfilePrefs(pref_registry);
 #if defined(USE_NEVA_CHROME_EXTENSIONS)
