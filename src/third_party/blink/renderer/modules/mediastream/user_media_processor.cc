@@ -351,7 +351,13 @@ String ErrorCodeToString(MediaStreamRequestResult result) {
   NOTREACHED();
 }
 
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_FUCHSIA)
+// webOS runs on phones and tablets with fixed front and back cameras, so it
+// keeps the mobile behaviour: the renderer picks the device that fits the
+// constraints best, and an ideal facingMode or deviceId is honoured. Deferring
+// the choice to the browser would make it pick by stored preference, which
+// ignores ideal constraints altogether.
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS) && \
+    !BUILDFLAG(IS_FUCHSIA) && !defined(OS_WEBOS)
 // This only applies to user media requests.
 bool ShouldDeferDeviceSettingsSelection(
     UserMediaRequestType request_type,
