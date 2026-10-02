@@ -70,7 +70,7 @@ class MEDIA_EXPORT AudioManagerPulse : public AudioManagerBase {
 
 #if defined(USE_WEBOS_AUDIO)
  protected:
-  virtual void GetAudioDeviceNames(bool input,
+  virtual bool GetAudioDeviceNames(bool input,
                                    media::AudioDeviceNames* device_names);
 #else
  private:

@@ -48,7 +48,7 @@ AudioManagerWebOS::~AudioManagerWebOS() {
   VLOG(1) << __func__ << " this[" << this << "]";
 }
 
-const char* AudioManagerWebOS::GetName() {
+const std::string_view AudioManagerWebOS::GetName() {
   return "WebOSPulseAudio";
 }
 
@@ -87,12 +87,12 @@ AudioInputStream* AudioManagerWebOS::MakeLowLatencyInputStream(
   return MakeWebOSInputStream(params, device_id, log_callback);
 }
 
-void AudioManagerWebOS::GetAudioDeviceNames(bool input_device,
+bool AudioManagerWebOS::GetAudioDeviceNames(bool input_device,
                                             AudioDeviceNames* device_names) {
   VLOG(1) << __func__ << " type= " << (input_device ? "input" : "output");
 
   std::vector<WebOSAudioService::DeviceEntry> device_list;
-  audio_service_->GetDeviceList(input_device, &device_list);
+  bool success = audio_service_->GetDeviceList(input_device, &device_list);
 
   for (auto device : device_list) {
     device_names->push_back(
@@ -103,6 +103,8 @@ void AudioManagerWebOS::GetAudioDeviceNames(bool input_device,
   // Prepend the default device if the list is not empty.
   if (!device_names->empty())
     device_names->push_front(AudioDeviceName::CreateDefault());
+
+  return success;
 }
 
 AudioParameters AudioManagerWebOS::GetPreferredOutputStreamParameters(

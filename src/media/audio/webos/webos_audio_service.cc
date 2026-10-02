@@ -270,7 +270,8 @@ bool WebOSAudioService::GetRootDictionary(
   if (payload.empty())
     return false;
 
-  std::optional<base::Value> root = base::JSONReader::Read(payload);
+  std::optional<base::Value> root = base::JSONReader::Read(
+      payload, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!root || !root->is_dict()) {
     return false;
   }
