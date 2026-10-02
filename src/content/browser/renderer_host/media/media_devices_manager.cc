@@ -91,6 +91,23 @@ const char kWebOSDefaultAudioDeviceId[] = "sysdefault:CARD=";
 const char kWebOSBlacklistedAudioDeviceId[] = "sysdefault:CARD=LGSIC";
 #endif
 
+#if defined(USE_WEBOS_AUDIO)
+// The display the page behind |render_frame_host_id| is shown on, or an empty
+// string if it is not known. RenderFrameHost and WebContents may only be used
+// on the UI thread.
+std::string GetRequestingDisplayId(
+    GlobalRenderFrameHostId render_frame_host_id) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  RenderFrameHost* rfh = RenderFrameHost::FromID(render_frame_host_id);
+  if (!rfh)
+    return std::string();
+  WebContents* contents = WebContents::FromRenderFrameHost(rfh);
+  if (!contents)
+    return std::string();
+  return contents->GetMutableRendererPrefs()->display_id;
+}
+#endif
+
 // Resolutions used if the source doesn't support capability enumeration.
 struct {
   uint16_t width;
@@ -712,6 +729,44 @@ void MediaDevicesManager::HandleEnumerateDevicesRequest(
       base::ToString(request_audio_input_capabilities).c_str(),
       base::ToString(request_video_input_capabilities).c_str()));
 
+#if defined(USE_WEBOS_AUDIO)
+  // Find out which display the page is on first, on the UI thread, and carry
+  // on from the reply.
+  GetUIThreadTaskRunner({})->PostTaskAndReplyWithResult(
+      FROM_HERE,
+      base::BindOnce(&GetRequestingDisplayId, render_frame_host_id),
+      base::BindOnce(&MediaDevicesManager::ContinueEnumerateDevicesRequest,
+                     weak_factory_.GetWeakPtr(), request_id,
+                     render_frame_host_id, requested_types,
+                     request_video_input_capabilities,
+                     request_audio_input_capabilities, std::move(callback)));
+  return;
+#else
+  GetUIThreadTaskRunner({})->PostTask(
+      FROM_HERE,
+      base::BindOnce(
+          get_salt_and_origin_cb_, render_frame_host_id,
+          base::BindPostTaskToCurrentDefault(base::BindOnce(
+              &MediaDevicesManager::CheckPermissionsForEnumerateDevices,
+              weak_factory_.GetWeakPtr(), request_id, render_frame_host_id,
+              requested_types, request_video_input_capabilities,
+              request_audio_input_capabilities, std::move(callback)))));
+#endif
+}
+
+#if defined(USE_WEBOS_AUDIO)
+void MediaDevicesManager::ContinueEnumerateDevicesRequest(
+    uint64_t request_id,
+    GlobalRenderFrameHostId render_frame_host_id,
+    const BoolDeviceTypes& requested_types,
+    bool request_video_input_capabilities,
+    bool request_audio_input_capabilities,
+    EnumerateDevicesCallback callback,
+    std::string requesting_display_id) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  if (!requesting_display_id.empty())
+    request_display_ids_[request_id] = std::move(requesting_display_id);
+
   GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE,
       base::BindOnce(
@@ -722,6 +777,17 @@ void MediaDevicesManager::HandleEnumerateDevicesRequest(
               requested_types, request_video_input_capabilities,
               request_audio_input_capabilities, std::move(callback)))));
 }
+
+bool MediaDevicesManager::IsAudioOutputForDisplay(
+    const std::string& device_id,
+    const std::string& requesting_display_id) const {
+  if (requesting_display_id.empty())
+    return true;
+  auto it = audio_output_display_ids_.find(device_id);
+  return it == audio_output_display_ids_.end() ||
+         it->second == requesting_display_id;
+}
+#endif
 
 void MediaDevicesManager::AddAudioDeviceToOriginMap(
     GlobalRenderFrameHostId render_frame_host_id,
@@ -1075,29 +1141,6 @@ void MediaDevicesManager::CheckPermissionsForEnumerateDevices(
   SendLogMessage(base::StringPrintf(
       "CheckPermissionsForEnumerateDevices({request_id=%llu})", request_id));
 
-#if defined(USE_WEBOS_AUDIO)
-  std::string requesting_display_id;
-  content::RenderFrameHost* rfh =
-      content::RenderFrameHost::FromID(render_process_id, render_frame_id);
-  if (rfh) {
-    content::WebContents* contents =
-        content::WebContents::FromRenderFrameHost(rfh);
-    if (contents)
-      requesting_display_id = contents->GetMutableRendererPrefs()->display_id;
-  }
-
-  if (!requesting_display_id.empty()) {
-    permission_checker_->CheckPermissions(
-        requested_types, render_process_id, render_frame_id,
-        base::BindOnce(&MediaDevicesManager::OnPermissionsCheckDoneForDisplay,
-                       weak_factory_.GetWeakPtr(), requesting_display_id,
-                       requested_types, request_video_input_capabilities,
-                       request_audio_input_capabilities, std::move(callback),
-                       std::move(salt_and_origin)));
-    return;
-  }
-#endif
-
   // TODO(crbug.com/379869738) Remove GetUnsafeValue.
   permission_checker_->CheckPermissions(
       requested_types, render_frame_host_id.child_id.GetUnsafeValue(),
@@ -1222,6 +1265,15 @@ void MediaDevicesManager::OnDevicesEnumeratedAndRanked(
       has_permissions[static_cast<size_t>(MediaDeviceType::kMediaAudioInput)] &&
       request_audio_input_capabilities;
 
+#if defined(USE_WEBOS_AUDIO)
+  std::string requesting_display_id;
+  auto display_it = request_display_ids_.find(request_id);
+  if (display_it != request_display_ids_.end()) {
+    requesting_display_id = std::move(display_it->second);
+    request_display_ids_.erase(display_it);
+  }
+#endif
+
   std::vector<blink::WebMediaDeviceInfoArray> translation(
       static_cast<size_t>(MediaDeviceType::kNumMediaDeviceTypes));
   for (size_t i = 0;
@@ -1230,6 +1282,13 @@ void MediaDevicesManager::OnDevicesEnumeratedAndRanked(
       continue;
 
     for (const auto& device_info : enumeration[i]) {
+#if defined(USE_WEBOS_AUDIO)
+      if (i == static_cast<size_t>(MediaDeviceType::kMediaAudioOutput) &&
+          !IsAudioOutputForDisplay(device_info.device_id,
+                                   requesting_display_id)) {
+        continue;
+      }
+#endif
       if (!has_permissions[i] && !translation[i].empty()) {
         break;
       }
@@ -1529,7 +1588,17 @@ void MediaDevicesManager::AudioDevicesEnumerated(
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   blink::WebMediaDeviceInfoArray snapshot;
+#if defined(USE_WEBOS_AUDIO)
+  if (type == MediaDeviceType::kMediaAudioOutput)
+    audio_output_display_ids_.clear();
+#endif
   for (const media::AudioDeviceDescription& description : device_descriptions) {
+#if defined(USE_WEBOS_AUDIO)
+    if (type == MediaDeviceType::kMediaAudioOutput &&
+        !description.display_id.empty()) {
+      audio_output_display_ids_[description.unique_id] = description.display_id;
+    }
+#endif
 #if defined(OS_WEBOS) && !defined(USE_PULSEAUDIO)
     if (type == MediaDeviceType::kMediaAudioInput &&
         description.unique_id.compare(0,
@@ -1940,132 +2009,6 @@ void MediaDevicesManager::UpdateVideoCaptureHostsEmptyState(bool empty) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
   is_video_capture_hosts_set_empty_ = empty;
   MaybeScheduleDisconnectVideoSourceProviderTimer();
-}
-#endif
-
-#if defined(USE_WEBOS_AUDIO)
-void MediaDevicesManager::EnumerateDevices(
-    const std::string& requesting_display_id,
-    const BoolDeviceTypes& requested_types,
-    EnumerationCallback callback) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-  StartMonitoring();
-
-  requests_.emplace_back(requested_types, std::move(callback));
-  bool all_results_cached = true;
-  for (size_t i = 0;
-       i < static_cast<size_t>(MediaDeviceType::kNumMediaDeviceTypes); ++i) {
-    if (requested_types[i] && cache_policies_[i] == CachePolicy::NO_CACHE) {
-      all_results_cached = false;
-      DoEnumerateDevices(requesting_display_id,
-                         static_cast<MediaDeviceType>(i));
-    }
-  }
-
-  if (all_results_cached)
-    ProcessRequests();
-}
-
-void MediaDevicesManager::DoEnumerateDevices(
-    const std::string& requesting_display_id,
-    MediaDeviceType type) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-  DCHECK(blink::IsValidMediaDeviceType(type));
-  CacheInfo& cache_info = cache_infos_[static_cast<size_t>(type)];
-  if (cache_info.is_update_ongoing())
-    return;
-  SendLogMessage(base::StringPrintf("DoEnumerateDevices({type=%s})",
-                                    DeviceTypeToString(type)));
-
-  cache_info.UpdateStarted();
-  switch (type) {
-    case MediaDeviceType::kMediaAudioInput:
-      EnumerateAudioDevices(true /* is_input */);
-      break;
-    case MediaDeviceType::kMediaVideoInput:
-      video_capture_manager_->EnumerateDevices(
-          base::BindOnce(&MediaDevicesManager::VideoInputDevicesEnumerated,
-                         weak_factory_.GetWeakPtr()));
-      break;
-    case MediaDeviceType::kMediaAudioOuput:
-      EnumerateAudioDevices(requesting_display_id, false /* is_input */);
-      break;
-    default:
-      NOTREACHED();
-  }
-}
-
-void MediaDevicesManager::EnumerateAudioDevices(
-    const std::string& requesting_display_id,
-    bool is_input) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-  MediaDeviceType type = is_input ? MediaDeviceType::kMediaAudioInput
-                                  : MediaDeviceType::kMediaAudioOuput;
-  if (use_fake_devices_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(&MediaDevicesManager::DevicesEnumerated,
-                                  weak_factory_.GetWeakPtr(), type,
-                                  GetFakeAudioDevices(is_input)));
-    return;
-  }
-
-  audio_system_->GetDeviceDescriptions(
-      is_input,
-      base::BindOnce(&MediaDevicesManager::AudioDevicesEnumeratedForDisplay,
-                     weak_factory_.GetWeakPtr(), requesting_display_id, type));
-}
-
-void MediaDevicesManager::AudioDevicesEnumeratedForDisplay(
-    const std::string& requesting_display_id,
-    MediaDeviceType type,
-    media::AudioDeviceDescriptions device_descriptions) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-
-  blink::WebMediaDeviceInfoArray snapshot;
-  for (const media::AudioDeviceDescription& description : device_descriptions) {
-    // TODO: Remove the kMediaAudioOuput check when AudioD service fix
-    // display specific input device.
-    if (type == MediaDeviceType::kMediaAudioOuput &&
-        !description.display_id.empty() &&
-        requesting_display_id != description.display_id) {
-      continue;
-    }
-
-    snapshot.emplace_back(
-        description.unique_id, description.device_name, description.group_id,
-        media::VideoCaptureControlSupport(), blink::mojom::FacingMode::kNone);
-  }
-  DevicesEnumerated(type, snapshot);
-}
-
-void MediaDevicesManager::OnPermissionsCheckDoneForDisplay(
-    const std::string& requesting_display_id,
-    const MediaDevicesManager::BoolDeviceTypes& requested_types,
-    bool request_video_input_capabilities,
-    bool request_audio_input_capabilities,
-    EnumerateDevicesCallback callback,
-    MediaDeviceSaltAndOrigin salt_and_origin,
-    const MediaDevicesManager::BoolDeviceTypes& has_permissions) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-  BoolDeviceTypes internal_requested_types;
-  internal_requested_types[static_cast<size_t>(
-      MediaDeviceType::kMediaAudioInput)] =
-      requested_types[static_cast<size_t>(MediaDeviceType::kMediaAudioInput)] ||
-      requested_types[static_cast<size_t>(MediaDeviceType::kMediaVideoInput)];
-  internal_requested_types[static_cast<size_t>(
-      MediaDeviceType::kMediaVideoInput)] =
-      requested_types[static_cast<size_t>(MediaDeviceType::kMediaVideoInput)];
-  internal_requested_types[static_cast<size_t>(
-      MediaDeviceType::kMediaAudioOuput)] =
-      requested_types[static_cast<size_t>(MediaDeviceType::kMediaAudioOuput)];
-
-  EnumerateDevices(
-      requesting_display_id, internal_requested_types,
-      base::BindOnce(&MediaDevicesManager::OnDevicesEnumerated,
-                     weak_factory_.GetWeakPtr(), requested_types,
-                     request_video_input_capabilities,
-                     request_audio_input_capabilities, std::move(callback),
-                     std::move(salt_and_origin), has_permissions));
 }
 #endif
 

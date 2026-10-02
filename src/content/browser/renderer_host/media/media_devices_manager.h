@@ -471,25 +471,24 @@ class CONTENT_EXPORT MediaDevicesManager
                           const MediaDeviceEnumeration& enumeration);
 
 #if defined(USE_WEBOS_AUDIO)
-  void EnumerateDevices(const std::string& requesting_display_id,
-                        const BoolDeviceTypes& requested_types,
-                        EnumerationCallback callback);
-  void DoEnumerateDevices(const std::string& requesting_display_id,
-                          MediaDeviceType type);
-  void EnumerateAudioDevices(const std::string& requesting_display_id,
-                             bool is_input);
-  void AudioDevicesEnumeratedForDisplay(
-      const std::string& requesting_display_id,
-      MediaDeviceType type,
-      media::AudioDeviceDescriptions device_descriptions);
-  void OnPermissionsCheckDoneForDisplay(
-      const std::string& requesting_display_id,
-      const MediaDevicesManager::BoolDeviceTypes& requested_types,
+  // webOS can drive more than one display, and the audio service tags each
+  // output device with the display it belongs to. A page only sees the output
+  // devices of the display it is shown on. The display is looked up on the UI
+  // thread before the request continues, see HandleEnumerateDevicesRequest().
+  void ContinueEnumerateDevicesRequest(
+      uint64_t request_id,
+      GlobalRenderFrameHostId render_frame_host_id,
+      const BoolDeviceTypes& requested_types,
       bool request_video_input_capabilities,
       bool request_audio_input_capabilities,
       EnumerateDevicesCallback callback,
-      MediaDeviceSaltAndOrigin salt_and_origin,
-      const MediaDevicesManager::BoolDeviceTypes& has_permissions);
+      std::string requesting_display_id);
+
+  // True if |device_id|, a raw audio output device id, is visible to a page
+  // shown on |requesting_display_id|. An empty display id on either side means
+  // "not tied to a display" and is always visible.
+  bool IsAudioOutputForDisplay(const std::string& device_id,
+                               const std::string& requesting_display_id) const;
 #endif
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
@@ -544,6 +543,18 @@ class CONTENT_EXPORT MediaDevicesManager
       GlobalRenderFrameHostId,
       std::set<blink::WebMediaDeviceInfo, WebMediaDeviceInfoComparator>>
       audio_device_origin_map_;
+
+#if defined(USE_WEBOS_AUDIO)
+  // Display of each audio output device that names one, by raw device id. It
+  // is rebuilt together with the cached output snapshot, so the snapshot
+  // itself stays the same for every display and is filtered per request.
+  base::flat_map<std::string, std::string> audio_output_display_ids_;
+
+  // Display the page behind an in-flight enumeration request is shown on, by
+  // request id. Set before the request continues, consumed when its result
+  // is built.
+  base::flat_map<uint64_t, std::string> request_display_ids_;
+#endif
 
   class AudioServiceDeviceListener;
   std::unique_ptr<AudioServiceDeviceListener> audio_service_device_listener_;
