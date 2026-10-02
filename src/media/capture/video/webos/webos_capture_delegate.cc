@@ -16,6 +16,7 @@
 
 #include "media/capture/video/webos/webos_capture_delegate.h"
 
+#include "base/logging.h"
 #include "base/task/bind_post_task.h"
 #include "media/capture/mojom/image_capture_types.h"
 #include "media/capture/video/blob_utils.h"
@@ -343,9 +344,10 @@ void WebOSCaptureDelegate::DoCapture() {
     const base::TimeDelta timestamp = now - first_ref_time_;
 
     if (client_)
-      client_->OnIncomingCapturedData(buffer, buffer_size, capture_format_,
-                                      gfx::ColorSpace(), rotation_, false, now,
-                                      timestamp);
+      client_->OnIncomingCapturedData(
+          buffer, buffer_size, capture_format_, gfx::ColorSpace(), rotation_,
+          false, now, timestamp, /*capture_begin_timestamp=*/std::nullopt,
+          /*metadata=*/std::nullopt);
 
     frames_per_sec_++;
     base::TimeDelta time_past = now - start_time_;
