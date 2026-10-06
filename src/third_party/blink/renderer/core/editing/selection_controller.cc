@@ -598,8 +598,16 @@ bool SelectionController::HandleTapInsideSelection(
     return true;
   }
 
-  if (Selection().IsHandleVisible())
+  if (Selection().IsHandleVisible()) {
+#if defined(OS_WEBOS)
+    // webOS left a selection alone when it was tapped - the tap is what raised
+    // the cut/copy/paste pill for it, which the shell draws. Collapsing it
+    // here would leave the pill nothing to cut or copy.
+    return true;
+#else
     return false;
+#endif
+  }
 
   // We need to trigger a repaint on the selection endpoints if the selection is
   // tapped when the selection handle was previously not visible. Repainting
@@ -1234,6 +1242,10 @@ bool SelectionController::HandleMouseReleaseEvent(
   // on the selection, the selection goes away.  However, if we are
   // editing, place the caret.
   if (mouse_down_was_single_click_in_selection_ &&
+#if defined(OS_WEBOS)
+      // A touch tap on a selection keeps it, as above.
+      !event.Event().FromTouch() &&
+#endif
       selection_state_ != SelectionState::kExtendedSelection &&
       drag_start_pos == PhysicalOffset(gfx::ToFlooredPoint(
                             event.Event().PositionInRootFrame())) &&
