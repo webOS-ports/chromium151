@@ -297,6 +297,12 @@ DecorationGeometry TextDecorationInfo::ComputeLineData(
       style = kWavyStroke;
       spelling_wave = MakeSpellingGrammarWave(decoration.effective_zoom);
     }
+#elif defined(OS_WEBOS)
+    // Dotted, not wavy, as webOS drew it: WebCore's
+    // drawLineForMisspellingOrBadGrammar stroked a straight line in the dotted
+    // style.
+    style = kDottedStroke;
+    antialias = true;
 #elif BUILDFLAG(IS_APPLE)
     style = kDottedStroke;
     antialias = true;

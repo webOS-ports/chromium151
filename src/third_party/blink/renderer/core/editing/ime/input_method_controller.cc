@@ -1895,6 +1895,23 @@ int InputMethodController::TextInputFlags() const {
   else if (spellcheck == kSpellcheckAttributeFalse)
     flags |= kWebTextInputFlagSpellcheckOff;
 
+#if defined(OS_WEBOS)
+  // x-palm-disable-ste-all switches off the whole of webOS's smart text engine,
+  // and spellcheck above has already seen it. Completion and correction go with
+  // it, so the keyboard gets no suggestions for the field either.
+  {
+    const AtomicString& disable_ste =
+        element->getAttribute(AtomicString("x-palm-disable-ste-all"));
+    if (!disable_ste.IsNull() &&
+        (disable_ste.empty() || EqualIgnoringAsciiCase(disable_ste, "true"))) {
+      flags &= ~(kWebTextInputFlagAutocompleteOn |
+                 kWebTextInputFlagAutocorrectOn);
+      flags |= kWebTextInputFlagAutocompleteOff |
+               kWebTextInputFlagAutocorrectOff;
+    }
+  }
+#endif
+
   flags |= ComputeAutocapitalizeFlags(element);
 
   if (auto* input = DynamicTo<HTMLInputElement>(element)) {
