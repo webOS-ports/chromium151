@@ -10,6 +10,7 @@
 
 #include "base/functional/callback_helpers.h"
 #include "base/notreached.h"
+#include "base/strings/escape.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
@@ -30,6 +31,14 @@ namespace {
 // Integer that holds the value of the next persistent notification ID to be
 // used.
 const char kNotificationNextPersistentId[] = "persistent_notifications.next_id";
+
+// The path of a local icon, or an empty string.
+std::string IconPath(const blink::PlatformNotificationData& notification_data) {
+  if (!notification_data.icon.SchemeIsFile()) {
+    return std::string();
+  }
+  return base::UnescapeBinaryURLComponent(notification_data.icon.path());
+}
 
 }  // namespace
 
@@ -61,6 +70,7 @@ void PlatformNotificationServiceImpl::DisplayNotification(
                                  notification_resources, document_url);
   auto metadata = std::make_unique<NonPersistentNotificationMetadata>();
   metadata->document_url = document_url;
+  metadata->icon_path = IconPath(notification_data);
 
   NotificationDisplayServiceFactory::GetForProfile(context_)->Display(
       NotificationHandler::Type::WEB_NON_PERSISTENT, notification,
@@ -85,6 +95,7 @@ void PlatformNotificationServiceImpl::DisplayPersistentNotification(
 
   auto metadata = std::make_unique<PersistentNotificationMetadata>();
   metadata->service_worker_scope = service_worker_scope;
+  metadata->icon_path = IconPath(notification_data);
   content::StoragePartition* partition =
       context_->GetStoragePartitionForUrl(origin, false);
   if (!partition) {

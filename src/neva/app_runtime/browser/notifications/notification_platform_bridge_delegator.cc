@@ -35,8 +35,9 @@ NotificationPlatformBridgeDelegator::~NotificationPlatformBridgeDelegator() =
 void NotificationPlatformBridgeDelegator::Display(
     NotificationHandler::Type notification_type,
     const message_center::Notification& notification,
-    std::unique_ptr<NotificationCommon::Metadata>) {
-  NotificationWrapper wrapped(notification);
+    std::unique_ptr<NotificationCommon::Metadata> metadata) {
+  NotificationWrapper wrapped(notification,
+                              metadata ? metadata->icon_path : std::string());
   bridge_->Display(wrapped);
 }
 
