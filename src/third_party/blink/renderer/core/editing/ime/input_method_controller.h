@@ -190,6 +190,13 @@ class CORE_EXPORT InputMethodController final
   // Root editable text content cache for |TextInputInfo()|.
   CachedTextInputInfo cached_text_input_info_;
   Member<Range> composition_range_;
+#if defined(OS_WEBOS)
+  // The composition an input method cleared just now, and where it began, so
+  // that a commit landing in its place straight after can be compared with the
+  // word that was being typed. Set by SetComposition(), spent by CommitText().
+  String cleared_composition_text_;
+  wtf_size_t cleared_composition_offset_ = kNotFound;
+#endif
   Member<EditContext> active_edit_context_;
   bool has_composition_;
   ui::mojom::VirtualKeyboardVisibilityRequest last_vk_visibility_request_;
