@@ -731,8 +731,54 @@ bool InputMethodController::FinishComposingText(
 
 bool InputMethodController::CommitText(
     const String& text,
-    const Vector<ImeTextSpan>& ime_text_spans,
+    const Vector<ImeTextSpan>& ime_text_spans_in,
     int relative_caret_position) {
+  const Vector<ImeTextSpan>* spans = &ime_text_spans_in;
+
+#if defined(OS_WEBOS)
+  // A word the input method put in the place of the one that was typed was
+  // autocorrected, and webOS marked such a word with a grey dotted line under it
+  // (WebCore's paintAutoReplacementMarker). The marker carries the word that was
+  // typed. Only a whole word counts - a trailing space the keyboard adds with it
+  // does not - and a change of nothing but case is capitalisation, not a
+  // correction.
+  Vector<ImeTextSpan> spans_with_marker;
+  if (HasComposition()) {
+    const String original = ComposingText();
+
+    unsigned word_end = text.length();
+    while (word_end > 0 && IsSpaceOrNewline(text[word_end - 1]))
+      --word_end;
+    const String word = text.Left(word_end);
+
+    bool one_word = !word.empty();
+    for (unsigned i = 0; i < word.length(); ++i) {
+      if (IsSpaceOrNewline(word[i])) {
+        one_word = false;
+        break;
+      }
+    }
+
+    if (!original.empty() && one_word &&
+        original.LowerUnicode() != word.LowerUnicode()) {
+      spans_with_marker = ime_text_spans_in;
+      Vector<String> typed;
+      typed.push_back(original);
+      spans_with_marker.push_back(ImeTextSpan(
+          ImeTextSpan::Type::kAutocorrect, 0, word_end,
+          Color(128, 128, 128), ui::mojom::ImeTextSpanThickness::kThin,
+          ui::mojom::ImeTextSpanUnderlineStyle::kDot, Color::kTransparent,
+          Color::kTransparent, Color::kTransparent,
+          /*remove_on_finish_composing=*/false,
+          /*interim_char_selection=*/false, typed,
+          /*should_hide_suggestion_menu=*/true));
+      spans = &spans_with_marker;
+    }
+  }
+#endif
+
+  const Vector<ImeTextSpan>& ime_text_spans = *spans;
+
   bool result;
   if (HasComposition()) {
     result = ReplaceCompositionAndMoveCaret(text, relative_caret_position,
