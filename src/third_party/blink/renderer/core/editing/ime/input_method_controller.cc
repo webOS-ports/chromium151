@@ -743,9 +743,23 @@ bool InputMethodController::CommitText(
   // does not - and a change of nothing but case is capitalisation, not a
   // correction.
   Vector<ImeTextSpan> spans_with_marker;
+  String original;
   if (HasComposition()) {
-    const String original = ComposingText();
+    original = ComposingText();
+  } else if (!cleared_composition_text_.empty()) {
+    // The composition was cleared just before this commit; it counts if the
+    // commit lands exactly where it was.
+    GetDocument().UpdateStyleAndLayout(DocumentUpdateReason::kEditing);
+    const PlainTextRange selection = GetSelectionOffsets();
+    if (!selection.IsNull() && selection.length() == 0 &&
+        selection.Start() == cleared_composition_offset_) {
+      original = cleared_composition_text_;
+    }
+  }
+  cleared_composition_text_ = String();
+  cleared_composition_offset_ = kNotFound;
 
+  {
     unsigned word_end = text.length();
     while (word_end > 0 && unicode::IsSpaceOrNewline(text[word_end - 1]))
       --word_end;
@@ -1135,6 +1149,27 @@ void InputMethodController::SetComposition(
   // 3. Canceling the ongoing composition.
   //    Send a compositionend event when function deletes the existing
   //    composition node, i.e. !hasComposition() && test.isEmpty().
+#if defined(OS_WEBOS)
+  // An input method that clears its preedit before committing - maliit does,
+  // with an empty preedit right before every commit - takes the composition
+  // away before the word that replaces it arrives. Remember what it was and
+  // where, for CommitText() to see a correction by.
+  cleared_composition_text_ = String();
+  cleared_composition_offset_ = kNotFound;
+  if (text.empty() && HasComposition()) {
+    if (Element* root = Selection()
+                            .ComputeVisibleSelectionInDomTree()
+                            .RootEditableElement()) {
+      const PlainTextRange range =
+          PlainTextRange::Create(*root, *composition_range_);
+      if (!range.IsNull()) {
+        cleared_composition_text_ = ComposingText();
+        cleared_composition_offset_ = range.Start();
+      }
+    }
+  }
+#endif
+
   if (text.empty()) {
     // Suppress input and compositionend events until after we move the caret
     // to the new position.
