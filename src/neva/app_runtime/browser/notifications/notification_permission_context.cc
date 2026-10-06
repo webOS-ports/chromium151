@@ -89,3 +89,11 @@ void NotificationPermissionContext::DecidePermission(
 bool NotificationPermissionContext::IsRestrictedToSecureOrigins() const {
   return false;
 }
+
+// The prompt is WAM's system alert, so a page that goes away before the user
+// answers is not a user ignoring the prompt. The autoblocker would also file
+// the ignore under the raw file:// origin, which ends up in the default
+// provider and hits an unregistered pref.
+bool NotificationPermissionContext::UsesAutomaticEmbargo() const {
+  return false;
+}

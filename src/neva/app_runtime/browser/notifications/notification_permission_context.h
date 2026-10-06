@@ -45,6 +45,7 @@ class NotificationPermissionContext
       std::unique_ptr<permissions::PermissionRequestData> request_data,
       permissions::BrowserPermissionCallback callback) override;
   bool IsRestrictedToSecureOrigins() const override;
+  bool UsesAutomaticEmbargo() const override;
 
   base::WeakPtrFactory<NotificationPermissionContext> weak_factory_ui_thread_{
       this};
