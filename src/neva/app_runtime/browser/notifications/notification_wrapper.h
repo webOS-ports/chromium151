@@ -25,7 +25,8 @@ namespace neva_app_runtime {
 
 class NotificationWrapper : public Notification {
  public:
-  NotificationWrapper(const message_center::Notification& notification);
+  NotificationWrapper(const message_center::Notification& notification,
+                      const std::string& icon_file_path);
   ~NotificationWrapper() override {}
 
   // Notification implementation

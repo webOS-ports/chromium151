@@ -37,6 +37,10 @@ class NotificationCommon {
     NotificationHandler::Type type;
 
     std::string web_app_id;
+
+    // Local file of the notification's icon, for platforms that show the
+    // icon from a file. Empty when the icon is not a local file.
+    std::string icon_path;
   };
 };
 

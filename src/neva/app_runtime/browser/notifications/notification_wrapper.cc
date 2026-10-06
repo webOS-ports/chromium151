@@ -25,8 +25,9 @@
 namespace neva_app_runtime {
 
 NotificationWrapper::NotificationWrapper(
-    const message_center::Notification& notification)
-    : notification_(notification) {
+    const message_center::Notification& notification,
+    const std::string& icon_file_path)
+    : notification_(notification), icon_file_path_(icon_file_path) {
   if (!notification_.buttons().empty()) {
     std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> conv;
     for (const auto& button : notification_.buttons()) {
