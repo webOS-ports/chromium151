@@ -747,20 +747,20 @@ bool InputMethodController::CommitText(
     const String original = ComposingText();
 
     unsigned word_end = text.length();
-    while (word_end > 0 && IsSpaceOrNewline(text[word_end - 1]))
+    while (word_end > 0 && unicode::IsSpaceOrNewline(text[word_end - 1]))
       --word_end;
-    const String word = text.Left(word_end);
+    const String word = text.DeprecatedSubstring(0, word_end);
 
     bool one_word = !word.empty();
     for (unsigned i = 0; i < word.length(); ++i) {
-      if (IsSpaceOrNewline(word[i])) {
+      if (unicode::IsSpaceOrNewline(word[i])) {
         one_word = false;
         break;
       }
     }
 
     if (!original.empty() && one_word &&
-        original.LowerUnicode() != word.LowerUnicode()) {
+        !DeprecatedEqualIgnoringCase(original, word)) {
       spans_with_marker = ime_text_spans_in;
       Vector<String> typed;
       typed.push_back(original);
