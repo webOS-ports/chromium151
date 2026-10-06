@@ -31,6 +31,7 @@
 #include "neva/app_runtime/renderer/app_runtime_localized_error.h"
 #include "neva/app_runtime/renderer/app_runtime_page_load_timing_render_frame_observer.h"
 #include "neva/app_runtime/renderer/app_runtime_render_frame_observer.h"
+#include "neva/app_runtime/renderer/app_runtime_text_check_client.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url_error.h"
@@ -111,6 +112,9 @@ void AppRuntimeContentRendererClient::RenderFrameCreated(
   // AppRuntimeRenderFrameObserver destroys itself when the RenderFrame is
   // destroyed.
   new AppRuntimeRenderFrameObserver(render_frame);
+  // Says which words are misspelled, for Blink to mark. AppRuntimeTextCheckClient
+  // destroys itself when the RenderFrame is destroyed.
+  new AppRuntimeTextCheckClient(render_frame);
   // Only attach AppRuntimePageLoadTimingRenderFrameObserver to the main frame,
   // since we only want to observe page load timing for the main frame.
   if (render_frame->IsMainFrame()) {

@@ -233,6 +233,8 @@ static_library("app_runtime") {
     "renderer/app_runtime_page_load_timing_render_frame_observer.h",
     "renderer/app_runtime_render_frame_observer.cc",
     "renderer/app_runtime_render_frame_observer.h",
+    "renderer/app_runtime_text_check_client.cc",
+    "renderer/app_runtime_text_check_client.h",
     "ui/desktop_aura/app_runtime_desktop_native_widget_aura.cc",
     "ui/desktop_aura/app_runtime_desktop_native_widget_aura.h",
     "app_runtime_event.cc",
@@ -277,6 +279,7 @@ static_library("app_runtime") {
     # so targets including those headers directly need it too.
     "//third_party/highway:libhwy",
     "//base",
+    "//base:i18n",
     "//build/util:chromium_git_revision",
     "//components/certificate_transparency",
     "//components/content_settings/core/browser",
