@@ -142,11 +142,11 @@ void TouchSelectionController::OnSelectionBoundsChanged(
     return;
   }
 
-  if (start_orientation_ == TouchHandleOrientation::CENTER) {
-    OnInsertionChanged();
-    return;
-  }
-
+  // webOS never drew a handle for a caret. A text cursor was the cursor and
+  // nothing more; the start and end markers belonged to a range selection, and
+  // the edit pill is the shell's. The insertion handle is the one that comes up
+  // under the caret after any tap in a field, so it is not shown at all: a
+  // caret is handled like no selection, and any handles are put away.
   HideHandles();
 }
 
