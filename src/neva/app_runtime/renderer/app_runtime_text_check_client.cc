@@ -199,7 +199,7 @@ std::vector<Misspelling> FindMisspellings(const std::u16string& text,
     if (!words.IsWord())
       continue;
 
-    const std::u16string word = words.GetString();
+    const std::u16string word(words.GetString());
 
     // Not a word to look up: a number, a code, anything with a digit in it.
     bool has_digit = false;
@@ -222,7 +222,7 @@ std::vector<Misspelling> FindMisspellings(const std::u16string& text,
 
     if (with_suggestions) {
       for (const std::string& suggestion : dictionary.Suggest(utf8))
-        misspelling.suggestions.push_back(blink::WebString::FromUTF8(suggestion));
+        misspelling.suggestions.push_back(blink::WebString::FromUtf8(suggestion));
     }
 
     found.push_back(std::move(misspelling));
