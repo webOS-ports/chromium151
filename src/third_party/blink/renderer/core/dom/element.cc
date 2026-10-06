@@ -11707,6 +11707,19 @@ ScriptPromise<IDLUndefined> Element::requestPointerLock(
 }
 
 SpellcheckAttributeState Element::GetSpellcheckAttributeState() const {
+#if defined(OS_WEBOS)
+  // webOS's way of opting a field out of everything the smart text engine did -
+  // spelling, correction, suggestions - used on user names, filter fields and the
+  // like: x-palm-disable-ste-all="true". It says spellcheck="false" and more, and
+  // is read here so that the spell checker and the text input flags agree on it.
+  const AtomicString& disable_ste =
+      getAttribute(AtomicString("x-palm-disable-ste-all"));
+  if (!disable_ste.IsNull() && (disable_ste.empty() ||
+                                EqualIgnoringAsciiCase(disable_ste, "true"))) {
+    return kSpellcheckAttributeFalse;
+  }
+#endif
+
   const AtomicString& value = FastGetAttribute(html_names::kSpellcheckAttr);
   if (value == g_null_atom) {
     return kSpellcheckAttributeDefault;

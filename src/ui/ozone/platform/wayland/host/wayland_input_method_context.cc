@@ -52,9 +52,11 @@
 #endif
 
 #if defined(USE_NEVA_APPRUNTIME) && defined(OS_WEBOS)
-constexpr SkColor kPreeditHighlightColor =
-    // specified by the UX team
-    SkColorSetARGB(0xFF, 198, 176, 186);
+// Transparent: the composition is still marked as one, but the word being typed
+// is not painted as if it were selected. It used to be the UX team's mauve
+// (198, 176, 186), which made everything typed in a web application look
+// selected until the next space.
+constexpr SkColor kPreeditHighlightColor = SK_ColorTRANSPARENT;
 #endif
 
 namespace ui {
