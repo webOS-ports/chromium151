@@ -745,6 +745,14 @@ bool SpellChecker::IsSpellCheckingEnabledAt(const Position& position) {
     if (auto* input = DynamicTo<HTMLInputElement>(text_control)) {
       if (!input->IsFocusedElementInDocument())
         return false;
+#if defined(OS_WEBOS)
+      // Never in a field that hides what is typed in it: the key of a network
+      // is not a word to be looked up, or marked, or offered a correction.
+      if (input->FormControlType() ==
+          mojom::blink::FormControlType::kInputPassword) {
+        return false;
+      }
+#endif
     }
   }
   HTMLElement* element =

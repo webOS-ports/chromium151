@@ -407,11 +407,21 @@ Color LayoutTheme::InactiveListBoxSelectionForegroundColor(
 }
 
 Color LayoutTheme::PlatformSpellingMarkerUnderlineColor() const {
+#if defined(OS_WEBOS)
+  // WebCore's own pair, from drawLineForMisspellingOrBadGrammar: a red-orange
+  // rather than pure red for a misspelling, and green for bad grammar.
+  return Color(255, 90, 0);
+#else
   return Color(255, 0, 0);
+#endif
 }
 
 Color LayoutTheme::PlatformGrammarMarkerUnderlineColor() const {
+#if defined(OS_WEBOS)
+  return Color(0, 167, 0);
+#else
   return Color(192, 192, 192);
+#endif
 }
 
 Color LayoutTheme::PlatformActiveSpellingMarkerHighlightColor() const {
