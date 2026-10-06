@@ -18,6 +18,7 @@
 #include "base/logging.h"
 #include "base/notimplemented.h"
 
+#include <algorithm>
 #include <climits>
 #include <utility>
 #include <cstdint>
@@ -469,22 +470,73 @@ bool WebAppWindow::CanShiftContent(int shift_height) {
 }
 
 void WebAppWindow::InputPanelVisibilityChanged(bool visible) {
-  (visible) ? CheckShiftContent() : RestoreContentByY();
   input_panel_visible_ = visible;
+  ResizeContentForInputPanel();
 }
 
 void WebAppWindow::InputPanelRectChanged(int32_t x,
                                          int32_t y,
                                          uint32_t width,
                                          uint32_t height) {
+  input_panel_raw_rect_.SetRect(x, y, width, height);
   input_panel_rect_.SetRect(x, y, width, height);
   if (input_panel_visible_) {
     input_panel_rect_.SetRect(x / scale_factor_,
                               (y - kKeyboardHeightMargin) / scale_factor_,
                               width / scale_factor_,
                               (height + kKeyboardHeightMargin) / scale_factor_);
-    CheckShiftContent();
   }
+  ResizeContentForInputPanel();
+}
+
+// Makes room for the input panel the way webOS did: the application is made
+// shorter, so that it ends where the panel begins, and is given its height
+// back when the panel goes away.
+//
+// The webOS OSE behaviour this replaces only moved the page up, and only when
+// the caret would otherwise be under the panel. Applications written for
+// webOS - Enyo, Mojo - expect to be resized and lay themselves out again, and
+// with the page merely moved, anything at the bottom that was not the field
+// being typed in stayed covered: a toolbar, a button bar, the colour chooser
+// in Memos. With a hardware keyboard the panel is only the candidate bar and
+// the caret is rarely under it, so nothing moved at all.
+void WebAppWindow::ResizeContentForInputPanel() {
+  if (!web_contents_ || web_contents_->IsBeingDestroyed() ||
+      !web_contents_->GetContentNativeView())
+    return;
+
+  // Undo a shift left from before, so the two never stack.
+  RestoreContentByY();
+
+  aura::Window* view = web_contents_->GetContentNativeView();
+  const gfx::Rect bounds = view->bounds();
+
+  const bool wanted = input_panel_visible_ && !input_panel_raw_rect_.IsEmpty() &&
+                      scale_factor_ > 0;
+
+  if (!wanted) {
+    if (is_resized_for_input_panel_) {
+      view->SetBounds(gfx::Rect(bounds.x(), bounds.y(), bounds.width(),
+                                content_height_for_restoring_));
+      is_resized_for_input_panel_ = false;
+    }
+    return;
+  }
+
+  if (!is_resized_for_input_panel_)
+    content_height_for_restoring_ = bounds.height();
+
+  // The panel's top edge, in the same units as the contents' bounds.
+  const int panel_top =
+      static_cast<int>(input_panel_raw_rect_.y() / scale_factor_);
+  const int height = std::clamp(panel_top - bounds.y(), 0,
+                                content_height_for_restoring_);
+
+  if (height == bounds.height() && is_resized_for_input_panel_)
+    return;
+
+  view->SetBounds(gfx::Rect(bounds.x(), bounds.y(), bounds.width(), height));
+  is_resized_for_input_panel_ = true;
 }
 
 void WebAppWindow::CheckShiftContent() {

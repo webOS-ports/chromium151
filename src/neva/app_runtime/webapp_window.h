@@ -192,6 +192,7 @@ class WebAppWindow : public views::NativeEventDelegate,
   void ShiftContentByY(int shift_height);
   void UpdateViewportY();
   void RestoreContentByY();
+  void ResizeContentForInputPanel();
   void HandleDeleteDelegate();
 
   views::Widget* widget_ = nullptr;
@@ -211,6 +212,12 @@ class WebAppWindow : public views::NativeEventDelegate,
   gfx::Rect native_view_bounds_for_restoring_;
   bool is_shifted_content_ = false;
   int viewport_shift_y_ = 0;
+  // The input panel's rectangle as the compositor sent it, in the window's
+  // own pixels, and the contents' height from before they were made room
+  // around it.
+  gfx::Rect input_panel_raw_rect_;
+  int content_height_for_restoring_ = 0;
+  bool is_resized_for_input_panel_ = false;
 
   bool input_panel_visible_ = false;
   CreateParams params_;
