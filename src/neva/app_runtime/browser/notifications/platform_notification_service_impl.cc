@@ -8,6 +8,7 @@
 #include "neva/app_runtime/browser/notifications/platform_notification_service_impl.h"
 #include "base/notimplemented.h"
 
+#include "base/functional/callback_helpers.h"
 #include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -15,6 +16,7 @@
 #include "components/user_prefs/user_prefs.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/notification_event_dispatcher.h"
 #include "content/public/browser/storage_partition.h"
 #include "neva/app_runtime/browser/notifications/notification_common.h"
 #include "neva/app_runtime/browser/notifications/notification_display_service.h"
@@ -54,7 +56,20 @@ void PlatformNotificationServiceImpl::DisplayNotification(
     const GURL& document_url,
     const blink::PlatformNotificationData& notification_data,
     const blink::NotificationResources& notification_resources) {
-  NOTIMPLEMENTED();
+  message_center::Notification notification =
+      CreateNotificationFromData(origin, notification_id, notification_data,
+                                 notification_resources, document_url);
+  auto metadata = std::make_unique<NonPersistentNotificationMetadata>();
+  metadata->document_url = document_url;
+
+  NotificationDisplayServiceFactory::GetForProfile(context_)->Display(
+      NotificationHandler::Type::WEB_NON_PERSISTENT, notification,
+      std::move(metadata));
+
+  // There is no message center to say when the notification is on screen, so
+  // the page hears about it once it has been handed to the platform.
+  content::NotificationEventDispatcher::GetInstance()
+      ->DispatchNonPersistentShowEvent(notification_id);
 }
 
 void PlatformNotificationServiceImpl::DisplayPersistentNotification(
@@ -97,6 +112,11 @@ void PlatformNotificationServiceImpl::CloseNotification(
     const std::string& notification_id) {
   NotificationDisplayServiceFactory::GetForProfile(context_)->Close(
       NotificationHandler::Type::WEB_NON_PERSISTENT, notification_id);
+
+  // Nothing reports the platform notification going away, so the page's
+  // close event has to be fired here.
+  content::NotificationEventDispatcher::GetInstance()
+      ->DispatchNonPersistentCloseEvent(notification_id, base::DoNothing());
 }
 
 void PlatformNotificationServiceImpl::ClosePersistentNotification(
