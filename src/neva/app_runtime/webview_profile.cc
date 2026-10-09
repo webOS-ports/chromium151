@@ -213,7 +213,7 @@ std::map<std::string, WebViewProfile::AppPermissionSetting>
 WebViewProfile::GetAppPermissions(AppPermission permission) const {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   std::map<std::string, AppPermissionSetting> result;
-  HostContentSettingsMap* map =
+  const HostContentSettingsMap* map =
       HostContentSettingsMapFactory::GetForBrowserContext(browser_context_);
   if (!map) {
     return result;

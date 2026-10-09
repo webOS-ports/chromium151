@@ -43,6 +43,8 @@ class GeolocationPermissionContext
       const GURL& requesting_origin,
       const GURL& embedding_origin) const override;
 
+ protected:
+  // permissions::PermissionContextBase:
   bool UsesAutomaticEmbargo() const override;
 };
 
