@@ -76,4 +76,65 @@ void WebViewProfile::ResetNotifier(const std::string& app_id) {
   profile_->ResetNotifier(origin);
 }
 
+namespace {
+
+neva_app_runtime::WebViewProfile::AppPermission ToNeva(
+    WebViewProfile::AppPermission permission) {
+  switch (permission) {
+    case WebViewProfile::AppPermission::kGeolocation:
+      return neva_app_runtime::WebViewProfile::AppPermission::kGeolocation;
+    case WebViewProfile::AppPermission::kNotifications:
+      return neva_app_runtime::WebViewProfile::AppPermission::kNotifications;
+  }
+  NOTREACHED();
+}
+
+neva_app_runtime::WebViewProfile::AppPermissionSetting ToNeva(
+    WebViewProfile::AppPermissionSetting setting) {
+  switch (setting) {
+    case WebViewProfile::AppPermissionSetting::kAsk:
+      return neva_app_runtime::WebViewProfile::AppPermissionSetting::kAsk;
+    case WebViewProfile::AppPermissionSetting::kAllow:
+      return neva_app_runtime::WebViewProfile::AppPermissionSetting::kAllow;
+    case WebViewProfile::AppPermissionSetting::kBlock:
+      return neva_app_runtime::WebViewProfile::AppPermissionSetting::kBlock;
+  }
+  NOTREACHED();
+}
+
+WebViewProfile::AppPermissionSetting FromNeva(
+    neva_app_runtime::WebViewProfile::AppPermissionSetting setting) {
+  switch (setting) {
+    case neva_app_runtime::WebViewProfile::AppPermissionSetting::kAsk:
+      return WebViewProfile::AppPermissionSetting::kAsk;
+    case neva_app_runtime::WebViewProfile::AppPermissionSetting::kAllow:
+      return WebViewProfile::AppPermissionSetting::kAllow;
+    case neva_app_runtime::WebViewProfile::AppPermissionSetting::kBlock:
+      return WebViewProfile::AppPermissionSetting::kBlock;
+  }
+  NOTREACHED();
+}
+
+}  // namespace
+
+std::map<std::string, WebViewProfile::AppPermissionSetting>
+WebViewProfile::GetAppPermissions(AppPermission permission) {
+  std::map<std::string, AppPermissionSetting> result;
+  for (const auto& [app_id, setting] :
+       profile_->GetAppPermissions(ToNeva(permission))) {
+    result.emplace(app_id, FromNeva(setting));
+  }
+  return result;
+}
+
+void WebViewProfile::SetAppPermission(const std::string& app_id,
+                                      AppPermission permission,
+                                      AppPermissionSetting setting) {
+  profile_->SetAppPermission(app_id, ToNeva(permission), ToNeva(setting));
+}
+
+void WebViewProfile::ResetAppPermissions(AppPermission permission) {
+  profile_->ResetAppPermissions(ToNeva(permission));
+}
+
 }  // namespace webos

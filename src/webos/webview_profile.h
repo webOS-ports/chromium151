@@ -17,6 +17,7 @@
 #ifndef WEBOS_WEBVIEW_PROFILE_H_
 #define WEBOS_WEBVIEW_PROFILE_H_
 
+#include <map>
 #include <string>
 
 #include "webos/common/webos_export.h"
@@ -101,6 +102,23 @@ class WEBOS_EXPORT WebViewProfile {
 
   void SetNotifierEnabled(const std::string& app_id, bool enabled);
   void ResetNotifier(const std::string& app_id);
+
+  // What each application has been allowed by the user for the Web APIs that
+  // ask first. Decisions are stored per application, as the permission
+  // prompt answered them.
+  enum class AppPermission { kGeolocation, kNotifications };
+  enum class AppPermissionSetting { kAsk, kAllow, kBlock };
+
+  // Every application with a stored decision for |permission|. Applications
+  // never asked, or reset, are not listed.
+  std::map<std::string, AppPermissionSetting> GetAppPermissions(
+      AppPermission permission);
+  // kAsk removes the stored decision, so the application is asked again.
+  void SetAppPermission(const std::string& app_id,
+                        AppPermission permission,
+                        AppPermissionSetting setting);
+  // Every application back to kAsk.
+  void ResetAppPermissions(AppPermission permission);
 
  private:
   friend class WebView;
