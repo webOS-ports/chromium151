@@ -32,6 +32,15 @@ const char kGetLocationUpdates[] =
 // together, whichever of them Settings has switched on.
 const char kSubscribeParams[] = "{\"subscribe\":true}";
 
+// Settings > Location > For Applications. Off stops every application,
+// including ones the user allowed before: those never reach WebAppMgr's
+// permission prompt, so only the provider sees all of them.
+const char kGetPreferences[] =
+    "luna://com.webos.service.systemservice/getPreferences";
+const char kLocationSwitchParams[] =
+    "{\"subscribe\":true,\"keys\":[\"autoLocate\"]}";
+const char kLocationSwitchKey[] = "autoLocate";
+
 // How long to wait before asking again after the service answered with an
 // error, which ends the subscription: location may have been switched on in
 // Settings since, or the service restarted.
@@ -171,6 +180,7 @@ class LocationProviderWebos::Subscription {
     weak_factory_.InvalidateWeakPtrs();
     active_ = false;
     Unsubscribe();
+    UnsubscribeSwitch();
   }
 
   void Start() {
@@ -192,6 +202,12 @@ class LocationProviderWebos::Subscription {
       return;
     }
 
+    SubscribeSwitch();
+    if (!location_switch_on_) {
+      callback_.Run(SwitchedOff());
+      return;
+    }
+
     unsigned token = 0;
     if (!client_->Subscribe(kGetLocationUpdates, kSubscribeParams,
                             base::BindRepeating(&Subscription::OnReply,
@@ -210,9 +226,84 @@ class LocationProviderWebos::Subscription {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     active_ = false;
     Unsubscribe();
+    UnsubscribeSwitch();
   }
 
  private:
+  // Position unavailable, not permission denied: Blink treats a denial as
+  // final for the page, so its watches would stay dead after the switch is
+  // turned back on; an unavailable position lets them resume.
+  static device::mojom::GeopositionResultPtr SwitchedOff() {
+    return MakeError(device::mojom::GeopositionErrorCode::kPositionUnavailable,
+                     "Location is switched off for applications",
+                     kLocationSwitchKey);
+  }
+
+  // Followed only while positions are wanted. Until the first reply the
+  // switch counts as on, as it does when the key was never set.
+  void SubscribeSwitch() {
+    if (switch_token_ || !client_) {
+      return;
+    }
+    unsigned token = 0;
+    if (client_->Subscribe(kGetPreferences, kLocationSwitchParams,
+                           base::BindRepeating(&Subscription::OnSwitchReply,
+                                               weak_factory_.GetWeakPtr()),
+                           std::string(), &token)) {
+      switch_token_ = token;
+    } else {
+      LOG(ERROR) << "Cannot follow " << kLocationSwitchKey;
+    }
+  }
+
+  void UnsubscribeSwitch() {
+    // Cleared first: the client runs OnSwitchReply with CANCELED from in
+    // here.
+    const unsigned token = switch_token_;
+    switch_token_ = 0;
+    if (client_ && token) {
+      client_->Unsubscribe(token);
+    }
+  }
+
+  // Inside the client's dispatch of the switch subscription: only records
+  // the value; acting on it, which may unsubscribe, is posted.
+  void OnSwitchReply(pal::luna::Client::ResponseStatus status,
+                     unsigned token,
+                     const std::string& payload) {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    if (status != pal::luna::Client::ResponseStatus::SUCCESS) {
+      return;
+    }
+    std::optional<base::DictValue> reply =
+        base::JSONReader::ReadDict(payload, base::JSON_PARSE_RFC);
+    // Only the first reply carries returnValue; later ones are just the
+    // changed keys.
+    if (!reply || reply->FindBool("returnValue") == false) {
+      return;
+    }
+    std::optional<bool> on = reply->FindBool(kLocationSwitchKey);
+    if (!on || *on == location_switch_on_) {
+      return;
+    }
+    location_switch_on_ = *on;
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE,
+        base::BindOnce(&Subscription::ApplySwitch, weak_factory_.GetWeakPtr()));
+  }
+
+  void ApplySwitch() {
+    if (!active_) {
+      return;
+    }
+    if (location_switch_on_) {
+      Start();
+      return;
+    }
+    Unsubscribe();
+    callback_.Run(SwitchedOff());
+  }
+
   static device::mojom::GeopositionResultPtr Unreachable(
       const std::string& technical) {
     return MakeError(device::mojom::GeopositionErrorCode::kPositionUnavailable,
@@ -294,6 +385,8 @@ class LocationProviderWebos::Subscription {
   // subscription is open right now.
   bool active_ = false;
   bool retry_pending_ = false;
+  unsigned switch_token_ = 0;
+  bool location_switch_on_ = true;
   base::WeakPtrFactory<Subscription> weak_factory_{this};
 };
 
