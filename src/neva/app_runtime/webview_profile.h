@@ -17,6 +17,7 @@
 #ifndef NEVA_APP_RUNTIME_WEBVIEW_PROFILE_H_
 #define NEVA_APP_RUNTIME_WEBVIEW_PROFILE_H_
 
+#include <map>
 #include <string>
 
 #include "base/functional/callback.h"
@@ -54,6 +55,18 @@ class APP_RUNTIME_EXPORT WebViewProfile {
   void FlushCookieStore();
   void SetNotifierEnabled(const GURL& origin, bool enabled);
   void ResetNotifier(const GURL& origin);
+
+  // The decisions the permission prompt stored per application. See
+  // webos::WebViewProfile, which these back.
+  enum class AppPermission { kGeolocation, kNotifications };
+  enum class AppPermissionSetting { kAsk, kAllow, kBlock };
+
+  std::map<std::string, AppPermissionSetting> GetAppPermissions(
+      AppPermission permission) const;
+  void SetAppPermission(const std::string& app_id,
+                        AppPermission permission,
+                        AppPermissionSetting setting);
+  void ResetAppPermissions(AppPermission permission);
 
  private:
   WebViewProfile(AppRuntimeBrowserContext* browser_context);
