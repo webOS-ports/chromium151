@@ -19,6 +19,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "neva/pal_service/luna/luna_client.h"
 #include "neva/pal_service/luna/luna_names.h"
+#include "services/device/public/cpp/geolocation/geoposition.h"
 
 namespace neva_app_runtime {
 
@@ -103,15 +104,19 @@ device::mojom::GeopositionResultPtr ParseReply(const std::string& payload) {
     return nullptr;
   }
 
+  // Every real fix has an accuracy. The service also sends a "successful"
+  // empty position - latitude 0, longitude 0, accuracy 0 - when a handler
+  // finishes without one; passing that on would put the user at 0, 0.
+  std::optional<double> accuracy = FindNumber(*reply, "horizAccuracy");
+  if (!accuracy || !(*accuracy > 0)) {
+    LOG(WARNING) << "Ignoring a location reply without an accuracy";
+    return nullptr;
+  }
+
   auto position = device::mojom::Geoposition::New();
   position->latitude = *latitude;
   position->longitude = *longitude;
-
-  // The Geolocation API needs an accuracy. The service leaves it out, or
-  // negative, when the handler had none to give; report that as unknown but
-  // large rather than as perfectly precise.
-  std::optional<double> accuracy = FindNumber(*reply, "horizAccuracy");
-  position->accuracy = (accuracy && *accuracy >= 0) ? *accuracy : 10000.0;
+  position->accuracy = *accuracy;
 
   if (std::optional<double> altitude = FindNumber(*reply, "altitude")) {
     position->altitude = *altitude;
@@ -137,6 +142,13 @@ device::mojom::GeopositionResultPtr ParseReply(const std::string& payload) {
           ? base::Time::FromMillisecondsSinceUnixEpoch(*timestamp)
           : base::Time::Now();
 
+  // The provider manager DCHECKs every position, and DCHECKs are on in this
+  // build: a bad value from the service must not take the browser down.
+  if (!device::ValidateGeoposition(*position)) {
+    return MakeError(device::mojom::GeopositionErrorCode::kPositionUnavailable,
+                     "Location service sent an invalid position", payload);
+  }
+
   return device::mojom::GeopositionResult::NewPosition(std::move(position));
 }
 
@@ -154,7 +166,11 @@ class LocationProviderWebos::Subscription {
   Subscription& operator=(const Subscription&) = delete;
   ~Subscription() {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-    Stop();
+    // Unsubscribing runs the luna callback with CANCELED; nothing of this
+    // object may be reached from it any more.
+    weak_factory_.InvalidateWeakPtrs();
+    active_ = false;
+    Unsubscribe();
   }
 
   void Start() {
@@ -169,21 +185,25 @@ class LocationProviderWebos::Subscription {
       params.name = pal::luna::GetServiceNameWithRandSuffix(kClientName);
       client_ = pal::luna::CreateClient(params);
     }
-    if (!client_ || !client_->IsInitialized() ||
-        !client_->Subscribe(kGetLocationUpdates, kSubscribeParams,
+    if (!client_ || !client_->IsInitialized()) {
+      LOG(ERROR) << "No luna client for " << kGetLocationUpdates;
+      callback_.Run(Unreachable(kGetLocationUpdates));
+      RetryLater();
+      return;
+    }
+
+    unsigned token = 0;
+    if (!client_->Subscribe(kGetLocationUpdates, kSubscribeParams,
                             base::BindRepeating(&Subscription::OnReply,
                                                 weak_factory_.GetWeakPtr()),
-                            std::string(), &token_)) {
+                            std::string(), &token)) {
+      // The client has already reported the failure through OnReply, before
+      // there was a token to match it to, so retry from here.
       LOG(ERROR) << "Cannot subscribe to " << kGetLocationUpdates;
-      token_ = 0;
-      callback_.Run(
-          MakeError(device::mojom::GeopositionErrorCode::kPositionUnavailable,
-                    "Location service is not reachable", kGetLocationUpdates));
-      base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE,
-          base::BindOnce(&Subscription::Retry, weak_factory_.GetWeakPtr()),
-          kRetryDelay);
+      RetryLater();
+      return;
     }
+    token_ = token;
   }
 
   void Stop() {
@@ -193,6 +213,15 @@ class LocationProviderWebos::Subscription {
   }
 
  private:
+  static device::mojom::GeopositionResultPtr Unreachable(
+      const std::string& technical) {
+    return MakeError(device::mojom::GeopositionErrorCode::kPositionUnavailable,
+                     "Location service is not reachable", technical);
+  }
+
+  // Runs inside the luna client's dispatch of this very subscription, so it
+  // must not unsubscribe here: that erases the object the client is running
+  // the callback from. Anything that ends the subscription is posted.
   void OnReply(pal::luna::Client::ResponseStatus status,
                unsigned token,
                const std::string& payload) {
@@ -200,33 +229,62 @@ class LocationProviderWebos::Subscription {
     if (status == pal::luna::Client::ResponseStatus::CANCELED) {
       return;
     }
-    device::mojom::GeopositionResultPtr result = ParseReply(payload);
+
+    device::mojom::GeopositionResultPtr result =
+        status == pal::luna::Client::ResponseStatus::ERROR
+            ? Unreachable(payload)
+            : ParseReply(payload);
     if (!result) {
       return;
     }
+
     const bool failed = result->is_error();
     callback_.Run(std::move(result));
-    if (failed && active_) {
-      // The error ended the subscription; ask again later.
-      Unsubscribe();
-      base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE,
-          base::BindOnce(&Subscription::Retry, weak_factory_.GetWeakPtr()),
-          kRetryDelay);
+    if (failed) {
+      // An error reply ends the subscription at the service.
+      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(&Subscription::OnSubscriptionEnded,
+                                    weak_factory_.GetWeakPtr(), token));
     }
   }
 
+  void OnSubscriptionEnded(unsigned token) {
+    // Only if it is still the subscription that failed; a Stop() and Start()
+    // in between already replaced it.
+    if (token != token_) {
+      return;
+    }
+    Unsubscribe();
+    RetryLater();
+  }
+
+  // Location may be switched on in Settings later, or the service restart;
+  // ask again while positions are wanted.
+  void RetryLater() {
+    if (!active_ || retry_pending_) {
+      return;
+    }
+    retry_pending_ = true;
+    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(&Subscription::Retry, weak_factory_.GetWeakPtr()),
+        kRetryDelay);
+  }
+
   void Retry() {
+    retry_pending_ = false;
     if (active_) {
       Start();
     }
   }
 
   void Unsubscribe() {
-    if (client_ && token_) {
-      client_->Unsubscribe(token_);
-    }
+    // Cleared first: the client runs OnReply with CANCELED from in here.
+    const unsigned token = token_;
     token_ = 0;
+    if (client_ && token) {
+      client_->Unsubscribe(token);
+    }
   }
 
   ResultCallback callback_;
@@ -235,6 +293,7 @@ class LocationProviderWebos::Subscription {
   // Whether the provider wants positions, as opposed to whether a
   // subscription is open right now.
   bool active_ = false;
+  bool retry_pending_ = false;
   base::WeakPtrFactory<Subscription> weak_factory_{this};
 };
 
