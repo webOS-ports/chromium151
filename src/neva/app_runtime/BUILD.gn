@@ -356,6 +356,18 @@ static_library("app_runtime") {
     ]
   }
 
+  if (is_webos) {
+    # Geolocation from com.webos.service.location.
+    sources += [
+      "browser/geolocation/location_provider_webos.cc",
+      "browser/geolocation/location_provider_webos.h",
+    ]
+    deps += [
+      "//neva/pal_service/luna:luna_client",
+      "//services/device/public/cpp/geolocation",
+    ]
+  }
+
   if (use_neva_cdm) {
     deps += [
       "//components/cdm/common",

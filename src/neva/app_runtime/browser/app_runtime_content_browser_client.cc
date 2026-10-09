@@ -77,6 +77,10 @@
 #include "neva/app_runtime/webview.h"
 #include "neva/browser_service/browser/sitefilter_navigation_throttle.h"
 #include "neva/pal_service/pal_platform_factory.h"
+#include "services/device/public/cpp/geolocation/location_provider.h"
+#if defined(OS_WEBOS)
+#include "neva/app_runtime/browser/geolocation/location_provider_webos.h"
+#endif
 #include "neva/pal_service/public/external_protocol_handler_delegate.h"
 #include "neva/pal_service/public/notification_manager_delegate.h"
 #include "neva/user_agent/common/user_agent.h"
@@ -111,6 +115,10 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/navigation_throttle.h"
 #include "neva/pal_service/pal_platform_factory.h"
+#include "services/device/public/cpp/geolocation/location_provider.h"
+#if defined(OS_WEBOS)
+#include "neva/app_runtime/browser/geolocation/location_provider_webos.h"
+#endif
 #include "third_party/re2/src/re2/re2.h"
 #endif  // ENABLE_PWA_MANAGER_WEBAPI
 
@@ -977,6 +985,18 @@ AppRuntimeContentBrowserClient::GetUserAgentMetadata() {
 
 bool AppRuntimeContentBrowserClient::IsNevaDynamicProxyEnabled() {
   return false;
+}
+
+// The Geolocation API on webOS reads the system location service. Without this
+// M151 falls back to Chromium's network provider, which has neither an API key
+// nor Wi-Fi data here and never produces a position.
+std::unique_ptr<device::LocationProvider>
+AppRuntimeContentBrowserClient::OverrideSystemLocationProvider() {
+#if defined(OS_WEBOS)
+  return std::make_unique<LocationProviderWebos>();
+#else
+  return nullptr;
+#endif
 }
 
 void AppRuntimeContentBrowserClient::OnNetworkServiceCreated(
