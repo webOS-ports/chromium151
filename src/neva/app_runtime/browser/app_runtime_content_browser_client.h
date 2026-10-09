@@ -251,6 +251,9 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
   void SetProxyServer(const content::ProxySettings& proxy_settings) override;
   virtual bool IsNevaDynamicProxyEnabled() override;
 
+  std::unique_ptr<device::LocationProvider> OverrideSystemLocationProvider()
+      override;
+
 #if defined(ENABLE_PLUGINS)
   bool PluginLoaded() const { return plugin_loaded_; }
   void SetPluginLoaded(bool loaded) { plugin_loaded_ = loaded; }
