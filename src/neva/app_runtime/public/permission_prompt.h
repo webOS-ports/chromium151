@@ -31,7 +31,8 @@ class PermissionRequest {
     kCameraStream,
     kMicStream,
     kNotifications,
-    kMaxValue = kNotifications
+    kGeolocation,
+    kMaxValue = kGeolocation
   };
   virtual ~PermissionRequest() {}
 

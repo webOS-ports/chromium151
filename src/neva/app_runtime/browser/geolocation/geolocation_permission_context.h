@@ -42,6 +42,8 @@ class GeolocationPermissionContext
       content::RenderFrameHost* render_frame_host,
       const GURL& requesting_origin,
       const GURL& embedding_origin) const override;
+
+  bool UsesAutomaticEmbargo() const override;
 };
 
 }  // namespace neva_app_runtime

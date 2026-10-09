@@ -44,4 +44,12 @@ PermissionSetting GeolocationPermissionContext::GetPermissionStatusInternal(
   return setting;
 }
 
+// The question is WAM's system dialog, as for notifications: a page going away
+// before the user answers is not the user ignoring it, and recording it as such
+// files the ignore under the raw file:// origin, which lands in the default
+// provider and hits an unregistered pref.
+bool GeolocationPermissionContext::UsesAutomaticEmbargo() const {
+  return false;
+}
+
 }  // namespace neva_app_runtime
