@@ -39,6 +39,9 @@ PermissionRequestImpl::PermissionRequestImpl(
     case permissions::RequestType::kMicStream:
       request_type_ = PermissionRequest::RequestType::kMicStream;
       break;
+    case permissions::RequestType::kGeolocation:
+      request_type_ = PermissionRequest::RequestType::kGeolocation;
+      break;
     default:
       request_type_ = PermissionRequest::RequestType::kInvalid;
       LOG(ERROR) << __func__ << " invalid request_type";
