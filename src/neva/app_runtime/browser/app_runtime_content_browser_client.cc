@@ -1293,8 +1293,7 @@ void AppRuntimeContentBrowserClient::SetPwaExternalLinkPermitList(
     size_t pos = directive.find_first_of(base::kWhitespaceASCII);
     if (pos != std::string::npos) {
       auto name_field = directive.substr(0, pos);
-      if (RE2::PartialMatch(name_field.begin(),
-                            "frame-src|default-src|script-src")) {
+      if (RE2::PartialMatch(name_field, "frame-src|default-src|script-src")) {
         for (auto& ss : base::SplitString(directive.substr(pos + 1), " ",
                                           base::TRIM_WHITESPACE,
                                           base::SPLIT_WANT_NONEMPTY)) {
