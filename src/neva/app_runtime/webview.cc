@@ -135,10 +135,10 @@ void WebView::SetFileAccessBlocked(bool blocked) {
 }
 
 WebView::WebView(int width, int height, WebViewProfile* profile, std::unique_ptr<content::WebContents> web_contents)
-    : width_(width),
+    : web_contents_(std::move(web_contents)),
+      width_(width),
       height_(height),
-      profile_(profile ? profile : WebViewProfile::GetDefaultProfile()),
-      web_contents_(std::move(web_contents)) {
+      profile_(profile ? profile : WebViewProfile::GetDefaultProfile()) {
   TRACE_EVENT2("neva", "WebView::WebView", "width", width, "height", height);
   if(!web_contents_) {
     CreateWebContents();
@@ -555,6 +555,10 @@ content::WebContents* WebView::OpenURLFromTab(
   content::Referrer referrer = params.referrer;
   if (params.disposition != WindowOpenDisposition::CURRENT_TAB) {
     target = CreateWindowForContents(0, params.url, params.disposition, blink::mojom::WindowFeatures(), params.user_gesture);
+    // No window was made (no delegate, or the embedder refused it): there
+    // is nothing to navigate.
+    if (!target)
+      return nullptr;
   }
 
   content::NavigationController::LoadURLParams load_url_params(params);
