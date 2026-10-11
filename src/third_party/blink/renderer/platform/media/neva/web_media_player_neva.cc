@@ -279,21 +279,13 @@ WebMediaPlayerNeva::WebMediaPlayerNeva(
 
 WebMediaPlayerNeva::~WebMediaPlayerNeva() {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
-  NEVA_DCHECK(GetClient());
-  GetClient()->SetCcLayer(nullptr);
+  // Ensure Shutdown() has been called.
+  CHECK(!client_);
 
-  if (video_layer_.get()) {
-    video_layer_->StopUsingProvider();
-  }
   compositor_task_runner_->DeleteSoon(FROM_HERE,
                                       std::move(video_frame_provider_));
 
   media_log_->OnWebMediaPlayerDestroyed();
-
-  if (delegate_) {
-    delegate_->PlayerGone(delegate_id_);
-    delegate_->RemoveObserver(delegate_id_);
-  }
 }
 
 WebMediaPlayer::LoadTiming WebMediaPlayerNeva::Load(
@@ -1434,8 +1426,30 @@ void WebMediaPlayerNeva::ContinuePlayerWithWindowId() {
 
 void WebMediaPlayerNeva::Shutdown() {
   NEVA_DCHECK(main_task_runner_->BelongsToCurrentThread());
-  // M151 calls this just before destruction so the player can drop its client
-  // references; neva keeps no other state that outlives the client.
+  // HTMLMediaElement calls this and deletes the player later, in a task it
+  // posts, which need not run before the frame goes away. So what involves the
+  // client or the frame's media player delegate is undone here, as
+  // WebMediaPlayerImpl and WebMediaPlayerMS do: a player still registered with
+  // the delegate when the frame is destroyed fails the CHECKs in
+  // RendererWebMediaPlayerDelegate::OnDestruct() and takes the renderer down.
+  weak_factory_.InvalidateWeakPtrs();
+
+  // The media player calls back into this object (as its client) until it is
+  // destroyed, and those calls reach client_ and delegate_. Stop it while
+  // both are still there, as WebMediaPlayerImpl stops its pipeline here.
+  player_api_.reset();
+
+  GetClient()->SetCcLayer(nullptr);
+  if (video_layer_) {
+    video_layer_->StopUsingProvider();
+  }
+
+  if (delegate_) {
+    delegate_->PlayerGone(delegate_id_);
+    delegate_->RemoveObserver(delegate_id_);
+    delegate_ = nullptr;
+  }
+
   client_ = nullptr;
 }
 
