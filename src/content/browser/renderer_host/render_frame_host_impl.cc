@@ -362,6 +362,7 @@
 
 #if defined(USE_NEVA_APPRUNTIME)
 #include "content/public/browser/web_contents.h"
+#include "neva/app_runtime/public/file_security_origin.h"
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -5671,6 +5672,22 @@ blink::StorageKey RenderFrameHostImpl::CalculateStorageKey(
     // If the nonce isn't null, we can use the simpler form of the constructor.
     return blink::StorageKey::CreateWithNonce(new_rfh_origin, *nonce);
   }
+
+#if defined(USE_NEVA_APPRUNTIME)
+  // A webOS application's documents are file: URLs, so their origins are all
+  // file:// and every application would get the same storage key: each web
+  // application could read and overwrite the others' localStorage, IndexedDB
+  // and file systems. Key them by the application's own origin instead, the
+  // file://<app id>-webos one the renderer gives its documents
+  // (WebView::SetSecurityOrigin()), as service workers already are.
+  if (new_rfh_origin.scheme() == url::kFileScheme) {
+    const std::string app_id = GetWebAppId();
+    if (!app_id.empty()) {
+      return blink::StorageKey::CreateFirstParty(
+          neva_app_runtime::CreateFileSecurityOriginForApp(app_id));
+    }
+  }
+#endif
 
   if (GetContentClient()->browser()->ShouldUseFirstPartyStorageKey(
           new_rfh_origin)) {
