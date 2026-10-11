@@ -158,7 +158,10 @@ std::string Origin::Serialize() const {
     return "null";
 
 #if defined(USE_NEVA_APPRUNTIME)
-  if (scheme() == kFileScheme && !file_origin_changed_)
+  // An application's file origin carries a host (file://<app id>-webos) and
+  // keeps it in every process, where file_origin_changed_ is only set in the
+  // browser's: without it applications would share their storage.
+  if (scheme() == kFileScheme && host().empty())
 #else
   if (scheme() == kFileScheme)
 #endif
@@ -178,7 +181,8 @@ GURL Origin::GetURL() const {
     return url;
   }
 
-  if (scheme() == kFileScheme && !file_origin_changed_)
+  // As in Serialize(): an application's file origin keeps its host.
+  if (scheme() == kFileScheme && host().empty())
 #else
   if (scheme() == kFileScheme)
 #endif

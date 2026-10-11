@@ -2933,7 +2933,19 @@ void DocumentLoader::InitializeWindow(Document* owner_document) {
   // neva_app_runtime::WebView::DeleteWebStorages doesn't work.
   // Bug: http://clm.lge.com/issue/browse/NEVA-8132
 #if defined(USE_NEVA_APPRUNTIME)
-  if (!storage_key.GetNonce()) {
+  // The browser keys a webOS application's file: documents by the
+  // application's own origin, file://<app id>-webos
+  // (RenderFrameHostImpl::CalculateStorageKey()), while this document's
+  // security origin is still the bare file:// one at this point. Keep the
+  // browser's key: one derived from file:// would be the same for every
+  // application, and the browser refuses storage requests whose key does not
+  // match the frame's.
+  const bool app_file_storage_key =
+      !storage_key.GetNonce() &&
+      storage_key.GetSecurityOrigin()->Protocol() == "file" &&
+      !storage_key.GetSecurityOrigin()->Host().empty() &&
+      security_origin->Protocol() == "file";
+  if (!storage_key.GetNonce() && !app_file_storage_key) {
 #else   // defined(USE_NEVA_APPRUNTIME)
   if (storage_key.GetSecurityOrigin()->IsOpaque() && !storage_key.GetNonce()) {
 #endif  // !defined(USE_NEVA_APPRUNTIME)
@@ -2947,7 +2959,13 @@ void DocumentLoader::InitializeWindow(Document* owner_document) {
 
   // TODO(https://crbug.com/888079): Just use the storage key sent by the
   // browser once the browser will be able to compute the origin in all cases.
+#if defined(USE_NEVA_APPRUNTIME)
+  frame_->DomWindow()->SetStorageKey(
+      app_file_storage_key ? storage_key
+                           : storage_key.WithOrigin(security_origin));
+#else
   frame_->DomWindow()->SetStorageKey(storage_key.WithOrigin(security_origin));
+#endif
 
   // Conceptually, SecurityOrigin doesn't have to be initialized after sandbox
   // flags are applied, but there's a UseCounter in SetSecurityOrigin() that
