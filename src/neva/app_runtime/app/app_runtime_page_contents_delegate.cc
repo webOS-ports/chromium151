@@ -109,6 +109,9 @@ void PageContentsDelegate::OnNewWindowOpen(
 
 void PageContentsDelegate::OnOpenURLFromTab(OpenURLInfo& open_info) {}
 
+void PageContentsDelegate::OnDownloadRequested(const std::string& url,
+                                               const std::string& mime_type) {}
+
 void PageContentsDelegate::OnRendererUnresponsive() {}
 
 void PageContentsDelegate::OnRendererResponsive() {}

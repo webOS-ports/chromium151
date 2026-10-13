@@ -54,6 +54,7 @@ const char OnKeyEvent[] = "key-event";
 const char OnMouseClickEvent[] = "mouse-click-event";
 const char kOnNewWindowOpen[] = "newwindow";
 const char kOnOpenURLFromTab[] = "open-url-from-tab";
+const char kOnDownloadRequested[] = "download-requested";
 const char kOnRendererUnresponsive[] = "unresponsive";
 const char kOnRendererResponsive[] = "responsive";
 const char kOnPermissionRequest[] = "permissionrequest";
@@ -579,6 +580,11 @@ void BrowserShellPageContents::OnOpenURLFromTab(
       .Check();
 
   DoEmit(events::kOnOpenURLFromTab, open_url_info_v8);
+}
+
+void BrowserShellPageContents::OnDownloadRequested(const std::string& url,
+                                                  const std::string& mime_type) {
+  DoEmit(events::kOnDownloadRequested, url, mime_type);
 }
 
 void BrowserShellPageContents::OnRendererUnresponsive() {
