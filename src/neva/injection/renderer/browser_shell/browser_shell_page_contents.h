@@ -183,6 +183,8 @@ class BrowserShellPageContents
       browser_shell::mojom::WindowInfoPtr window_info) override;
   void OnOpenURLFromTab(
       browser_shell::mojom::OpenURLInfoPtr open_url_info) override;
+  void OnDownloadRequested(const std::string& url,
+                           const std::string& mime_type) override;
   void OnRendererUnresponsive() override;
   void OnRendererResponsive() override;
   void OnPermissionRequest(const std::string& permission, uint64_t id) override;

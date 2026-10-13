@@ -127,6 +127,8 @@ class PageContentsImpl : public mojom::PageContents,
       std::unique_ptr<neva_app_runtime::PageContents> new_contents,
       neva_app_runtime::NewWindowInfo& window_info) override;
   void OnOpenURLFromTab(neva_app_runtime::OpenURLInfo& open_info) override;
+  void OnDownloadRequested(const std::string& url,
+                           const std::string& mime_type) override;
   void OnRendererUnresponsive() override;
   void OnRendererResponsive() override;
   void OnPermissionRequest(const std::string& permission, uint64_t id) override;

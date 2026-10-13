@@ -432,6 +432,12 @@ void PageContentsImpl::OnNewWindowOpen(
   }
 }
 
+void PageContentsImpl::OnDownloadRequested(const std::string& url,
+                                           const std::string& mime_type) {
+  if (remote_client_.is_bound())
+    remote_client_->OnDownloadRequested(url, mime_type);
+}
+
 void PageContentsImpl::OnOpenURLFromTab(
     neva_app_runtime::OpenURLInfo& open_info) {
   if (remote_client_.is_bound()) {

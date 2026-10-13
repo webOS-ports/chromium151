@@ -113,6 +113,13 @@ class PageContentsDelegate {
   virtual void OnNewWindowOpen(std::unique_ptr<PageContents> new_contents,
                                NewWindowInfo& window_info);
   virtual void OnOpenURLFromTab(OpenURLInfo& open_info);
+  // A page asked for a download. app_runtime does not download anything itself
+  // (see AppRuntimeDownloadManagerDelegate), so the request is handed to the
+  // application to fetch the way the platform expects - on LuneOS that means
+  // com.webos.service.downloadmanager, which owns the download list, the
+  // history and the notifications.
+  virtual void OnDownloadRequested(const std::string& url,
+                                   const std::string& mime_type);
   virtual void OnRendererUnresponsive();
   virtual void OnRendererResponsive();
   virtual void OnPermissionRequest(const std::string& permission, uint64_t id);

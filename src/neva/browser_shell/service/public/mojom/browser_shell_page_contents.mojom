@@ -87,6 +87,9 @@ interface PageContentsClient {
   OnNavigationEntryCommitted(PageContentsState state);
   OnNewWindowOpen(uint64 id, WindowInfo window_info);
   OnOpenURLFromTab(OpenURLInfo open_url_info);
+  // A page asked for a download; the application fetches it (see
+  // AppRuntimeDownloadManagerDelegate).
+  OnDownloadRequested(string url, string mime_type);
   OnRendererUnresponsive();
   OnRendererResponsive();
   OnPermissionRequest(string permission, uint64 id);
