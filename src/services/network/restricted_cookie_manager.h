@@ -268,6 +268,19 @@ class COMPONENT_EXPORT(NETWORK_SERVICE) RestrictedCookieManager
   // mojo::ReportBadMessage(), which closes the pipe.
   //
   // If `record_metrics` is true, this helper may emit UMA metrics.
+#if defined(USE_NEVA_APPRUNTIME)
+  // webOS apps run from file:// and all share the host-less file:// origin
+  // for cookies. These key an app's cookies to its own security origin,
+  // file://<app id>-webos/, the host location.origin already reports.
+  GURL WebAppFileCookieUrl() const;
+  bool IsWebAppFileCookieUrl(const GURL& url) const;
+  // Rewrites a file:// access to the app's cookie URL. Returns false for a
+  // file:// access that belongs to no app; such a page gets no cookies.
+  bool MapWebAppFileCookieAccess(GURL* url,
+                                 net::SiteForCookies* site_for_cookies,
+                                 url::Origin* top_frame_origin) const;
+#endif
+
   bool ValidateAccessToCookiesAt(const GURL& url,
                                  const net::SiteForCookies& site_for_cookies,
                                  const url::Origin& top_frame_origin,

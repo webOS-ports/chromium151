@@ -22,6 +22,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/rand_util.h"
 #include "base/run_loop.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/timer/elapsed_timer.h"
@@ -49,6 +50,7 @@
 #include "net/storage_access_api/status.h"
 #include "services/network/cookie_settings.h"
 #include "services/network/public/cpp/features.h"
+#include "services/network/webapp_file_origin.h"
 #include "services/network/public/mojom/cookie_manager.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/restricted_cookie_manager.mojom.h"
@@ -491,18 +493,22 @@ bool RestrictedCookieManager::IsPartitionedCookiesEnabled() const {
 }
 
 void RestrictedCookieManager::GetAllForUrl(
-    const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const GURL& requested_url,
+    const net::SiteForCookies& requested_site_for_cookies,
+    const url::Origin& requested_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     mojom::CookieManagerGetOptionsPtr options,
     bool is_ad_tagged,
     bool apply_devtools_overrides,
     bool force_disable_third_party_cookies,
     GetAllForUrlCallback callback) {
+  GURL url = requested_url;
+  net::SiteForCookies site_for_cookies = requested_site_for_cookies;
+  url::Origin top_frame_origin = requested_top_frame_origin;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  if (!MapWebAppFileCookieAccess(&url, &site_for_cookies, &top_frame_origin) ||
+      !ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
     std::move(callback).Run({});
     return;
   }
@@ -682,14 +688,18 @@ void RestrictedCookieManager::UpdateSharedMemoryVersionInvalidationTimer(
 
 void RestrictedCookieManager::SetCanonicalCookie(
     mojom::RestrictedCanonicalCookieParamsPtr cookie_params,
-    const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const GURL& requested_url,
+    const net::SiteForCookies& requested_site_for_cookies,
+    const url::Origin& requested_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     bool is_ad_tagged,
     bool apply_devtools_overrides,
     SetCanonicalCookieCallback callback) {
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  GURL url = requested_url;
+  net::SiteForCookies site_for_cookies = requested_site_for_cookies;
+  url::Origin top_frame_origin = requested_top_frame_origin;
+  if (!MapWebAppFileCookieAccess(&url, &site_for_cookies, &top_frame_origin) ||
+      !ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
     std::move(callback).Run(false);
     return;
   }
@@ -800,7 +810,14 @@ void RestrictedCookieManager::SetCanonicalCookie(
   // contact the owners of http://crbug.com/1335859.
   base::Time now = base::Time::Now();
   // TODO(http://crbug.com/1024053): Log metrics
+#if defined(USE_NEVA_APPRUNTIME)
+  // A webOS app's cookies live under its own host, the host-less file://
+  // origin would never domain-match them.
+  const GURL origin_url =
+      IsWebAppFileCookieUrl(url) ? url : origin_.GetURL();
+#else
   const GURL& origin_url = origin_.GetURL();
+#endif
   net::CookieSourceScheme source_scheme =
       GURL::SchemeIsCryptographic(origin_.scheme())
           ? net::CookieSourceScheme::kSecure
@@ -877,12 +894,15 @@ void RestrictedCookieManager::SetCanonicalCookieResult(
 }
 
 void RestrictedCookieManager::AddChangeListener(
-    const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const GURL& requested_url,
+    const net::SiteForCookies& requested_site_for_cookies,
+    const url::Origin& requested_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     mojo::PendingRemote<mojom::CookieChangeListener> mojo_listener,
     AddChangeListenerCallback callback) {
+  GURL url = requested_url;
+  net::SiteForCookies site_for_cookies = requested_site_for_cookies;
+  url::Origin top_frame_origin = requested_top_frame_origin;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   // Speculative fix for crbug.com/488084020; no point in looking for
   // cookies in such a context anyway.
@@ -891,7 +911,8 @@ void RestrictedCookieManager::AddChangeListener(
     return;
   }
 
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  if (!MapWebAppFileCookieAccess(&url, &site_for_cookies, &top_frame_origin) ||
+      !ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
     std::move(callback).Run();
     return;
   }
@@ -917,16 +938,20 @@ void RestrictedCookieManager::AddChangeListener(
 }
 
 void RestrictedCookieManager::SetCookieFromString(
-    const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const GURL& requested_url,
+    const net::SiteForCookies& requested_site_for_cookies,
+    const url::Origin& requested_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     bool is_ad_tagged,
     bool apply_devtools_overrides,
     const std::string& cookie) {
+  GURL url = requested_url;
+  net::SiteForCookies site_for_cookies = requested_site_for_cookies;
+  url::Origin top_frame_origin = requested_top_frame_origin;
   TRACE_EVENT("net", "RestrictedCookieManager::SetCookieFromString");
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  if (!MapWebAppFileCookieAccess(&url, &site_for_cookies, &top_frame_origin) ||
+      !ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
     return;
   }
   base::ElapsedTimer timer;
@@ -985,18 +1010,22 @@ void RestrictedCookieManager::SetCookieFromString(
 }
 
 void RestrictedCookieManager::GetCookiesString(
-    const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const GURL& requested_url,
+    const net::SiteForCookies& requested_site_for_cookies,
+    const url::Origin& requested_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     bool get_version_shared_memory,
     bool is_ad_tagged,
     bool apply_devtools_overrides,
     bool force_disable_third_party_cookies,
     GetCookiesStringCallback callback) {
+  GURL url = requested_url;
+  net::SiteForCookies site_for_cookies = requested_site_for_cookies;
+  url::Origin top_frame_origin = requested_top_frame_origin;
   TRACE_EVENT("net", "RestrictedCookieManager::GetCookiesString");
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  if (!MapWebAppFileCookieAccess(&url, &site_for_cookies, &top_frame_origin) ||
+      !ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
     std::move(callback).Run(mojo::shared_memory_version::kInvalidVersion, {},
                             "");
     return;
@@ -1045,13 +1074,17 @@ void RestrictedCookieManager::GetCookiesString(
 }
 
 void RestrictedCookieManager::CookiesEnabledFor(
-    const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin,
+    const GURL& requested_url,
+    const net::SiteForCookies& requested_site_for_cookies,
+    const url::Origin& requested_top_frame_origin,
     net::StorageAccessApiStatus storage_access_api_status,
     bool apply_devtools_overrides,
     CookiesEnabledForCallback callback) {
-  if (!ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
+  GURL url = requested_url;
+  net::SiteForCookies site_for_cookies = requested_site_for_cookies;
+  url::Origin top_frame_origin = requested_top_frame_origin;
+  if (!MapWebAppFileCookieAccess(&url, &site_for_cookies, &top_frame_origin) ||
+      !ValidateAccessToCookiesAt(url, site_for_cookies, top_frame_origin)) {
     std::move(callback).Run(false);
     return;
   }
@@ -1090,6 +1123,14 @@ bool RestrictedCookieManager::ValidateAccessToCookiesAt(
     return false;
   }
 
+#if defined(USE_NEVA_APPRUNTIME)
+  // Already mapped by MapWebAppFileCookieAccess() from this manager's own
+  // file:// origin, nothing a renderer can choose.
+  if (IsWebAppFileCookieUrl(url)) {
+    return true;
+  }
+#endif
+
   bool site_for_cookies_ok =
       BoundSiteForCookies().IsEquivalent(site_for_cookies);
   // TODO(crbug.com/402207912): Switch back to a DCEHCK once this condition
@@ -1124,6 +1165,42 @@ bool RestrictedCookieManager::ValidateAccessToCookiesAt(
   receiver_.ReportBadMessage("Incorrect url origin");
   return false;
 }
+
+#if defined(USE_NEVA_APPRUNTIME)
+GURL RestrictedCookieManager::WebAppFileCookieUrl() const {
+  return WebAppFileOriginUrl(origin_);
+}
+
+bool RestrictedCookieManager::IsWebAppFileCookieUrl(const GURL& url) const {
+  if (!url.SchemeIsFile() || !url.has_host()) {
+    return false;
+  }
+  const GURL app_url = WebAppFileCookieUrl();
+  return !app_url.is_empty() && url.host() == app_url.host();
+}
+
+bool RestrictedCookieManager::MapWebAppFileCookieAccess(
+    GURL* url,
+    net::SiteForCookies* site_for_cookies,
+    url::Origin* top_frame_origin) const {
+  if (!url->SchemeIsFile()) {
+    return true;
+  }
+  // file:// URLs have no host, so without an app every file:// page would
+  // share one cookie jar. Key the cookies to the app instead, and give
+  // file:// pages that belong to no app no cookies at all.
+  const GURL app_url = WebAppFileCookieUrl();
+  if (app_url.is_empty()) {
+    return false;
+  }
+  *url = app_url;
+  if (top_frame_origin->scheme() == url::kFileScheme) {
+    *top_frame_origin = url::Origin::Create(app_url);
+    *site_for_cookies = net::SiteForCookies::FromUrl(app_url);
+  }
+  return true;
+}
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
 bool RestrictedCookieManager::ValidateCookieDomain(
     const GURL& url,
