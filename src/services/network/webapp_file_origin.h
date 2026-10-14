@@ -8,6 +8,11 @@
 #include "base/component_export.h"
 #include "url/gurl.h"
 
+namespace net {
+class HttpRequestHeaders;
+class URLRequest;
+}  // namespace net
+
 namespace url {
 class Origin;
 }  // namespace url
@@ -21,6 +26,16 @@ namespace network {
 // or an empty GURL for any other origin.
 COMPONENT_EXPORT(NETWORK_SERVICE)
 GURL WebAppFileOriginUrl(const url::Origin& origin);
+
+// Chromium sends no Referer from file:, so a request from a webOS
+// application cannot be told apart from any other. Returns the Referer an
+// http(s) request from an application gets when it has none, the
+// application's WebAppFileOriginUrl(); an empty GURL when the request keeps
+// what it has (it has a Referer, asked for none, or is not from an
+// application).
+COMPONENT_EXPORT(NETWORK_SERVICE)
+GURL WebAppReferrerForRequest(const net::URLRequest& request,
+                              const net::HttpRequestHeaders& headers);
 #endif  // defined(USE_NEVA_APPRUNTIME)
 
 }  // namespace network
