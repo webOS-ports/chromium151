@@ -2250,4 +2250,213 @@ INSTANTIATE_TEST_SUITE_P(
       return ss.str();
     });
 
+#if defined(USE_NEVA_APPRUNTIME)
+namespace {
+
+// webOS applications are file: documents. Each gets the cookies of its own
+// origin, file://<app id>-webos/, not one jar shared by every file: page.
+class RestrictedCookieManagerWebAppTest : public testing::Test {
+ public:
+  RestrictedCookieManagerWebAppTest()
+      : cookie_monster_(/*store=*/nullptr, /*net_log=*/nullptr) {
+    // What AppRuntimeContentBrowserClient asks of the network context.
+    base::test::TestFuture<bool> cookieable;
+    cookie_monster_.SetCookieableSchemes({"http", "https", "ws", "wss", "file"},
+                                         cookieable.GetCallback());
+    EXPECT_TRUE(cookieable.Get());
+  }
+
+  void SetUp() override {
+    mojo::SetDefaultProcessErrorHandler(
+        base::BindRepeating(&RestrictedCookieManagerWebAppTest::OnBadMessage,
+                            base::Unretained(this)));
+  }
+
+  void TearDown() override {
+    mojo::SetDefaultProcessErrorHandler(base::NullCallback());
+  }
+
+ protected:
+  // One frame's cookie manager, bound like the browser binds it.
+  struct Frame {
+    Frame(net::CookieMonster* cookie_monster,
+          const CookieSettings& cookie_settings,
+          const url::Origin& origin)
+        : origin(origin),
+          isolation_info(net::IsolationInfo::CreateForInternalRequest(origin)),
+          service(std::make_unique<RestrictedCookieManager>(
+              mojom::RestrictedCookieManagerRole::SCRIPT,
+              cookie_monster,
+              cookie_settings,
+              origin,
+              isolation_info,
+              net::CookieSettingOverrides(),
+              net::CookieSettingOverrides(),
+              mojo::NullRemote(),
+              RestrictedCookieManager::ComputeFirstPartySetMetadata(
+                  origin,
+                  cookie_monster,
+                  isolation_info))),
+          receiver(service.get(), remote.BindNewPipeAndPassReceiver()) {}
+
+    // What a document of the frame asks for, see blink::CookieJar.
+    void SetCookie(const std::string& cookie) {
+      remote->SetCookieFromString(Document(), SiteForCookies(), TopFrame(),
+                                  net::StorageAccessApiStatus::kNone,
+                                  /*is_ad_tagged=*/false,
+                                  /*apply_devtools_overrides=*/false, cookie);
+      remote.FlushForTesting();
+    }
+
+    std::string Cookies() {
+      std::string cookies;
+      base::ReadOnlySharedMemoryRegion mapped_region;
+      uint64_t version = 0;
+      EXPECT_TRUE(remote->GetCookiesString(
+          Document(), SiteForCookies(), TopFrame(),
+          net::StorageAccessApiStatus::kNone,
+          /*get_version_shared_memory=*/false,
+          /*is_ad_tagged=*/false, /*apply_devtools_overrides=*/false,
+          /*force_disable_third_party_cookies=*/false, &version,
+          &mapped_region, &cookies));
+      return cookies;
+    }
+
+    // The document URL of the frame, a file: URL without a host; the
+    // browser-side origin is the host-less file:// one carrying the app id.
+    GURL Document() const {
+      return GURL(
+          "file:///usr/palm/applications/org.webosports.app.maps/"
+          "index.html");
+    }
+    net::SiteForCookies SiteForCookies() const {
+      return net::SiteForCookies::FromOrigin(origin);
+    }
+    const url::Origin& TopFrame() const { return origin; }
+
+    url::Origin origin;
+    net::IsolationInfo isolation_info;
+    std::unique_ptr<RestrictedCookieManager> service;
+    mojo::Remote<mojom::RestrictedCookieManager> remote;
+    mojo::Receiver<mojom::RestrictedCookieManager> receiver;
+  };
+
+  std::unique_ptr<Frame> CreateFrame(const char* app_id) {
+    url::Origin origin = url::Origin::Create(
+        GURL("file:///usr/palm/applications/some.app/index.html"));
+    if (app_id) {
+      origin.set_webapp_id(app_id);
+    }
+    return std::make_unique<Frame>(&cookie_monster_, cookie_settings_, origin);
+  }
+
+  net::CookieList AllCookies() {
+    base::test::TestFuture<const net::CookieList&> future;
+    cookie_monster_.GetAllCookiesAsync(future.GetCallback());
+    return future.Take();
+  }
+
+  void OnBadMessage(const std::string& reason) {
+    ADD_FAILURE() << "Unexpected bad message: " << reason;
+  }
+
+  base::test::SingleThreadTaskEnvironment task_environment_{
+      base::test::SingleThreadTaskEnvironment::MainThreadType::IO};
+  net::CookieMonster cookie_monster_;
+  CookieSettings cookie_settings_;
+};
+
+TEST_F(RestrictedCookieManagerWebAppTest, ApplicationKeepsItsCookies) {
+  std::unique_ptr<Frame> maps = CreateFrame("org.webosports.app.maps");
+  maps->SetCookie("prefs=metric; max-age=3600");
+  maps->SetCookie("session=1");
+  EXPECT_EQ("prefs=metric; session=1", maps->Cookies());
+}
+
+TEST_F(RestrictedCookieManagerWebAppTest, CookiesAreStoredUnderTheAppHost) {
+  CreateFrame("org.webosports.app.maps")->SetCookie("prefs=metric");
+  net::CookieList cookies = AllCookies();
+  ASSERT_EQ(1u, cookies.size());
+  EXPECT_EQ("org.webosports.app.maps-webos", cookies[0].Domain());
+  EXPECT_EQ("/", cookies[0].Path());
+}
+
+TEST_F(RestrictedCookieManagerWebAppTest, ApplicationsDoNotShareCookies) {
+  std::unique_ptr<Frame> maps = CreateFrame("org.webosports.app.maps");
+  std::unique_ptr<Frame> calendar = CreateFrame("com.palm.app.calendar");
+  maps->SetCookie("prefs=metric");
+  EXPECT_EQ("", calendar->Cookies());
+  calendar->SetCookie("view=week");
+  EXPECT_EQ("prefs=metric", maps->Cookies());
+  EXPECT_EQ("view=week", calendar->Cookies());
+}
+
+TEST_F(RestrictedCookieManagerWebAppTest, SameApplicationSharesCookies) {
+  // A second window of the same application.
+  CreateFrame("org.webosports.app.maps")->SetCookie("prefs=metric");
+  EXPECT_EQ("prefs=metric",
+            CreateFrame("org.webosports.app.maps")->Cookies());
+}
+
+TEST_F(RestrictedCookieManagerWebAppTest, FilePageWithoutApplicationGetsNone) {
+  std::unique_ptr<Frame> page = CreateFrame(nullptr);
+  page->SetCookie("shared=1");
+  EXPECT_EQ("", page->Cookies());
+  EXPECT_TRUE(AllCookies().empty());
+  // Nor does it see an application's cookies.
+  CreateFrame("org.webosports.app.maps")->SetCookie("prefs=metric");
+  EXPECT_EQ("", page->Cookies());
+}
+
+TEST_F(RestrictedCookieManagerWebAppTest, CookieDomainCannotLeaveTheApp) {
+  std::unique_ptr<Frame> maps = CreateFrame("org.webosports.app.maps");
+  maps->SetCookie("evil=1; domain=com.palm.app.calendar-webos");
+  EXPECT_EQ("", CreateFrame("com.palm.app.calendar")->Cookies());
+  EXPECT_TRUE(AllCookies().empty());
+}
+
+TEST_F(RestrictedCookieManagerWebAppTest, GetAllForUrlAndCookiesEnabledFor) {
+  std::unique_ptr<Frame> maps = CreateFrame("org.webosports.app.maps");
+  maps->SetCookie("prefs=metric");
+
+  RestrictedCookieManagerSync sync(maps->remote.get());
+  std::vector<net::CanonicalCookie> cookies = sync.GetAllForUrl(
+      maps->Document(), maps->SiteForCookies(), maps->TopFrame(),
+      net::StorageAccessApiStatus::kNone, mojom::CookieManagerGetOptions::New(
+          "", mojom::CookieMatchType::STARTS_WITH));
+  ASSERT_EQ(1u, cookies.size());
+  EXPECT_EQ("prefs", cookies[0].Name());
+
+  base::test::TestFuture<bool> enabled;
+  maps->remote->CookiesEnabledFor(
+      maps->Document(), maps->SiteForCookies(), maps->TopFrame(),
+      net::StorageAccessApiStatus::kNone,
+      /*apply_devtools_overrides=*/false, enabled.GetCallback());
+  EXPECT_TRUE(enabled.Get());
+}
+
+TEST_F(RestrictedCookieManagerWebAppTest, ChangeListenerSeesTheAppCookies) {
+  std::unique_ptr<Frame> maps = CreateFrame("org.webosports.app.maps");
+  RestrictedCookieManagerSync sync(maps->remote.get());
+  mojo::PendingRemote<mojom::CookieChangeListener> listener_remote;
+  TestCookieChangeListener listener(
+      listener_remote.InitWithNewPipeAndPassReceiver());
+  sync.AddChangeListener(maps->Document(), maps->SiteForCookies(),
+                         maps->TopFrame(), net::StorageAccessApiStatus::kNone,
+                         std::move(listener_remote));
+
+  CreateFrame("com.palm.app.calendar")->SetCookie("view=week");
+  maps->SetCookie("prefs=metric");
+  // SetCookie() flushes the pipe, which may deliver the change already.
+  if (listener.observed_changes().empty()) {
+    listener.WaitForChange();
+  }
+  // Only the application's own cookie, not Calendar's.
+  ASSERT_EQ(1u, listener.observed_changes().size());
+  EXPECT_EQ("prefs", listener.observed_changes()[0].cookie.Name());
+}
+
+}  // namespace
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
 }  // namespace network

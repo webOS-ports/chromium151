@@ -1076,6 +1076,17 @@ void AppRuntimeContentBrowserClient::ConfigureNetworkContextParams(
   network_context_params->file_paths->http_cache_directory =
       context->GetPath().Append(kCacheStoreFile);
 
+  // webOS apps are file:// pages. RestrictedCookieManager keys their cookies
+  // to the app's own origin (file://<app id>-webos/) and refuses cookies to
+  // file:// pages that belong to no app, so this does not create the shared
+  // file:// cookie jar Android WebView warns about.
+  if (!network_context_params->cookie_manager_params) {
+    network_context_params->cookie_manager_params =
+        network::mojom::CookieManagerParams::New();
+  }
+  network_context_params->cookie_manager_params->allow_file_scheme_cookies =
+      true;
+
   if (cmd_line->HasSwitch(kDisableModernCookieSameSite)) {
     if (!network_context_params->cookie_manager_params) {
       network_context_params->cookie_manager_params =
