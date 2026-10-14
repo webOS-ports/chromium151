@@ -48,6 +48,7 @@
 #include "services/network/public/mojom/url_request.mojom-shared.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/sec_header_helpers.h"
+#include "url/url_constants.h"
 
 namespace network::url_loader_util {
 
@@ -539,6 +540,20 @@ void ConfigureUrlRequest(const ResourceRequest& request,
   url_request.set_accepted_stream_types(request.devtools_accepted_stream_types);
 
   url_request.set_initiator(request.request_initiator);
+#if defined(USE_NEVA_APPRUNTIME)
+  // The webOS application a file: initiator belongs to is the browser's to
+  // say: use the browser-set initiator lock of this factory (which carries
+  // the application id, see URLLoaderFactoryParamsHelper::CreateForFrame())
+  // and never an id the renderer put on its request. The application id is
+  // not part of the origin's identity, so this is the same origin.
+  if (request.request_initiator &&
+      request.request_initiator->scheme() == url::kFileScheme &&
+      factory_params.request_initiator_origin_lock &&
+      factory_params.request_initiator_origin_lock->IsSameOriginWith(
+          *request.request_initiator)) {
+    url_request.set_initiator(factory_params.request_initiator_origin_lock);
+  }
+#endif
 
   // Note: There are some ordering dependencies here. `SetRequestCredentials`
   // depends on `SetLoadFlags`; `CalculateStorageAccessStatus` depends on

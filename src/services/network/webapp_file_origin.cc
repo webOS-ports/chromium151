@@ -9,6 +9,9 @@
 
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
+#include "net/http/http_request_headers.h"
+#include "net/url_request/referrer_policy.h"
+#include "net/url_request/url_request.h"
 #include "url/origin.h"
 #include "url/url_constants.h"
 
@@ -32,6 +35,17 @@ GURL WebAppFileOriginUrl(const url::Origin& origin) {
     return GURL();
   }
   return app_url;
+}
+
+GURL WebAppReferrerForRequest(const net::URLRequest& request,
+                              const net::HttpRequestHeaders& headers) {
+  if (!request.url().SchemeIsHTTPOrHTTPS() || !request.referrer().empty() ||
+      request.referrer_policy() == net::ReferrerPolicy::NO_REFERRER ||
+      headers.HasHeader(net::HttpRequestHeaders::kReferer) ||
+      !request.initiator()) {
+    return GURL();
+  }
+  return WebAppFileOriginUrl(*request.initiator());
 }
 #endif  // defined(USE_NEVA_APPRUNTIME)
 

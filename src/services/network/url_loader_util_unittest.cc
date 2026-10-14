@@ -4,6 +4,10 @@
 
 #include "services/network/url_loader_util.h"
 
+#include <memory>
+#include <optional>
+#include <string>
+
 #include "base/test/task_environment.h"
 #include "net/base/isolation_info.h"
 #include "net/cookies/site_for_cookies.h"
@@ -194,6 +198,86 @@ TEST_F(ConfigureUrlRequestTest,
       url_request->url(), url_request->initiator(),
       url_request->site_for_cookies(), origin_access_list));
 }
+
+#if defined(USE_NEVA_APPRUNTIME)
+// The webOS application a file: request comes from is told by the browser,
+// through the factory's request_initiator_origin_lock, never by the renderer.
+class ConfigureUrlRequestWebAppTest : public ConfigureUrlRequestTest {
+ protected:
+  static url::Origin FileOrigin(const char* app_id) {
+    url::Origin origin = url::Origin::Create(GURL(kDocument));
+    if (app_id) {
+      origin.set_webapp_id(app_id);
+    }
+    return origin;
+  }
+
+  std::unique_ptr<net::URLRequest> Configure(
+      const url::Origin& request_initiator,
+      const std::optional<url::Origin>& lock) {
+    ResourceRequest request;
+    request.url = GURL(kTileUrl);
+    request.method = "GET";
+    request.request_initiator = request_initiator;
+
+    auto factory_params = mojom::URLLoaderFactoryParams::New();
+    factory_params->process_id = OriginatingProcessId::browser();
+    factory_params->request_initiator_origin_lock = lock;
+
+    cors::OriginAccessList origin_access_list;
+    CookieSettings cookie_settings;
+    SharedResourceChecker shared_resource_checker(cookie_settings);
+    auto url_request = CreateURLRequest(request.url);
+    ConfigureUrlRequest(request, *factory_params, origin_access_list,
+                        *url_request, shared_resource_checker);
+    return url_request;
+  }
+
+  // The webapp id the URLRequest's initiator carries, "" if none.
+  static std::string AppIdOf(const net::URLRequest& url_request) {
+    const std::optional<url::Origin>& initiator = url_request.initiator();
+    return initiator ? initiator->get_webapp_id().value_or("") : "<no initiator>";
+  }
+
+  static constexpr char kDocument[] =
+      "file:///usr/palm/applications/org.webosports.app.maps/index.html";
+  static constexpr char kTileUrl[] =
+      "https://tile.openstreetmap.org/15/17602/10746.png";
+};
+
+TEST_F(ConfigureUrlRequestWebAppTest, ApplicationIdComesFromTheLock) {
+  auto url_request =
+      Configure(FileOrigin(nullptr), FileOrigin("org.webosports.app.maps"));
+  EXPECT_EQ("org.webosports.app.maps", AppIdOf(*url_request));
+}
+
+TEST_F(ConfigureUrlRequestWebAppTest, RendererCannotClaimAnotherApplication) {
+  auto url_request = Configure(FileOrigin("com.palm.app.calendar"),
+                               FileOrigin("org.webosports.app.maps"));
+  EXPECT_EQ("org.webosports.app.maps", AppIdOf(*url_request));
+}
+
+TEST_F(ConfigureUrlRequestWebAppTest, RendererIdIsDroppedWhenLockHasNone) {
+  auto url_request =
+      Configure(FileOrigin("com.palm.app.calendar"), FileOrigin(nullptr));
+  EXPECT_EQ("", AppIdOf(*url_request));
+}
+
+TEST_F(ConfigureUrlRequestWebAppTest, WebInitiatorsAreLeftAlone) {
+  const url::Origin web_origin =
+      url::Origin::Create(GURL("https://example.com/"));
+  auto url_request = Configure(web_origin, web_origin);
+  EXPECT_TRUE(url_request->initiator() == web_origin);
+  EXPECT_EQ("", AppIdOf(*url_request));
+}
+
+TEST_F(ConfigureUrlRequestWebAppTest, NoLockKeepsTheRequestInitiator) {
+  // Browser-owned factories have no lock; their initiators are trusted.
+  auto url_request =
+      Configure(FileOrigin("org.webosports.app.maps"), std::nullopt);
+  EXPECT_EQ("org.webosports.app.maps", AppIdOf(*url_request));
+}
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
 }  // namespace
 }  // namespace network::url_loader_util

@@ -189,6 +189,7 @@
 #endif  // BUILDFLAG(IS_CT_SUPPORTED)
 
 #if BUILDFLAG(ENABLE_WEBSOCKETS)
+#include "services/network/webapp_file_origin.h"
 #include "services/network/websocket.h"
 #include "services/network/websocket_factory.h"
 #endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
@@ -543,6 +544,16 @@ class ExtraHeaderNetworkDelegate : public NetworkServiceNetworkDelegate,
         auto& non_const_headers = const_cast<net::HttpRequestHeaders&>(headers);
         non_const_headers.SetHeader(pair.first, pair.second);
       }
+    }
+
+    // webOS applications are file: pages, from which Chromium never sends a
+    // Referer, so services that ask clients to identify themselves (e.g.
+    // tile.openstreetmap.org) cannot tell which application is calling.
+    const GURL app_referrer = WebAppReferrerForRequest(*request, headers);
+    if (!app_referrer.is_empty()) {
+      auto& non_const_headers = const_cast<net::HttpRequestHeaders&>(headers);
+      non_const_headers.SetHeader(net::HttpRequestHeaders::kReferer,
+                                  app_referrer.spec());
     }
     return NetworkServiceNetworkDelegate::OnBeforeStartTransaction(
         request, headers, std::move(callback));

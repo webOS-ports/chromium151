@@ -37,6 +37,8 @@
 #include "services/network/public/mojom/url_loader.mojom-shared.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
+#include "url/origin.h"
+#include "url/url_constants.h"
 
 namespace content {
 
@@ -185,10 +187,26 @@ URLLoaderFactoryParamsHelper::CreateForFrame(
   const bool has_effective_top_frame_for_storage_partitioning =
       GetContentClient()->browser()->GetEffectiveTopFrameForPartitioning(
           frame) != nullptr;
+#if defined(USE_NEVA_APPRUNTIME)
+  // Let the network service know which webOS app a file:// frame belongs
+  // to (it identifies the app in requests, see network_context.cc). The
+  // webapp id is not part of the origin's identity, so the lock still
+  // compares equal to the frame's request initiators.
+  url::Origin app_frame_origin = frame_origin;
+  if (frame_origin.scheme() == url::kFileScheme &&
+      !frame_origin.get_webapp_id()) {
+    const std::string app_id = frame->GetWebAppId();
+    if (!app_id.empty()) {
+      app_frame_origin.set_webapp_id(app_id);
+    }
+  }
+#else
+  const url::Origin& app_frame_origin = frame_origin;
+#endif
   return CreateParams(
       process,
-      frame_origin,  // origin
-      frame_origin,  // request_initiator_origin_lock
+      app_frame_origin,  // origin
+      app_frame_origin,  // request_initiator_origin_lock
       false,         // is_trusted
       frame->GetTopFrameToken(), isolation_info,
       std::move(client_security_state), std::move(coep_reporter),
