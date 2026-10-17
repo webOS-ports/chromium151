@@ -80,25 +80,29 @@ fi
 
 CHROME_CACHE="${CACHE_DIR}/browser_shell"
 
-EXTRA_PARAMS_JSON=$(node -e "
-params = JSON.parse('$EXTRA_PARAMS_JSON');
-// No user-agent is set here on purpose, so Chromium's own string is used.
-//
-// This used to default to a literal reading
-//   Mozilla/5.0 (Web0S; Linux) ... Chrome/120.0.6099.0 Safari/537.36
-// which was wrong twice over. The version was written down, so the M120 -> M151
-// uprev left it claiming Chrome/120 on a 151 engine and nothing noticed. And the
-// "Web0S; Linux" platform token is not one bot checks recognise: Cloudflare put
-// pixilart.com and other protected sites into an endless challenge loop with it,
-// and kept doing so after the version was corrected and after the client hints
-// were filled in completely, so it is the token itself. Chromium's own string
-// loads those sites.
-//
-// A caller that genuinely wants a different agent can still pass one through
-// --launch-args, which is checked just above.
-params['hide_exit_button'] = false;
+# No user-agent is set here on purpose, so Chromium's own string is used.
+#
+# This used to default to a literal reading
+#   Mozilla/5.0 (Web0S; Linux) ... Chrome/120.0.6099.0 Safari/537.36
+# which was wrong twice over. The version was written down, so the M120 -> M151
+# uprev left it claiming Chrome/120 on a 151 engine and nothing noticed. And the
+# "Web0S; Linux" platform token is not one bot checks recognise: Cloudflare put
+# pixilart.com and other protected sites into an endless challenge loop with it,
+# and kept doing so after the version was corrected and after the client hints
+# were filled in completely, so it is the token itself. Chromium's own string
+# loads those sites.
+#
+# A caller that genuinely wants a different agent can still pass one through
+# --launch-args.
+#
+# The params JSON goes to node through the environment, not spliced into the
+# script text: a quote in it (a URL with ' in it) would otherwise end the
+# string and the launch parameters would be lost.
+EXTRA_PARAMS_JSON=$(EXTRA_PARAMS_JSON="$EXTRA_PARAMS_JSON" node -e '
+var params = JSON.parse(process.env.EXTRA_PARAMS_JSON || "{}");
+params["hide_exit_button"] = false;
 console.log(JSON.stringify(params));
-")
+')
 
 ######################################################################
                 #      Target Environment          #
