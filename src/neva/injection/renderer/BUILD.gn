@@ -88,6 +88,10 @@ source_set("renderer") {
       "webossystem/window_injection.cc",
       "webossystem/window_injection.h",
     ]
+    deps += [
+      "//ui/gfx/geometry",
+      "//ui/latency",
+    ]
   }
 
   if (enable_webos_service_bridge_webapi) {

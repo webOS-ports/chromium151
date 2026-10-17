@@ -38,11 +38,15 @@
 #include "neva/injection/renderer/webosservicebridge/webosservicebridge_injection.h"
 #include "third_party/abseil-cpp/absl/time/clock.h"
 #include "third_party/abseil-cpp/absl/time/time.h"
+#include "third_party/blink/public/common/input/web_coalesced_input_event.h"
+#include "third_party/blink/public/common/input/web_mouse_event.h"
 #include "third_party/blink/public/web/blink.h"
+#include "third_party/blink/public/web/web_frame_widget.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_script_source.h"
 #include "third_party/blink/public/web/web_view.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/latency/latency_info.h"
 
 namespace injections {
 
@@ -421,11 +425,48 @@ void WebOSSystemInjection::UseSimulatedMouseClicks(bool param) {
   SendCommand("useSimulatedMouseClicks", arguments);
 }
 
+// PalmSystem.simulateMouseClick(pageX, pageY, pressed): a mouse button
+// pressed (true) or released (false) at a point of the page, as the user's
+// own. Enyo 1 calls it for every tap: it moves the focus itself, then has
+// the click made here so that the browser puts the caret where the finger
+// was and the page gets its click. The events go into the frame's widget as
+// input does, so they are trusted: they focus, place the caret and select.
 void WebOSSystemInjection::SimulateMouseClick(
-    int pageX, int pageY, bool result2) {
-  std::vector<std::string> arguments = { std::to_string(pageX), std::to_string(pageY) };
-  arguments.push_back(result2 ? "true" : "false");
-  SendCommand("simulateMouseClick", arguments);
+    int pageX, int pageY, bool pressed) {
+  blink::WebLocalFrame* frame = blink::WebLocalFrame::FrameForCurrentContext();
+  if (!frame)
+    return;
+  blink::WebFrameWidget* widget = frame->LocalRoot()->FrameWidget();
+  blink::WebView* view = frame->View();
+  if (!widget || !view)
+    return;
+
+  // Page coordinates (CSS pixels, from the top of the document) to the
+  // widget's: less the scroll, times the zoom for the device's scale.
+  const gfx::PointF scroll = frame->GetScrollOffset();
+  const float zoom = view->ZoomFactorForViewportLayout();
+  const gfx::PointF position((pageX - scroll.x()) * zoom,
+                             (pageY - scroll.y()) * zoom);
+
+  const base::TimeTicks now = base::TimeTicks::Now();
+  auto send = [&](blink::WebInputEvent::Type type, int modifiers) {
+    blink::WebMouseEvent event(type, position, position,
+                               blink::WebPointerProperties::Button::kLeft,
+                               /*click_count_param=*/1, modifiers, now);
+    widget->HandleInputEvent(
+        blink::WebCoalescedInputEvent(event, ui::LatencyInfo()));
+  };
+  if (pressed) {
+    // Over the point first, as a mouse would be, then down.
+    send(blink::WebInputEvent::Type::kMouseMove, 0);
+    send(blink::WebInputEvent::Type::kMouseDown,
+         blink::WebInputEvent::kLeftButtonDown);
+  } else {
+    send(blink::WebInputEvent::Type::kMouseUp, 0);
+  }
+  VLOG(1) << "simulateMouseClick " << pageX << "," << pageY
+          << (pressed ? " down" : " up") << " at " << position.ToString()
+          << " (zoom " << zoom << ")";
 }
 
 void WebOSSystemInjection::ClearBannerMessages() {
