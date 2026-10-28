@@ -337,6 +337,17 @@ void DisplayScheduler::OnDisplayDamaged(SurfaceId surface_id,
   base::AutoReset<bool> auto_reset(&inside_surface_damaged_, true);
 
   needs_draw_ = true;
+#if defined(USE_NEVA_APPRUNTIME)
+  if (use_viz_fmp_with_timeout_ && visible_ && !first_surface_activated_) {
+    // Nothing is drawn until the first contentful paint, and frames are only
+    // acked when drawn. Ack them now, or the embedder is throttled and cannot
+    // submit the frame that embeds a new document's surface; the first
+    // contentful paint of that surface then stays in pending_activations_
+    // until activate_eventually_timeout_ (a window.open() page that redirects
+    // across documents showed up 8 s late).
+    damage_tracker_->RunDrawCallbacks();
+  }
+#endif
   MaybeStartObservingBeginFrames();
   UpdateHasPendingSurfaces();
 
