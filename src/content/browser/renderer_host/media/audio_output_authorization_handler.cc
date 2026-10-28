@@ -16,6 +16,11 @@
 #include "content/public/browser/media_device_id.h"
 #include "content/public/browser/render_frame_host.h"
 #include "media/audio/audio_system.h"
+#if defined(USE_WEBOS_AUDIO)
+#include "content/public/browser/web_contents.h"
+#include "media/audio/webos/palm_audio_class.h"
+#include "third_party/blink/public/common/renderer_preferences/renderer_preferences.h"
+#endif
 
 using blink::mojom::MediaDeviceType;
 
@@ -67,6 +72,30 @@ void CheckAccessOnUIThread(
                      override_permissions, permissions_override_value,
                      std::move(cb)));
 }
+
+#if defined(USE_WEBOS_AUDIO)
+// Whether the frame may play on the sink of a palm audio class
+// (x-palm-media-audio-class): only a webOS application that WAM loaded from
+// the file system may, so a web page cannot ring like an alarm or a call.
+bool MayUsePalmAudioClassOnUIThread(int render_process_id,
+                                    int render_frame_id) {
+  CHECK_CURRENTLY_ON(BrowserThread::UI);
+  RenderFrameHost* render_frame_host =
+      RenderFrameHost::FromID(render_process_id, render_frame_id);
+  if (!render_frame_host ||
+      !render_frame_host->GetLastCommittedURL().SchemeIsFile()) {
+    return false;
+  }
+  WebContents* web_contents =
+      WebContents::FromRenderFrameHost(render_frame_host);
+  if (!web_contents) {
+    return false;
+  }
+  const blink::RendererPreferences* prefs =
+      web_contents->GetMutableRendererPrefs();
+  return !prefs->application_id.empty() && !prefs->is_enact_browser;
+}
+#endif
 
 }  // namespace
 
@@ -223,6 +252,19 @@ void AudioOutputAuthorizationHandler::RequestDeviceAuthorization(
     GetDeviceParameters(std::move(trace_scope), std::move(cb), device_id);
     return;
   }
+
+  if (media::IsPalmAudioClassDeviceId(device_id)) {
+    // Not a device the page could enumerate, so there is no hash to check,
+    // only whether this frame may use the class.
+    GetUIThreadTaskRunner({})->PostTaskAndReplyWithResult(
+        FROM_HERE,
+        base::BindOnce(&MayUsePalmAudioClassOnUIThread, render_process_id_,
+                       render_frame_id),
+        base::BindOnce(&AudioOutputAuthorizationHandler::PalmAudioClassChecked,
+                       weak_factory_.GetWeakPtr(), std::move(trace_scope),
+                       std::move(cb), device_id));
+    return;
+  }
 #endif
 
   trace_scope->CheckAccessStart(device_id);
@@ -348,6 +390,24 @@ void AudioOutputAuthorizationHandler::GetDeviceParameters(
                      weak_factory_.GetWeakPtr(), std::move(trace_scope),
                      std::move(cb), std::string(), raw_device_id));
 }
+
+#if defined(USE_WEBOS_AUDIO)
+void AudioOutputAuthorizationHandler::PalmAudioClassChecked(
+    std::unique_ptr<TraceScope> trace_scope,
+    AuthorizationCompletedCallback cb,
+    const std::string& device_id,
+    bool allowed) const {
+  CHECK_CURRENTLY_ON(BrowserThread::IO, base::NotFatalUntil::M152);
+  if (!allowed) {
+    // Play the element as if it had no class, as on any other browser.
+    trace_scope->SimpleEvent("Palm audio class not allowed, using default");
+    GetDeviceParameters(std::move(trace_scope), std::move(cb),
+                        media::AudioDeviceDescription::kDefaultDeviceId);
+    return;
+  }
+  GetDeviceParameters(std::move(trace_scope), std::move(cb), device_id);
+}
+#endif
 
 void AudioOutputAuthorizationHandler::DeviceParametersReceived(
     std::unique_ptr<TraceScope> trace_scope,

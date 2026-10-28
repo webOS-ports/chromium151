@@ -108,6 +108,16 @@ class CONTENT_EXPORT AudioOutputAuthorizationHandler {
                            AuthorizationCompletedCallback cb,
                            const std::string& raw_device_id) const;
 
+#if defined(USE_WEBOS_AUDIO)
+  // Continues RequestDeviceAuthorization() for a palm audio class device id
+  // (media/audio/webos/palm_audio_class.h) once the UI thread has said
+  // whether the frame may use it; the default device is used if not.
+  void PalmAudioClassChecked(std::unique_ptr<TraceScope> trace_scope,
+                             AuthorizationCompletedCallback cb,
+                             const std::string& device_id,
+                             bool allowed) const;
+#endif
+
   void DeviceParametersReceived(
       std::unique_ptr<TraceScope> trace_scope,
       AuthorizationCompletedCallback cb,

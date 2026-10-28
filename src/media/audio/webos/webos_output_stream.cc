@@ -16,9 +16,13 @@
 
 #include "media/audio/webos/webos_output_stream.h"
 
+#include <string>
+#include <string_view>
+
 #include "base/logging.h"
 #include "media/audio/pulse/pulse_util.h"
 #include "media/audio/webos/audio_manager_webos.h"
+#include "media/audio/webos/palm_audio_class.h"
 
 namespace media {
 
@@ -41,7 +45,15 @@ WebOSAudioOutputStream::WebOSAudioOutputStream(
   DCHECK(!track_id_.empty());
   VLOG(1) << __func__ << " this[" << this << "]";
 
-  if (params.latency_tag() == AudioLatency::Type::kRtc) {
+  const std::string_view palm_class_sink =
+      PalmAudioClassDeviceIdToSink(device_id);
+  if (!palm_class_sink.empty()) {
+    // A media element with x-palm-media-audio-class: play on that class's
+    // virtual sink, so palm-policy routes the stream and audiod sees it as
+    // that class.
+    device_id_ = std::string(palm_class_sink);
+    VLOG(1) << __func__ << " palm audio class sink " << device_id_;
+  } else if (params.latency_tag() == AudioLatency::Type::kRtc) {
     if (AudioDeviceDescription::IsDisplayDefaultDevice(device_id)) {
       if (device_id.size() > 1) {
         std::string display_id = device_id.substr(

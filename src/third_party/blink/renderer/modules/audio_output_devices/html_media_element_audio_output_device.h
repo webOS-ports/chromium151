@@ -26,6 +26,12 @@ class MODULES_EXPORT HTMLMediaElementAudioOutputDevice final
   static HTMLMediaElementAudioOutputDevice& From(HTMLMediaElement&);
 
   static String sinkId(HTMLMediaElement&);
+
+  // The sink id to give the element's WebMediaPlayer for |sink_id|, the sink
+  // the page chose. On webOS an element that plays on the default sink and
+  // names a legacy audio class with x-palm-media-audio-class gets the reserved
+  // id of that class's virtual sink; otherwise this is |sink_id|.
+  static String SinkIdForMediaPlayer(HTMLMediaElement&, const String& sink_id);
   static ScriptPromise<IDLUndefined> setSinkId(ScriptState*,
                                                HTMLMediaElement&,
                                                const String& sink_id);

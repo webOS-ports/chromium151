@@ -11,6 +11,9 @@
 #include "content/browser/media/media_devices_util.h"
 #include "content/public/browser/browser_thread.h"
 #include "media/audio/audio_device_description.h"
+#if defined(USE_WEBOS_AUDIO)
+#include "media/audio/webos/palm_audio_class.h"
+#endif
 #include "third_party/blink/public/common/mediastream/media_device_id.h"
 
 namespace content {
@@ -55,6 +58,8 @@ void GetMediaDeviceIDForHMAC(
 bool IsValidDeviceId(const std::string& device_id) {
 #if defined(USE_WEBOS_AUDIO)
   if (media::AudioDeviceDescription::IsDisplayDefaultDevice(device_id))
+    return true;
+  if (media::IsPalmAudioClassDeviceId(device_id))
     return true;
 #endif
 
