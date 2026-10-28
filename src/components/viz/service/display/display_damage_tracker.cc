@@ -66,16 +66,20 @@ void DisplayDamageTracker::SetFrameSinkId(const FrameSinkId& frame_sink_id) {
 }
 
 void DisplayDamageTracker::MaybeNotifyPendingActivations() {
-  for (auto const& pending_activation : pending_activations_) {
-    if (surface_manager_->IsOrContainsFrameSink(
-            frame_sink_id_, pending_activation.first.frame_sink_id())) {
-      if (delegate_) {
-        delegate_->NotifyPendingActivation(
-            pending_activation.second.is_first_contentful_paint,
-            pending_activation.second.did_reset_container_state,
-            pending_activation.second.seen_first_contentful_paint);
-      }
-      pending_activations_.erase(pending_activation.first);
+  // Erasing from a flat_map invalidates iterators, so advance by hand.
+  for (auto it = pending_activations_.begin();
+       it != pending_activations_.end();) {
+    if (!surface_manager_->IsOrContainsFrameSink(frame_sink_id_,
+                                                 it->first.frame_sink_id())) {
+      ++it;
+      continue;
+    }
+    const PendingSurfaceActivationState state = it->second;
+    it = pending_activations_.erase(it);
+    if (delegate_) {
+      delegate_->NotifyPendingActivation(state.is_first_contentful_paint,
+                                         state.did_reset_container_state,
+                                         state.seen_first_contentful_paint);
     }
   }
 }
