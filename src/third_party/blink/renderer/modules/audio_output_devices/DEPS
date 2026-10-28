@@ -1,0 +1,4 @@
+include_rules = [
+    # webOS: the legacy x-palm-media-audio-class attribute.
+    "+media/audio/webos/palm_audio_class.h",
+]

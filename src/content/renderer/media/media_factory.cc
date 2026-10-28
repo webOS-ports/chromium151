@@ -144,6 +144,7 @@
 
 #if defined(USE_WEBOS_AUDIO)
 #include "media/audio/audio_device_description.h"
+#include "media/audio/webos/palm_audio_class.h"
 #endif
 
 namespace {
@@ -499,6 +500,15 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
 
   if (content::RenderThreadImpl::current()->UseVideoDecodeAccelerator())
     use_neva_media = false;
+
+#if defined(USE_WEBOS_AUDIO)
+  // An element with a legacy audio class (x-palm-media-audio-class) plays
+  // through Chromium's own pipeline, whose audio service opens the stream on
+  // the class's virtual sink. The webOS media pipeline cannot be told the
+  // class: it plays everything on the display's default sink.
+  if (media::IsPalmAudioClassDeviceId(sink_id.Utf8()))
+    use_neva_media = false;
+#endif
 #endif
 
   auto factory_selector = CreateRendererFactorySelector(

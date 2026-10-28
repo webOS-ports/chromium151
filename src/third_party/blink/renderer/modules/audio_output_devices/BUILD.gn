@@ -9,4 +9,8 @@ blink_modules_sources("audio_output_devices") {
     "html_media_element_audio_output_device.cc",
     "html_media_element_audio_output_device.h",
   ]
+
+  if (use_webos_audio) {
+    defines = [ "USE_WEBOS_AUDIO" ]
+  }
 }

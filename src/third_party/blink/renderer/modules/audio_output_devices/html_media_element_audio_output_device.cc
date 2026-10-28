@@ -23,6 +23,12 @@
 #include "third_party/blink/renderer/platform/media/media_player_util.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
+#if defined(USE_WEBOS_AUDIO)
+#include "base/containers/span.h"
+#include "media/audio/webos/palm_audio_class.h"
+#include "third_party/blink/renderer/core/dom/document.h"
+#endif
+
 namespace blink {
 
 namespace {
@@ -117,7 +123,9 @@ void SetSinkIdResolver::DoSetSinkId() {
   WebMediaPlayer* web_media_player = element_->GetWebMediaPlayer();
   if (web_media_player) {
     if (web_media_player->SetSinkId(
-            sink_id_, std::move(set_sink_id_completion_callback))) {
+            HTMLMediaElementAudioOutputDevice::SinkIdForMediaPlayer(*element_,
+                                                                    sink_id_),
+            std::move(set_sink_id_completion_callback))) {
       element_->DidAudioOutputSinkChanged(sink_id_);
     }
     return;
@@ -196,6 +204,34 @@ String HTMLMediaElementAudioOutputDevice::sinkId(HTMLMediaElement& element) {
   HTMLMediaElementAudioOutputDevice& aod_element =
       HTMLMediaElementAudioOutputDevice::From(element);
   return aod_element.sink_id_;
+}
+
+// static
+String HTMLMediaElementAudioOutputDevice::SinkIdForMediaPlayer(
+    HTMLMediaElement& element,
+    const String& sink_id) {
+#if defined(USE_WEBOS_AUDIO)
+  // A sink the page chose itself wins over the class.
+  if (!sink_id.empty() && sink_id != "default") {
+    return sink_id;
+  }
+  // Only a webOS application, loaded from the file system, may use a class;
+  // the browser enforces that and plays anything else on the default sink.
+  if (!element.GetDocument().Url().ProtocolIs("file")) {
+    return sink_id;
+  }
+  const AtomicString& audio_class = element.getAttribute(
+      AtomicString(base::as_byte_span(media::kPalmAudioClassAttribute)));
+  if (audio_class.empty()) {
+    return sink_id;
+  }
+  const std::string device_id =
+      media::PalmAudioClassToDeviceId(audio_class.Utf8());
+  if (!device_id.empty()) {
+    return String::FromUtf8(device_id);
+  }
+#endif
+  return sink_id;
 }
 
 void HTMLMediaElementAudioOutputDevice::setSinkId(const String& sink_id) {
