@@ -564,6 +564,20 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
   }
 #endif
 
+  RenderFrameMediaPlaybackOptions playback_options =
+      render_frame_->GetRenderFrameMediaPlaybackOptions();
+#if defined(USE_WEBOS_AUDIO)
+  // An alarm or a ringtone has to sound while its page is hidden: the clock
+  // app plays its alarm from a background page that only shows a dashboard.
+  // Chromium's pipeline would pause it there, since on webOS even audio-only
+  // media counts as background video. The neva player, which these elements
+  // no longer use, is left to WAM's own suspend and resume.
+  if (media::IsPalmAudioClassDeviceId(sink_id.Utf8())) {
+    playback_options.is_background_suspend_enabled = false;
+    playback_options.is_background_video_playback_enabled = true;
+  }
+#endif
+
   if (!media_player_builder_) {
     media_player_builder_ = std::make_unique<blink::WebMediaPlayerBuilder>(
         *web_frame,
@@ -588,12 +602,9 @@ std::unique_ptr<blink::WebMediaPlayer> MediaFactory::CreateMediaPlayer(
                      parent_frame_sink_id),
       RenderThreadImpl::current()->SharedMainThreadContextProvider(),
       use_surface_layer,
-      render_frame_->GetRenderFrameMediaPlaybackOptions()
-          .is_background_suspend_enabled,
-      render_frame_->GetRenderFrameMediaPlaybackOptions()
-          .is_background_video_playback_enabled,
-      render_frame_->GetRenderFrameMediaPlaybackOptions()
-          .is_background_video_track_optimization_supported,
+      playback_options.is_background_suspend_enabled,
+      playback_options.is_background_video_playback_enabled,
+      playback_options.is_background_video_track_optimization_supported,
       std::move(demuxer_override),
 #if defined(USE_NEVA_MEDIA)
       blink::Platform::Current()->GetBrowserInterfaceBroker(),
