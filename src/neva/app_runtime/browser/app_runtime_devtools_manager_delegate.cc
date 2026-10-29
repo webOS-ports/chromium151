@@ -40,6 +40,7 @@
 #include "content/public/common/content_switches.h"
 #include "content/public/common/url_constants.h"
 #include "components/embedder_support/user_agent_utils.h"
+#include "net/base/ip_address.h"
 #include "net/base/net_errors.h"
 #include "net/log/net_log_source.h"
 #include "net/socket/tcp_server_socket.h"
@@ -50,6 +51,11 @@ namespace neva_app_runtime {
 namespace {
 
 const int kBackLog = 10;
+
+// The same switch content_shell and headless take. DevTools has no
+// authentication, so the server listens on loopback unless this asks for
+// another address (for example 0.0.0.0, on a trusted network only).
+constexpr char kRemoteDebuggingAddress[] = "remote-debugging-address";
 
 base::subtle::Atomic32 g_last_used_port;
 
@@ -101,8 +107,20 @@ std::unique_ptr<content::DevToolsSocketFactory> CreateSocketFactory() {
       DLOG(WARNING) << "Invalid http debugger port number " << temp_port;
     }
   }
+  std::string address = net::IPAddress::IPv4Localhost().ToString();
+  if (command_line.HasSwitch(kRemoteDebuggingAddress)) {
+    const std::string requested =
+        command_line.GetSwitchValueASCII(kRemoteDebuggingAddress);
+    net::IPAddress parsed;
+    if (parsed.AssignFromIPLiteral(requested)) {
+      address = requested;
+    } else {
+      LOG(WARNING) << "Invalid DevTools server address \"" << requested
+                   << "\", listening on " << address;
+    }
+  }
   return std::unique_ptr<content::DevToolsSocketFactory>(
-      new TCPServerSocketFactory("0.0.0.0", port));
+      new TCPServerSocketFactory(address, port));
 }
 
 }  // namespace
