@@ -191,11 +191,16 @@ fi
 CHROME_FLAGS="${CHROME_FLAGS} ${CHROME_LS2_NAME_FLAG}"
 
 # ensure that wam data directories exist
-mkdir -p ${CHROME_CACHE}
+mkdir -p "${CHROME_CACHE}"
 
-# temp code for security issue
-chmod -R 777 ${CHROME_CACHE}
-rm -f ${CHROME_CACHE}/Singleton*
+# The profile directory itself must be a real directory: chmod below follows a
+# symlink given on its command line.
+if [ -L "${CHROME_CACHE}" ] || [ ! -d "${CHROME_CACHE}" ]; then
+    echo "ERROR: ${CHROME_CACHE} is not a directory"
+    exit 1
+fi
+
+rm -f "${CHROME_CACHE}"/Singleton*
 rm -rf ${TMPDIR}/.org.chromium.*
 
 # set directories permission
@@ -205,6 +210,25 @@ rm -rf ${TMPDIR}/.org.chromium.*
 # own owner changed, never that of the file it points at; without it busybox
 # chown -R (built without CONFIG_DESKTOP, as on LuneOS) chowns every target.
 chown -hR "${WAM_UID}:${WAM_GID}" "${CHROME_CACHE}"
+
+# The profile (cookies, storage, history) is the shell's alone: the browser
+# process drops to ${WAM_UID} before it opens anything here and its children
+# inherit that, so no other uid needs to enter. This used to be chmod -R 777,
+# which left every application's profile readable and writable by every uid.
+chmod 0700 "${CHROME_CACHE}"
+
+# Take back the world-writable modes that chmod -R 777 left in existing
+# profiles: directories 0700, files 0600, so nothing is left executable;
+# symlinks are not touched, and busybox find does not follow them. It runs as
+# ${WAM_UID}, so even a file swapped for a symlink during the walk can only
+# reach what ${WAM_UID} could chmod anyway. Without setpriv this is skipped;
+# the 0700 above already keeps every other uid out.
+if command -v setpriv >/dev/null 2>&1; then
+    setpriv --reuid="${WAM_UID}" --regid="${WAM_GID}" --clear-groups \
+        find "${CHROME_CACHE}" \
+            -type d -perm -0002 -exec chmod 0700 {} + \
+            -o -type f -perm -0002 -exec chmod 0600 {} + || :
+fi
 
 if [ -f /var/luna/preferences/devmode_enabled -a -f /var/luna/preferences/debug_system_apps ]; then
     DEBUG_FLAGS="--remote-debugging-port=9999"
