@@ -230,7 +230,10 @@ if command -v setpriv >/dev/null 2>&1; then
             -o -type f -perm -0002 -exec chmod 0600 {} + || :
 fi
 
-if [ -f /var/luna/preferences/devmode_enabled -a -f /var/luna/preferences/debug_system_apps ]; then
+# Developer mode on LuneOS is /var/luna/dev-mode-enabled, which the developer
+# mode service sets and clears; devmode_enabled is left behind in dev images
+# whatever the switch says. Read when a shell starts, like WAM's port 9998.
+if [ -f /var/luna/dev-mode-enabled -a -f /var/luna/preferences/debug_system_apps ]; then
     DEBUG_FLAGS="--remote-debugging-port=9999"
 fi
 
