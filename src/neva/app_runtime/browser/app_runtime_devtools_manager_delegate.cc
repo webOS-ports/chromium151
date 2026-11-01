@@ -93,8 +93,8 @@ class TCPServerSocketFactory : public content::DevToolsSocketFactory {
 std::unique_ptr<content::DevToolsSocketFactory> CreateSocketFactory() {
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
-  // See if the user specified a port on the command line (useful for
-  // automation). If not, use an ephemeral port by specifying 0.
+  // StartHttpHandler() only gets here if a port was specified on the command
+  // line (useful for automation). An invalid one means an ephemeral port.
   uint16_t port = 0;
   if (command_line.HasSwitch(switches::kRemoteDebuggingPort)) {
     int temp_port;
@@ -135,6 +135,14 @@ int AppRuntimeDevToolsManagerDelegate::GetHttpHandlerPort() {
 // static
 void AppRuntimeDevToolsManagerDelegate::StartHttpHandler(
     BrowserContext* browser_context) {
+  // No port was asked for, as outside LuneOS's developer mode. Don't fall back
+  // on an ephemeral port: that would leave an unauthenticated server that any
+  // local process can find and attach to.
+  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kRemoteDebuggingPort)) {
+    return;
+  }
+
   std::string frontend_url;
   DevToolsAgentHost::StartRemoteDebuggingServer(
       CreateSocketFactory(), (browser_context->GetPath()).DirName(),
