@@ -57,6 +57,7 @@ const char kOnOpenURLFromTab[] = "open-url-from-tab";
 const char kOnDownloadRequested[] = "download-requested";
 const char kOnRendererUnresponsive[] = "unresponsive";
 const char kOnRendererResponsive[] = "responsive";
+const char kOnVideoPlayingChanged[] = "video-playing-changed";
 const char kOnPermissionRequest[] = "permissionrequest";
 const char kOnFoundInPage[] = "found-in-page";
 const char kOnZoomFactorChanged[] = "zoomchange";
@@ -593,6 +594,10 @@ void BrowserShellPageContents::OnRendererUnresponsive() {
 
 void BrowserShellPageContents::OnRendererResponsive() {
   DoEmit(events::kOnRendererResponsive);
+}
+
+void BrowserShellPageContents::OnVideoPlayingChanged(bool playing) {
+  DoEmit(events::kOnVideoPlayingChanged, playing);
 }
 
 void BrowserShellPageContents::OnZoomFactorChanged(double zoom_factor) {

@@ -187,6 +187,7 @@ class BrowserShellPageContents
                            const std::string& mime_type) override;
   void OnRendererUnresponsive() override;
   void OnRendererResponsive() override;
+  void OnVideoPlayingChanged(bool playing) override;
   void OnPermissionRequest(const std::string& permission, uint64_t id) override;
   void OnFoundInPage(int32_t request_id,
                      int32_t active_match_ordinal,

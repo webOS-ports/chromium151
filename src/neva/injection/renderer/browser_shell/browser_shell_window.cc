@@ -38,6 +38,7 @@ gin::WrapperInfo BrowserShellWindow::kWrapperInfo = {gin::kEmbedderNativeGin};
 
 char BrowserShellWindow::kPageViewPropertyName[] = "pageView";
 char BrowserShellWindow::kSetVisibleMethodName[] = "setVisible";
+char BrowserShellWindow::kSetCardFullscreenMethodName[] = "setCardFullscreen";
 char BrowserShellWindow::kIsVisibleMethodName[] = "isVisible";
 
 BrowserShellWindow::BrowserShellWindow(
@@ -145,6 +146,11 @@ v8::Local<v8::Object> BrowserShellWindow::GetPageView(v8::Isolate* isolate) {
   return page_view_object_.Get(isolate);
 }
 
+void BrowserShellWindow::SetCardFullscreen(bool fullscreen) {
+  if (remote_.is_connected())
+    remote_->SetCardFullscreen(fullscreen);
+}
+
 void BrowserShellWindow::SetVisible(bool visible) {
   NOTIMPLEMENTED();
 }
@@ -169,6 +175,8 @@ gin::ObjectTemplateBuilder BrowserShellWindow::GetObjectTemplateBuilder(
       .SetMethod(kRemoveAllEventListenersMethodName,
                  &BrowserShellWindow::RunRemoveAllEventListeners)
       .SetMethod(kSetVisibleMethodName, &BrowserShellWindow::SetVisible)
+      .SetMethod(kSetCardFullscreenMethodName,
+                 &BrowserShellWindow::SetCardFullscreen)
       .SetMethod(kIsVisibleMethodName, &BrowserShellWindow::IsVisible);
 }
 

@@ -55,6 +55,7 @@ class ShellWindowImpl : public mojom::ShellWindow,
   void BindClient(BindClientCallback callback) override;
 
   void SyncName(SyncNameCallback callback) override;
+  void SetCardFullscreen(bool fullscreen) override;
 
   // neva_app_runtime::ShellWindowDelegate
   void OnDisplaySizeChanged(const gfx::Rect& bounds) override;

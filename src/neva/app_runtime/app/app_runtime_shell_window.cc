@@ -179,6 +179,12 @@ void ShellWindow::SetFullscreen(bool fullscreen, int64_t target_display_id) {
     native_window->GetHost()->SetFullscreen(fullscreen, target_display_id);
 }
 
+void ShellWindow::SetWindowProperty(const std::string& name,
+                                    const std::string& value) {
+  if (host_)
+    host_->AsWindowTreeHost()->SetWindowProperty(name, value);
+}
+
 void ShellWindow::CloseNow() {
   if (!is_closing_) {
     is_closing_ = true;

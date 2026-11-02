@@ -37,4 +37,9 @@ interface ShellWindow {
   BindClient() => (pending_associated_receiver<ShellWindowClient> client_receiver);
 
   [Sync] SyncName() => (string name);
+
+  // Covers the whole screen, status bar and gesture area too, on a card shell
+  // that knows the "LuneOS_fullscreen" window property. One property and not
+  // a setter for any of them: "appId" and the like are the window's identity.
+  SetCardFullscreen(bool fullscreen);
 };

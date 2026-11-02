@@ -459,6 +459,11 @@ void PageContentsImpl::OnRendererResponsive() {
     remote_client_->OnRendererResponsive();
 }
 
+void PageContentsImpl::OnVideoPlayingChanged(bool playing) {
+  if (remote_client_.is_bound())
+    remote_client_->OnVideoPlayingChanged(playing);
+}
+
 void PageContentsImpl::OnPermissionRequest(const std::string& permission,
                                            uint64_t id) {
   if (remote_client_.is_bound())

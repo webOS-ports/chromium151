@@ -122,6 +122,8 @@ class PageContentsDelegate {
                                    const std::string& mime_type);
   virtual void OnRendererUnresponsive();
   virtual void OnRendererResponsive();
+  // Whether any video of the page is playing; audio alone does not count.
+  virtual void OnVideoPlayingChanged(bool playing);
   virtual void OnPermissionRequest(const std::string& permission, uint64_t id);
   virtual void OnFoundInPage(int request_id,
                              int active_match_ordinal,
