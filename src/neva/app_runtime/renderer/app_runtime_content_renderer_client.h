@@ -67,6 +67,10 @@ class AppRuntimeContentRendererClient : public content::ContentRendererClient {
 
 #if defined(USE_NEVA_CDM)
   void GetSupportedKeySystems(media::GetSupportedKeySystemsCB cb) override;
+#else
+  std::unique_ptr<media::KeySystemSupportRegistration> GetSupportedKeySystems(
+      content::RenderFrame* render_frame,
+      media::GetSupportedKeySystemsCB cb) override;
 #endif
 
 #if defined(USE_NEVA_MEDIA)
