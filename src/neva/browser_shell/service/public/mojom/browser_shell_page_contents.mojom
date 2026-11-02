@@ -92,6 +92,7 @@ interface PageContentsClient {
   OnDownloadRequested(string url, string mime_type);
   OnRendererUnresponsive();
   OnRendererResponsive();
+  OnVideoPlayingChanged(bool playing);
   OnPermissionRequest(string permission, uint64 id);
   // Progress of a FindInPage request. The engine reports repeatedly for one
   // request as it scans, with final_update set on the last one.

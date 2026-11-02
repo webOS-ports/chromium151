@@ -48,6 +48,7 @@ class BrowserShellWindow : public gin::Wrappable<BrowserShellWindow>,
 
   static char kPageViewPropertyName[];
   static char kSetVisibleMethodName[];
+  static char kSetCardFullscreenMethodName[];
   static char kIsVisibleMethodName[];
 
   BrowserShellWindow(v8::Isolate* isolate,
@@ -97,6 +98,7 @@ class BrowserShellWindow : public gin::Wrappable<BrowserShellWindow>,
   v8::Local<v8::Object> GetPageView(v8::Isolate* isolate);
   void SetVisible(bool visible);
   bool IsVisible() const;
+  void SetCardFullscreen(bool fullscreen);
 
   gin::ObjectTemplateBuilder GetObjectTemplateBuilder(
       v8::Isolate* isolate) override;

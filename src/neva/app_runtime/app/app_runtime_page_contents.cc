@@ -1081,6 +1081,26 @@ void PageContents::PrimaryMainFrameRenderProcessGone(
   delegate_->OnExit(TerminationStatusToString(status));
 }
 
+void PageContents::MediaStartedPlaying(const MediaPlayerInfo& video_type,
+                                       const content::MediaPlayerId& id) {
+  if (!video_type.has_video)
+    return;
+  playing_videos_.insert(id);
+  if (playing_videos_.size() == 1)
+    delegate_->OnVideoPlayingChanged(true);
+}
+
+// WebContents::GetCurrentlyPlayingVideoCount() would be less code but is wrong
+// here: a player destroyed while playing reports stopped before it stops being
+// counted, so the last one would never read as gone.
+void PageContents::MediaStoppedPlaying(
+    const MediaPlayerInfo& video_type,
+    const content::MediaPlayerId& id,
+    content::WebContentsObserver::MediaStoppedReason reason) {
+  if (playing_videos_.erase(id) && playing_videos_.empty())
+    delegate_->OnVideoPlayingChanged(false);
+}
+
 void PageContents::RenderFrameCreated(
     content::RenderFrameHost* render_frame_host) {
   injection_manager_->RequestReloadInjections(render_frame_host);

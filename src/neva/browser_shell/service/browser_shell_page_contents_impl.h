@@ -131,6 +131,7 @@ class PageContentsImpl : public mojom::PageContents,
                            const std::string& mime_type) override;
   void OnRendererUnresponsive() override;
   void OnRendererResponsive() override;
+  void OnVideoPlayingChanged(bool playing) override;
   void OnPermissionRequest(const std::string& permission, uint64_t id) override;
   void OnFoundInPage(int request_id,
                      int active_match_ordinal,

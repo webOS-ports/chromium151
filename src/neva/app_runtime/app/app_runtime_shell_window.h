@@ -74,6 +74,7 @@ class ShellWindow : public views::NativeEventDelegate,
 
   void SetWindowTitle(std::u16string title);
   void SetFullscreen(bool fullscreen, int64_t target_display_id);
+  void SetWindowProperty(const std::string& name, const std::string& value);
   void CloseNow();
 
   // ui::DisplayObserver

@@ -92,6 +92,11 @@ void ShellWindowImpl::SyncName(SyncNameCallback callback) {
   std::move(callback).Run(name_);
 }
 
+void ShellWindowImpl::SetCardFullscreen(bool fullscreen) {
+  shell_window_->SetWindowProperty("LuneOS_fullscreen",
+                                   fullscreen ? "true" : "false");
+}
+
 void ShellWindowImpl::OnDisplaySizeChanged(const gfx::Rect& bounds) {
   remote_client_->OnDisplaySizeChanged(
       ToPageRect(shell_window_->GetPageView(), bounds));

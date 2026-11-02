@@ -21,11 +21,13 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 
 #include "base/callback_list.h"
 #include "base/memory/weak_ptr.h"
 #include "content/public/browser/host_zoom_map.h"
+#include "content/public/browser/media_player_id.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "net/base/auth.h"
 #include "net/base/network_anonymization_key.h"
@@ -190,6 +192,12 @@ class PageContents : public AppRuntimeWebContentsDelegate,
       content::RenderWidgetHost* render_widget_host) override;
   void PrimaryMainFrameRenderProcessGone(
       base::TerminationStatus status) override;
+  void MediaStartedPlaying(const MediaPlayerInfo& video_type,
+                           const content::MediaPlayerId& id) override;
+  void MediaStoppedPlaying(
+      const MediaPlayerInfo& video_type,
+      const content::MediaPlayerId& id,
+      content::WebContentsObserver::MediaStoppedReason reason) override;
   void RenderFrameCreated(content::RenderFrameHost* render_frame_host) override;
   void RenderFrameHostChanged(content::RenderFrameHost* old_host,
                               content::RenderFrameHost* new_host) override;
@@ -300,6 +308,7 @@ class PageContents : public AppRuntimeWebContentsDelegate,
   PageContentsDelegate* delegate_ = nullptr;
   PageContentsDelegate stub_delegate_;
   bool page_requested_fullscreen_ = false;
+  std::set<content::MediaPlayerId> playing_videos_;
   std::unique_ptr<content::WebContents> web_contents_;
   std::optional<bool> default_access_to_media_ = std::nullopt;
   std::unique_ptr<JSDialogManager> js_dialog_manager_;

@@ -116,6 +116,8 @@ void PageContentsDelegate::OnRendererUnresponsive() {}
 
 void PageContentsDelegate::OnRendererResponsive() {}
 
+void PageContentsDelegate::OnVideoPlayingChanged(bool playing) {}
+
 void PageContentsDelegate::OnPermissionRequest(const std::string& permission,
                                                uint64_t id) {}
 
