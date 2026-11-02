@@ -43,8 +43,12 @@
 #include "ui/base/webui/jstemplate_builder.h"
 #include "url/url_constants.h"
 
+#include "third_party/widevine/cdm/buildflags.h"
+
 #if defined(USE_NEVA_CDM)
 #include "components/cdm/renderer/neva/key_systems_util.h"
+#elif BUILDFLAG(ENABLE_WIDEVINE)
+#include "components/cdm/renderer/key_system_support_update.h"
 #endif
 
 #if defined(USE_NEVA_MEDIA)
@@ -283,6 +287,19 @@ void AppRuntimeContentRendererClient::ArmWatchdog() {
 void AppRuntimeContentRendererClient::GetSupportedKeySystems(
     media::GetSupportedKeySystemsCB cb) {
   cdm::AddSupportedKeySystems(std::move(cb));
+}
+#else
+std::unique_ptr<media::KeySystemSupportRegistration>
+AppRuntimeContentRendererClient::GetSupportedKeySystems(
+    content::RenderFrame* render_frame,
+    media::GetSupportedKeySystemsCB cb) {
+#if BUILDFLAG(ENABLE_WIDEVINE)
+  return cdm::GetSupportedKeySystemsUpdates(
+      render_frame, /*can_persist_data=*/true, std::move(cb));
+#else
+  return content::ContentRendererClient::GetSupportedKeySystems(render_frame,
+                                                                std::move(cb));
+#endif
 }
 #endif
 

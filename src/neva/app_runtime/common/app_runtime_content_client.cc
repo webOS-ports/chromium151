@@ -26,10 +26,13 @@
 #include "content/public/common/webplugininfo.h"
 #include "mojo/public/cpp/bindings/binder_map.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "third_party/widevine/cdm/buildflags.h"
 #include "ui/base/resource/resource_bundle.h"
 
 #if defined(USE_NEVA_CDM)
 #include "components/cdm/common/neva/cdm_info_util.h"
+#elif BUILDFLAG(ENABLE_WIDEVINE)
+#include "neva/app_runtime/common/library_widevine_cdm.h"
 #endif
 
 #if defined(USE_NEVA_CHROME_EXTENSIONS)
@@ -70,6 +73,9 @@ void AppRuntimeContentClient::AddContentDecryptionModules(
 #if defined(USE_NEVA_CDM)
   if (cdms)
     cdm::AddContentDecryptionModules(*cdms);
+#elif BUILDFLAG(ENABLE_WIDEVINE)
+  if (cdms)
+    AddLibraryWidevineCdm(cdms);
 #endif
 }
 
