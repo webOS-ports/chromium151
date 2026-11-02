@@ -19,10 +19,45 @@ import("//build/config/ui.gni")
 import("//build/util/process_version.gni")
 import("//neva/app_runtime/app_runtime_locales.gni")
 import("//neva/neva.gni")
+import("//third_party/widevine/cdm/widevine.gni")
 import("//tools/grit/repack.gni")
 
 config("app_runtime_cfg") {
   defines = [ "APP_RUNTIME_IMPLEMENTATION" ]
+}
+
+if (enable_widevine && !use_neva_cdm) {
+  source_set("library_widevine_cdm") {
+    sources = [
+      "common/library_widevine_cdm.cc",
+      "common/library_widevine_cdm.h",
+    ]
+
+    deps = [
+      "//base",
+      "//components/cdm/common",
+      "//content/public/common",
+      "//media",
+      "//media/cdm:cdm_paths",
+      "//third_party/widevine/cdm:headers",
+    ]
+  }
+
+  source_set("library_widevine_cdm_unittests") {
+    testonly = true
+
+    sources = [ "common/library_widevine_cdm_unittest.cc" ]
+
+    deps = [
+      ":library_widevine_cdm",
+      "//base",
+      "//content/public/common",
+      "//media",
+      "//media/cdm:cdm_paths",
+      "//testing/gtest",
+      "//third_party/widevine/cdm:headers",
+    ]
+  }
 }
 
 source_set("app_runtime_webview_controller") {
@@ -328,6 +363,7 @@ static_library("app_runtime") {
     "//third_party/blink/public/common",
     "//third_party/blink/public/mojom:mojom_platform",
     "//third_party/blink/public:blink",
+    "//third_party/widevine/cdm:buildflags",
     "//ui/aura",
     "//ui/base",
     "//ui/events",
@@ -371,6 +407,11 @@ static_library("app_runtime") {
   if (use_neva_cdm) {
     deps += [
       "//components/cdm/common",
+      "//components/cdm/renderer",
+    ]
+  } else if (enable_widevine) {
+    deps += [
+      ":library_widevine_cdm",
       "//components/cdm/renderer",
     ]
   }

@@ -14,7 +14,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import("//neva/neva.gni")
 import("//testing/test.gni")
+import("//third_party/widevine/cdm/widevine.gni")
 
 test("neva_unittests") {
   deps = [
@@ -22,4 +24,8 @@ test("neva_unittests") {
     # --- Add your component's unittests refs below this line ---
     "../emulator:unittests"
   ]
+
+  if (enable_widevine && !use_neva_cdm) {
+    deps += [ "../app_runtime:library_widevine_cdm_unittests" ]
+  }
 }
