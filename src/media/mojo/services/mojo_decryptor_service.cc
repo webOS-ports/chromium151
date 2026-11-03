@@ -200,6 +200,15 @@ void MojoDecryptorService::ResetDecoder(StreamType stream_type) {
                                weak_this_, stream_type));
 }
 
+void MojoDecryptorService::ReportVideoClock(int64_t ticks0_us,
+                                            int64_t media0_us,
+                                            int64_t ticks1_us,
+                                            int64_t media1_us,
+                                            bool paused) {
+  decryptor_->ReportVideoClock(ticks0_us, media0_us, ticks1_us, media1_us,
+                               paused);
+}
+
 void MojoDecryptorService::DeinitializeDecoder(StreamType stream_type) {
   DVLOG(2) << __func__;
   auto* reader = GetBufferReader(stream_type);

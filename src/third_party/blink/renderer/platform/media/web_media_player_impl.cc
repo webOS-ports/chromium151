@@ -3819,6 +3819,41 @@ base::WeakPtr<WebMediaPlayer> WebMediaPlayerImpl::AsWeakPtr() {
 }
 
 #if defined(USE_NEVA_MEDIA)
+void WebMediaPlayerImpl::SetBridgeVideoWindowCallback(
+    CreateVideoWindowCallback cb) {
+  bridge_create_video_window_cb_ = std::move(cb);
+  compositor_->SetBridgeHoleRequestCallback(base::BindPostTask(
+      main_task_runner_,
+      base::BindRepeating(&WebMediaPlayerImpl::OnBridgeHoleRequested,
+                          weak_this_)));
+}
+
+void WebMediaPlayerImpl::OnBridgeHoleRequested() {
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+  if (bridge_window_client_.is_bound() || !bridge_create_video_window_cb_)
+    return;
+  mojo::PendingRemote<ui::mojom::VideoWindowClient> client;
+  bridge_window_client_.Bind(client.InitWithNewPipeAndPassReceiver());
+  mojo::PendingRemote<ui::mojom::VideoWindow> window;
+  bridge_create_video_window_cb_.Run(
+      std::move(client), window.InitWithNewPipeAndPassReceiver(),
+      ui::VideoWindowParams());
+  bridge_window_.Bind(std::move(window));
+}
+
+void WebMediaPlayerImpl::OnVideoWindowCreated(const ui::VideoWindowInfo& info) {
+  LOG(INFO) << "bridge video window created";
+  const gfx::Size size = pipeline_metadata_.natural_size;
+  bridge_window_->SetVideoSize(size, size);
+  compositor_->SetBridgeHole(info.window_id);
+}
+
+void WebMediaPlayerImpl::OnVideoWindowDestroyed() {
+  compositor_->SetBridgeHole(base::UnguessableToken());
+  bridge_window_client_.reset();
+  bridge_window_.reset();
+}
+
 bool WebMediaPlayerImpl::IsBackgroundMediaSuspendEnabled() const {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kDisableWebMediaPlayerNeva)) {

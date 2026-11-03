@@ -156,6 +156,8 @@ bool CdmModule::Initialize(const base::FilePath& cdm_path) {
       library_.GetFunctionPointer("CreateCdmInstance"));
   get_cdm_version_func_ = reinterpret_cast<GetCdmVersionFunc>(
       library_.GetFunctionPointer("GetCdmVersion"));
+  bridge_clock_func_ = reinterpret_cast<BridgeClockFunc>(
+      library_.GetFunctionPointer("LuneOSBridgeClock"));
 
   if (!initialize_cdm_module_func_ || !deinitialize_cdm_module_func_ ||
       !create_cdm_func_ || !get_cdm_version_func_) {

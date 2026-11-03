@@ -219,6 +219,16 @@ class MEDIA_EXPORT VideoRendererImpl
   void PaintFirstFrame();
   void PaintFirstFrame_Locked();
 
+  // LuneOS bridge CDM: hands the media clock to a CDM that shows video itself.
+  void ReportBridgeClock(int64_t ticks0_us,
+                         int64_t media0_us,
+                         int64_t ticks1_us,
+                         int64_t media1_us);
+
+  raw_ptr<CdmContext> cdm_context_ = nullptr;
+  raw_ptr<Decryptor> bridge_decryptor_ = nullptr;
+  base::TimeTicks last_bridge_report_;
+
   scoped_refptr<base::SequencedTaskRunner> task_runner_;
 
   // Sink which calls into VideoRendererImpl via Render() for video frames.  Do

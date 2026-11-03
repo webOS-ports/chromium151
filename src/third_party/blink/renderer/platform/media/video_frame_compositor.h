@@ -155,6 +155,11 @@ class PLATFORM_EXPORT VideoFrameCompositor : public media::VideoRendererSink,
   // Should be called when page visibility changes. Notifies |submitter_|.
   virtual void SetIsPageVisible(bool is_visible);
 
+  // LuneOS bridge CDM: placeholder frames from the bridge CDM become hole
+  // frames for |id|. |request| runs on this thread until an id is set.
+  void SetBridgeHoleRequestCallback(base::RepeatingClosure request);
+  void SetBridgeHole(const base::UnguessableToken& id);
+
   // Notifies the |submitter_| that the frames must be submitted.
   void SetForceSubmit(bool force_submit);
 
@@ -266,6 +271,8 @@ class PLATFORM_EXPORT VideoFrameCompositor : public media::VideoRendererSink,
   // Set on the compositor thread, but also read on the media thread. Lock is
   // not used when reading |current_frame_| on the compositor thread.
   base::Lock current_frame_lock_;
+  base::RepeatingClosure bridge_hole_request_ GUARDED_BY(current_frame_lock_);
+  base::UnguessableToken bridge_hole_id_ GUARDED_BY(current_frame_lock_);
   scoped_refptr<media::VideoFrame> current_frame_;
 
   // Used to fulfill video.requestVideoFrameCallback() calls.

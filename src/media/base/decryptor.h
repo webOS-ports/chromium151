@@ -148,6 +148,14 @@ class MEDIA_EXPORT Decryptor {
   // The decoder can be reinitialized after it is uninitialized.
   virtual void DeinitializeDecoder(StreamType stream_type) = 0;
 
+  // LuneOS bridge CDM: passes the renderer's media clock to a CDM that shows
+  // video itself. Two points map media time to monotonic time, in microseconds.
+  virtual void ReportVideoClock(int64_t ticks0_us,
+                                int64_t media0_us,
+                                int64_t ticks1_us,
+                                int64_t media1_us,
+                                bool paused) {}
+
   // Returns whether or not the decryptor implementation supports decrypt-only.
   virtual bool CanAlwaysDecrypt();
 };

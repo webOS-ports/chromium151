@@ -134,6 +134,11 @@ class MEDIA_EXPORT CdmAdapter final : public ContentDecryptionModule,
                              VideoDecodeCB video_decode_cb) final;
   void ResetDecoder(StreamType stream_type) final;
   void DeinitializeDecoder(StreamType stream_type) final;
+  void ReportVideoClock(int64_t ticks0_us,
+                        int64_t media0_us,
+                        int64_t ticks1_us,
+                        int64_t media1_us,
+                        bool paused) final;
 
   // cdm::Host_12 implementation
   void OnResolveKeyStatusPromise(uint32_t promise_id,
@@ -274,6 +279,8 @@ class MEDIA_EXPORT CdmAdapter final : public ContentDecryptionModule,
 
   // Keep track of aspect ratio from the latest configuration.
   VideoAspectRatio aspect_ratio_;
+  // LuneOS bridge CDM: the size the stream declares, for placeholder frames.
+  gfx::Size bridge_natural_size_;
 
   // Whether the current video config is encrypted.
   bool is_video_encrypted_ = false;

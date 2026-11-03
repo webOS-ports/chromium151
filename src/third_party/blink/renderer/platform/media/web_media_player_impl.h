@@ -120,12 +120,24 @@ enum class SplitHistogramName {
 // The canonical implementation of WebMediaPlayer that's backed by
 // Pipeline. Handles normal resource loading, Media Source, and
 // Encrypted Media.
+#if defined(USE_NEVA_MEDIA)
+}  // namespace blink
+#include "mojo/public/cpp/bindings/receiver.h"
+#include "mojo/public/cpp/bindings/remote.h"
+#include "third_party/blink/public/platform/media/neva/create_video_window_callback.h"
+#include "ui/platform_window/neva/mojom/video_window.mojom.h"
+namespace blink {
+#endif
+
 class PLATFORM_EXPORT WebMediaPlayerImpl
     : public WebMediaPlayer,
       public WebMediaPlayerDelegate::Observer,
       public media::Pipeline::Client,
       public media::MediaObserverClient,
       public media::DemuxerManager::Client,
+#if defined(USE_NEVA_MEDIA)
+      public ui::mojom::VideoWindowClient,
+#endif
       public WebSurfaceLayerBridgeObserver {
  public:
   // Constructs a WebMediaPlayer implementation using Chromium's media stack.
@@ -353,6 +365,14 @@ class PLATFORM_EXPORT WebMediaPlayerImpl
           auto_picture_in_picture_info) override;
 
 #if defined(USE_NEVA_MEDIA)
+  // LuneOS bridge CDM: video window for the bridge CDM's hardware layer.
+  void SetBridgeVideoWindowCallback(CreateVideoWindowCallback cb);
+  void OnBridgeHoleRequested();
+  void OnVideoWindowCreated(const ui::VideoWindowInfo& info) override;
+  void OnVideoWindowDestroyed() override;
+  void OnVideoWindowGeometryChanged(const gfx::Rect& rect) override {}
+  void OnVideoWindowVisibilityChanged(bool visibility) override {}
+
   bool IsBackgroundMediaSuspendEnabled() const;
 #else
   bool IsBackgroundMediaSuspendEnabled() const {
@@ -1135,6 +1155,9 @@ class PLATFORM_EXPORT WebMediaPlayerImpl
 
 #if defined(USE_NEVA_MEDIA)
   bool is_background_video_optimization_enabled_ = true;
+  CreateVideoWindowCallback bridge_create_video_window_cb_;
+  mojo::Receiver<ui::mojom::VideoWindowClient> bridge_window_client_{this};
+  mojo::Remote<ui::mojom::VideoWindow> bridge_window_;
 #endif
 
   bool was_suspended_for_frame_closed_or_frozen_ = false;
