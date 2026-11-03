@@ -123,6 +123,72 @@ TEST_F(LibraryWidevineCdmTest, DescribesTheInstalledModule) {
       media::CdmSessionType::kPersistentLicense));
 }
 
+TEST_F(LibraryWidevineCdmTest, BridgeNeedsSitesFile) {
+  WriteLibrary();
+  WriteManifest(kManifest);
+  std::vector<std::string> sites;
+  EXPECT_FALSE(CreateWidevineBridgeCdmInfo(dir_.GetPath(), &sites));
+  EXPECT_TRUE(sites.empty());
+}
+
+TEST_F(LibraryWidevineCdmTest, BridgeWithOnlyCommentsIsNotOffered) {
+  WriteLibrary();
+  WriteManifest(kManifest);
+  ASSERT_TRUE(base::WriteFile(dir_.GetPath().Append(FILE_PATH_LITERAL("sites")),
+                              "# nothing yet\n\n"));
+  std::vector<std::string> sites;
+  EXPECT_FALSE(CreateWidevineBridgeCdmInfo(dir_.GetPath(), &sites));
+}
+
+TEST_F(LibraryWidevineCdmTest, DescribesTheBridge) {
+  WriteLibrary();
+  WriteManifest(kManifest);
+  ASSERT_TRUE(base::WriteFile(dir_.GetPath().Append(FILE_PATH_LITERAL("sites")),
+                              "npo.nl\nprimevideo.com  # Prime\n"));
+  std::vector<std::string> sites;
+  const std::optional<content::CdmInfo> info =
+      CreateWidevineBridgeCdmInfo(dir_.GetPath(), &sites);
+  ASSERT_TRUE(info);
+  // Its own type, so it runs in its own CDM service, apart from Google's.
+  EXPECT_EQ(kWidevineBridgeCdmType, info->type);
+  EXPECT_NE(kWidevineCdmType, info->type);
+  EXPECT_EQ(kWidevineKeySystem, info->key_system);
+  EXPECT_EQ(library_path(), info->path);
+  EXPECT_EQ(content::CdmInfo::Robustness::kSoftwareSecure, info->robustness);
+  EXPECT_EQ((std::vector<std::string>{"npo.nl", "primevideo.com"}), sites);
+}
+
+TEST(WidevineBridgeSitesTest, Parse) {
+  EXPECT_EQ((std::vector<std::string>{"npo.nl", "primevideo.com", "amazon.de",
+                                      "example.org"}),
+            ParseWidevineBridgeSites("  NPO.nl\r\n"
+                                     "# a comment\n"
+                                     "primevideo.com # trailing comment\n"
+                                     "*.amazon.de\n"
+                                     ".example.org\n"
+                                     "\n"
+                                     "https://bad.example/\n"
+                                     "two words.example\n"));
+  EXPECT_TRUE(ParseWidevineBridgeSites("").empty());
+  EXPECT_TRUE(ParseWidevineBridgeSites("#\n# only comments\n").empty());
+}
+
+TEST(WidevineBridgeSitesTest, Match) {
+  const std::vector<std::string> sites = {"npo.nl", "primevideo.com"};
+  EXPECT_TRUE(HostMatchesWidevineBridgeSites("npo.nl", sites));
+  EXPECT_TRUE(HostMatchesWidevineBridgeSites("www.npo.nl", sites));
+  EXPECT_TRUE(HostMatchesWidevineBridgeSites("start.npo.nl", sites));
+  EXPECT_TRUE(HostMatchesWidevineBridgeSites("WWW.PrimeVideo.com", sites));
+  // Not a subdomain, only a name that ends the same way.
+  EXPECT_FALSE(HostMatchesWidevineBridgeSites("notnpo.nl", sites));
+  EXPECT_FALSE(HostMatchesWidevineBridgeSites("npo.nl.evil.example", sites));
+  EXPECT_FALSE(HostMatchesWidevineBridgeSites("www.netflix.com", sites));
+  EXPECT_FALSE(HostMatchesWidevineBridgeSites("nl", sites));
+  // An opaque origin has no host.
+  EXPECT_FALSE(HostMatchesWidevineBridgeSites("", sites));
+  EXPECT_FALSE(HostMatchesWidevineBridgeSites("npo.nl", {}));
+}
+
 }  // namespace
 
 }  // namespace neva_app_runtime

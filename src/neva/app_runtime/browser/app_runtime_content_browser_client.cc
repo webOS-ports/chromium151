@@ -89,7 +89,13 @@
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "third_party/blink/public/common/switches.h"
+#include "third_party/widevine/cdm/buildflags.h"
 #include "ui/base/ui_base_neva_switches.h"
+
+#if BUILDFLAG(ENABLE_WIDEVINE) && !defined(USE_NEVA_CDM)
+#include "neva/app_runtime/common/library_widevine_cdm.h"
+#include "third_party/widevine/cdm/widevine_cdm_common.h"  // nogncheck
+#endif
 
 #if BUILDFLAG(USE_NSS_CERTS)
 #include "net/ssl/client_cert_store_nss.h"
@@ -985,6 +991,24 @@ AppRuntimeContentBrowserClient::GetUserAgentMetadata() {
 
 bool AppRuntimeContentBrowserClient::IsNevaDynamicProxyEnabled() {
   return false;
+}
+
+// Widevine on a site the bridge lists goes to the bridge, and everywhere else
+// to Google's CDM. Sites such as Netflix refuse a licence request from the
+// device's Android HAL and then sign the user out.
+std::optional<base::Token> AppRuntimeContentBrowserClient::GetCdmTypeForFrame(
+    content::RenderFrameHost* render_frame_host,
+    const std::string& key_system) {
+#if BUILDFLAG(ENABLE_WIDEVINE) && !defined(USE_NEVA_CDM)
+  if (key_system != kWidevineKeySystem) {
+    return std::nullopt;
+  }
+  return WidevineCdmTypeFor(
+      render_frame_host->GetLastCommittedOrigin().host(),
+      render_frame_host->GetOutermostMainFrame()->GetLastCommittedOrigin().host());
+#else
+  return std::nullopt;
+#endif
 }
 
 // The Geolocation API on webOS reads the system location service. Without this

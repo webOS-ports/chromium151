@@ -31,6 +31,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/cdm_info.h"
+#include "content/public/browser/content_browser_client.h"
 #include "content/public/common/content_client.h"
 #include "media/base/cdm_context.h"
 #include "media/cdm/cdm_type.h"
@@ -610,6 +611,23 @@ media::mojom::CdmFactory* MediaInterfaceProxy::GetCdmFactory(
   // CdmService only supports software secure codecs.
   auto cdm_info = CdmRegistryImpl::GetInstance()->GetCdmInfo(
       key_system, CdmInfo::Robustness::kSoftwareSecure);
+#if defined(USE_NEVA_APPRUNTIME)
+  // The embedder may give this frame another CDM registered for the same key
+  // system; one it names but that is not registered means none at all.
+  if (const std::optional<base::Token> type =
+          GetContentClient()->browser()->GetCdmTypeForFrame(
+              &render_frame_host(), key_system)) {
+    cdm_info.reset();
+    for (const auto& cdm :
+         CdmRegistryImpl::GetInstance()->GetRegisteredCdms()) {
+      if (cdm.type == *type && cdm.key_system == key_system &&
+          cdm.robustness == CdmInfo::Robustness::kSoftwareSecure) {
+        cdm_info = std::make_unique<CdmInfo>(cdm);
+        break;
+      }
+    }
+  }
+#endif  // defined(USE_NEVA_APPRUNTIME)
   if (!cdm_info) {
     DLOG(ERROR) << "No valid CdmInfo for " << key_system;
     return nullptr;

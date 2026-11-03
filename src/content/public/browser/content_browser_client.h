@@ -23,6 +23,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/supports_user_data.h"
 #include "base/time/time.h"
+#include "base/token.h"
 #include "base/types/strong_alias.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -911,6 +912,13 @@ class CONTENT_EXPORT ContentBrowserClient {
   // Called when setup proxy server for webos environment
   virtual void SetProxyServer(const content::ProxySettings& proxy_settings);
   virtual bool IsNevaDynamicProxyEnabled();
+
+  // When several library CDMs are registered for |key_system|, picks the one
+  // |render_frame_host| gets, by its media::CdmType. nullopt keeps the first
+  // registered one. A type that is not registered means no CDM for the frame.
+  virtual std::optional<base::Token> GetCdmTypeForFrame(
+      RenderFrameHost* render_frame_host,
+      const std::string& key_system);
 #endif  // defined(USE_NEVA_APPRUNTIME)
 
   // Indicates whether to force the MIME sniffer to sniff file URLs for HTML.
