@@ -250,6 +250,9 @@ class AppRuntimeContentBrowserClient : public content::ContentBrowserClient {
 
   void SetProxyServer(const content::ProxySettings& proxy_settings) override;
   virtual bool IsNevaDynamicProxyEnabled() override;
+  std::optional<base::Token> GetCdmTypeForFrame(
+      content::RenderFrameHost* render_frame_host,
+      const std::string& key_system) override;
 
   std::unique_ptr<device::LocationProvider> OverrideSystemLocationProvider()
       override;
