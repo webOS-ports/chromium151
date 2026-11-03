@@ -277,8 +277,12 @@ void DecryptingAudioDecoder::DeliverFrame(
   }
 
   if (status == Decryptor::kNoKey) {
-    std::string key_id =
-        scoped_pending_buffer_to_decode->decrypt_config()->key_id();
+    // A CDM can answer kNoKey for a clear buffer, which has no decrypt config.
+    const DecryptConfig* decrypt_config =
+        scoped_pending_buffer_to_decode->end_of_stream()
+            ? nullptr
+            : scoped_pending_buffer_to_decode->decrypt_config();
+    std::string key_id = decrypt_config ? decrypt_config->key_id() : "";
     std::string log_message =
         "no key for key ID " + base::HexEncode(key_id) +
         "; will resume decoding after new usable key is available";
