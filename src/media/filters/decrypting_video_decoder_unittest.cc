@@ -419,6 +419,9 @@ TEST_F(DecryptingVideoDecoderTest, NoKey_ForClearBuffer) {
                    base::BindOnce(&DecryptingVideoDecoderTest::DecodeDone,
                                   base::Unretained(this)));
   base::RunLoop().RunUntilIdle();
+
+  EXPECT_CALL(*this, DecodeDone(HasStatusCode(DecoderStatus::Codes::kAborted)));
+  Reset();
 }
 
 // Test the case where the a key is added when the decryptor is in

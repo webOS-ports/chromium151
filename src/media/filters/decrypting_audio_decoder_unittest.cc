@@ -419,6 +419,24 @@ TEST_F(DecryptingAudioDecoderTest, Reinitialize_EncryptedToClear) {
   base::RunLoop().RunUntilIdle();
 }
 
+// A CDM that answers kNoKey for a clear buffer must not crash the decoder,
+// which reads the key ID for its log from the buffer's decrypt config.
+TEST_F(DecryptingAudioDecoderTest, NoKey_ForClearBuffer) {
+  Initialize();
+  EXPECT_MEDIA_LOG(HasSubstr("DecryptingAudioDecoder: no key for key"));
+  EXPECT_CALL(*decryptor_, DecryptAndDecodeAudio(_, _))
+      .WillRepeatedly(
+          RunOnceCallback<1>(Decryptor::kNoKey, Decryptor::AudioFrames()));
+  EXPECT_CALL(*this, OnWaiting(WaitingReason::kNoDecryptionKey));
+  decoder_->Decode(base::MakeRefCounted<DecoderBuffer>(1),
+                   base::BindOnce(&DecryptingAudioDecoderTest::DecodeDone,
+                                  base::Unretained(this)));
+  base::RunLoop().RunUntilIdle();
+
+  EXPECT_CALL(*this, DecodeDone(HasStatusCode(DecoderStatus::Codes::kAborted)));
+  Reset();
+}
+
 // Test the case where the a key is added when the decryptor is in
 // kWaitingForKey state.
 TEST_F(DecryptingAudioDecoderTest, KeyAdded_DuringWaitingForKey) {
