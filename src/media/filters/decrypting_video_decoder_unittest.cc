@@ -407,6 +407,20 @@ TEST_F(DecryptingVideoDecoderTest, KeyAdded_DuringWaitingForKey) {
   base::RunLoop().RunUntilIdle();
 }
 
+// A CDM that answers kNoKey for a clear buffer must not crash the decoder,
+// which reads the key ID for its log from the buffer's decrypt config.
+TEST_F(DecryptingVideoDecoderTest, NoKey_ForClearBuffer) {
+  Initialize();
+  EXPECT_MEDIA_LOG(HasSubstr("DecryptingVideoDecoder: no key for key"));
+  EXPECT_CALL(*decryptor_, DecryptAndDecodeVideo(_, _))
+      .WillRepeatedly(RunOnceCallback<1>(Decryptor::kNoKey, null_video_frame_));
+  EXPECT_CALL(*this, OnWaiting(WaitingReason::kNoDecryptionKey));
+  decoder_->Decode(base::MakeRefCounted<DecoderBuffer>(1),
+                   base::BindOnce(&DecryptingVideoDecoderTest::DecodeDone,
+                                  base::Unretained(this)));
+  base::RunLoop().RunUntilIdle();
+}
+
 // Test the case where the a key is added when the decryptor is in
 // kPendingDecode state.
 TEST_F(DecryptingVideoDecoderTest, KeyAdded_DuringPendingDecode) {
