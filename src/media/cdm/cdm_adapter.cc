@@ -39,6 +39,7 @@
 #include "media/base/video_frame.h"
 #include "media/base/video_util.h"
 #include "media/cdm/cdm_helpers.h"
+#include "media/cdm/cdm_module.h"
 #include "media/cdm/cdm_type_conversion.h"
 #include "media/cdm/cdm_wrapper.h"
 #include "media/media_buildflags.h"
@@ -604,6 +605,7 @@ void CdmAdapter::InitializeVideoDecoder(const VideoDecoderConfig& config,
   }
 
   aspect_ratio_ = config.aspect_ratio();
+  bridge_natural_size_ = config.natural_size();
   is_video_encrypted_ = config.is_encrypted();
   frames_processed_ = 0;
 
@@ -683,8 +685,14 @@ void CdmAdapter::DecryptAndDecodeVideo(scoped_refptr<DecoderBuffer> encrypted,
   }
 
   gfx::Rect visible_rect(video_frame->Size().width, video_frame->Size().height);
-  scoped_refptr<VideoFrame> decoded_frame = video_frame->TransformToVideoFrame(
-      aspect_ratio_.GetNaturalSize(visible_rect));
+  // LuneOS bridge CDM: a 64 wide frame is the bridge's placeholder for a
+  // picture on the video plane, so its own size says nothing about the stream.
+  const gfx::Size natural_size =
+      visible_rect.width() == 64 && !bridge_natural_size_.IsEmpty()
+          ? bridge_natural_size_
+          : aspect_ratio_.GetNaturalSize(visible_rect);
+  scoped_refptr<VideoFrame> decoded_frame =
+      video_frame->TransformToVideoFrame(natural_size);
   if (!decoded_frame) {
     DLOG(ERROR) << __func__ << ": TransformToVideoFrame failed.";
     std::move(video_decode_cb).Run(Decryptor::kError, nullptr);
@@ -697,6 +705,17 @@ void CdmAdapter::DecryptAndDecodeVideo(scoped_refptr<DecoderBuffer> encrypted,
   ++frames_processed_;
 
   std::move(video_decode_cb).Run(Decryptor::kSuccess, decoded_frame);
+}
+
+void CdmAdapter::ReportVideoClock(int64_t ticks0_us,
+                                  int64_t media0_us,
+                                  int64_t ticks1_us,
+                                  int64_t media1_us,
+                                  bool paused) {
+  CHECK(task_runner_->BelongsToCurrentThread());
+  // The CDM API has no clock call. Google's CDM lacks this optional symbol.
+  if (auto report = CdmModule::GetInstance()->GetBridgeClockFunc())
+    report(ticks0_us, media0_us, ticks1_us, media1_us, paused ? 1 : 0);
 }
 
 void CdmAdapter::ResetDecoder(StreamType stream_type) {
@@ -723,6 +742,7 @@ void CdmAdapter::DeinitializeDecoder(StreamType stream_type) {
       break;
     case Decryptor::kVideo:
       aspect_ratio_ = VideoAspectRatio();
+      bridge_natural_size_ = gfx::Size();
       break;
   }
 }

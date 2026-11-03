@@ -363,6 +363,17 @@ VideoFrameCompositor::GetLastPresentedFrameMetadata() {
   return frame_metadata;
 }
 
+void VideoFrameCompositor::SetBridgeHoleRequestCallback(
+    base::RepeatingClosure request) {
+  base::AutoLock lock(current_frame_lock_);
+  bridge_hole_request_ = std::move(request);
+}
+
+void VideoFrameCompositor::SetBridgeHole(const base::UnguessableToken& id) {
+  base::AutoLock lock(current_frame_lock_);
+  bridge_hole_id_ = id;
+}
+
 bool VideoFrameCompositor::ProcessNewFrame(
     scoped_refptr<media::VideoFrame> frame,
     base::TimeTicks presentation_time,
@@ -372,6 +383,23 @@ bool VideoFrameCompositor::ProcessNewFrame(
   if (!frame || (GetCurrentFrame() && !repaint_duplicate_frame &&
                  frame->unique_id() == GetCurrentFrame()->unique_id())) {
     return false;
+  }
+
+  // LuneOS bridge CDM: see SetBridgeHole().
+  if (frame->coded_size().width() == 64) {
+    base::UnguessableToken id;
+    base::RepeatingClosure request;
+    {
+      base::AutoLock lock(current_frame_lock_);
+      id = bridge_hole_id_;
+      request = bridge_hole_request_;
+    }
+    if (!id.is_empty()) {
+      frame = media::VideoFrame::CreateVideoHoleFrame(id, frame->natural_size(),
+                                                      frame->timestamp());
+    } else if (request) {
+      request.Run();
+    }
   }
 
   // TODO(crbug.com/40064689): Add other cases where the frame is not readable.

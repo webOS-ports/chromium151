@@ -128,7 +128,7 @@ std::unique_ptr<WebMediaPlayer> WebMediaPlayerBuilder::Build(
            frame);
   auto video_frame_compositor = std::make_unique<VideoFrameCompositor>(
       video_frame_compositor_task_runner, std::move(video_frame_submitter));
-  return std::make_unique<WebMediaPlayerImpl>(
+  auto player = std::make_unique<WebMediaPlayerImpl>(
       frame, static_cast<MediaPlayerClient*>(client), encrypted_client,
       delegate, std::move(factory_selector), url_index_.get(),
       std::move(video_frame_compositor), std::move(media_log), player_id,
@@ -143,6 +143,10 @@ std::unique_ptr<WebMediaPlayer> WebMediaPlayerBuilder::Build(
       is_background_video_playback_enabled,
       is_background_video_track_optimization_supported,
       std::move(demuxer_override), std::move(remote_interfaces));
+#if defined(USE_NEVA_MEDIA)
+  player->SetBridgeVideoWindowCallback(std::move(create_video_window_callback));
+#endif
+  return player;
 }
 
 }  // namespace blink

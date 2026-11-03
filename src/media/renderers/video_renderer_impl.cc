@@ -21,6 +21,8 @@
 #include "base/time/default_tick_clock.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
+#include "media/base/cdm_context.h"
+#include "media/base/decryptor.h"
 #include "media/base/media_log.h"
 #include "media/base/media_switches.h"
 #include "media/base/pipeline_status.h"
@@ -162,6 +164,19 @@ void VideoRendererImpl::StartPlayingFrom(base::TimeDelta timestamp) {
   AttemptRead_Locked();
 }
 
+void VideoRendererImpl::ReportBridgeClock(int64_t ticks0_us,
+                                          int64_t media0_us,
+                                          int64_t ticks1_us,
+                                          int64_t media1_us) {
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
+  if (!bridge_decryptor_ && cdm_context_)
+    bridge_decryptor_ = cdm_context_->GetDecryptor();
+  if (bridge_decryptor_) {
+    bridge_decryptor_->ReportVideoClock(ticks0_us, media0_us, ticks1_us,
+                                        media1_us, false);
+  }
+}
+
 void VideoRendererImpl::Initialize(
     DemuxerStream* stream,
     CdmContext* cdm_context,
@@ -169,6 +184,7 @@ void VideoRendererImpl::Initialize(
     const TimeSource::WallClockTimeCB& wall_clock_time_cb,
     PipelineStatusCallback init_cb) {
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
+  cdm_context_ = cdm_context;
   TRACE_EVENT_BEGIN("media", "VideoRendererImpl::Initialize",
                     GetTracingTrack(this));
 
@@ -252,6 +268,25 @@ scoped_refptr<VideoFrame> VideoRendererImpl::Render(
   size_t frames_dropped = 0;
   scoped_refptr<VideoFrame> result =
       algorithm_->Render(deadline_min, deadline_max, &frames_dropped);
+
+  // LuneOS bridge CDM: 64 wide marks the bridge CDM's placeholder frames.
+  if (result && result->coded_size().width() == 64 && time_progressing_ &&
+      last_render_time_ - last_bridge_report_ >= base::Milliseconds(250)) {
+    std::vector<base::TimeTicks> wall;
+    const base::TimeDelta m0 = result->timestamp();
+    const base::TimeDelta m1 = m0 + base::Seconds(1);
+    if (wall_clock_time_cb_.Run({m0, m1}, &wall) && wall.size() == 2) {
+      last_bridge_report_ = last_render_time_;
+      task_runner_->PostTask(
+          FROM_HERE,
+          base::BindOnce(&VideoRendererImpl::ReportBridgeClock,
+                         weak_factory_.GetWeakPtr(),
+                         (wall[0] - base::TimeTicks()).InMicroseconds(),
+                         m0.InMicroseconds(),
+                         (wall[1] - base::TimeTicks()).InMicroseconds(),
+                         m1.InMicroseconds()));
+    }
+  }
 
   // Due to how the |algorithm_| holds frames, this should never be null if
   // we've had a proper startup sequence.
@@ -449,6 +484,10 @@ void VideoRendererImpl::OnTimeStopped() {
   // reentrant call.
 
   time_progressing_ = false;
+  // LuneOS bridge CDM: only a stream that has reported a clock has a
+  // decryptor.
+  if (bridge_decryptor_)
+    bridge_decryptor_->ReportVideoClock(0, 0, 0, 0, true);
 
   if (!sink_started_)
     return;

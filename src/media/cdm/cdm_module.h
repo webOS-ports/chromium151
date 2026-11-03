@@ -41,6 +41,10 @@ class MEDIA_EXPORT CdmModule {
 
   CreateCdmFunc GetCreateCdmFunc();
 
+  // LuneOS bridge CDM: an optional export of a CDM that shows video itself.
+  using BridgeClockFunc = void (*)(int64_t, int64_t, int64_t, int64_t, int32_t);
+  BridgeClockFunc GetBridgeClockFunc() const { return bridge_clock_func_; }
+
   void SetDebuggerAttached(bool is_debugger_attached);
 
   bool GetDebuggerAttached() const;
@@ -73,6 +77,7 @@ class MEDIA_EXPORT CdmModule {
   InitializeCdmModuleFunc initialize_cdm_module_func_ = nullptr;
   DeinitializeCdmModuleFunc deinitialize_cdm_module_func_ = nullptr;
   GetCdmVersionFunc get_cdm_version_func_ = nullptr;
+  BridgeClockFunc bridge_clock_func_ = nullptr;
 };
 
 }  // namespace media

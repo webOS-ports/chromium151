@@ -177,6 +177,16 @@ void MojoDecryptor::ResetDecoder(StreamType stream_type) {
   remote_decryptor_->ResetDecoder(stream_type);
 }
 
+void MojoDecryptor::ReportVideoClock(int64_t ticks0_us,
+                                     int64_t media0_us,
+                                     int64_t ticks1_us,
+                                     int64_t media1_us,
+                                     bool paused) {
+  DCHECK(thread_checker_.CalledOnValidThread());
+  remote_decryptor_->ReportVideoClock(ticks0_us, media0_us, ticks1_us,
+                                      media1_us, paused);
+}
+
 void MojoDecryptor::DeinitializeDecoder(StreamType stream_type) {
   DVLOG(1) << __func__;
   DCHECK(thread_checker_.CalledOnValidThread());

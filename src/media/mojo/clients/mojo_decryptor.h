@@ -51,6 +51,11 @@ class MojoDecryptor final : public Decryptor {
                              VideoDecodeCB video_decode_cb) final;
   void ResetDecoder(StreamType stream_type) final;
   void DeinitializeDecoder(StreamType stream_type) final;
+  void ReportVideoClock(int64_t ticks0_us,
+                        int64_t media0_us,
+                        int64_t ticks1_us,
+                        int64_t media1_us,
+                        bool paused) final;
 
  private:
   // Called when a buffer is decrypted.

@@ -75,6 +75,10 @@ interface Decryptor {
   // After this operation, the decoder is set to an uninitialized state.
   // The decoder can be reinitialized after it is deinitialized.
   DeinitializeDecoder(StreamType stream_type);
+
+  // LuneOS bridge CDM: see media::Decryptor::ReportVideoClock().
+  ReportVideoClock(int64 ticks0_us, int64 media0_us, int64 ticks1_us,
+                   int64 media1_us, bool paused);
 };
 
 // Interface for controlling the the resources associated with a VideoFrame.
