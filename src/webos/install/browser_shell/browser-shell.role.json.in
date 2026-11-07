@@ -25,7 +25,10 @@
         {
             "service":"com.webos.settingsservice.client*",
             "inbound":["com.webos.settingsservice"],
-            "outbound":["com.webos.settingsservice"]
+            "outbound":[
+                "com.webos.settingsservice",
+                "com.webos.applicationManager"
+            ]
         },
         {
             "service":"com.webos.chromium.memory*",

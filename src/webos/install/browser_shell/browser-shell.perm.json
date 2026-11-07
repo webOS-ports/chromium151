@@ -8,7 +8,8 @@
     "application.operation"
   ],
   "com.webos.settingsservice.client*": [
-    "settings.query"
+    "settings.query",
+    "application.launcher"
   ],
   "com.webos.chromium.memory.*": [
     "memorymanager.query"

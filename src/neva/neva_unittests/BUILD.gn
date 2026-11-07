@@ -25,6 +25,10 @@ test("neva_unittests") {
     "../emulator:unittests"
   ]
 
+  if (is_webos) {
+    deps += [ "../pal_service/webos:unittests" ]
+  }
+
   if (enable_widevine && !use_neva_cdm) {
     deps += [ "../app_runtime:library_widevine_cdm_unittests" ]
   }

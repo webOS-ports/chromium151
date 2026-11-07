@@ -20,36 +20,15 @@
 #include "base/json/json_writer.h"
 #include "base/values.h"
 #include "neva/pal_service/luna/luna_names.h"
+#include "neva/pal_service/webos/network_error_settings_app.h"
 #include "neva/shell_shutdown/shell_shutdown.h"
 
 namespace pal {
 namespace webos {
 
 const char kLaunchingMethod[] = "launch";
-const char kSettingsApplicationId[] = "com.palm.app.settings";
 const char kParams[] = "params";
-const char kTarget[] = "target";
 const char kDisplayId[] = "displayAffinity";
-
-// This enum is strictly related to the TargetEnum = {NETWORK: 1, GENERAL: 2}
-// in webos/browser/resources/webos_network_error_page_template.js file.
-enum LAUNCH_TARGET {
-  NETWORK = 1,
-  GENERAL,
-};
-
-std::string MapTargetIdToString(int target_id) {
-  std::string ret;
-  switch (target_id) {
-    case NETWORK:
-      ret = "network";
-      break;
-    case GENERAL:
-      ret = "general";
-      break;
-  }
-  return ret;
-}
 
 NetworkErrorPageControllerDelegateWebOS::
     NetworkErrorPageControllerDelegateWebOS() {
@@ -67,21 +46,21 @@ NetworkErrorPageControllerDelegateWebOS::
 void NetworkErrorPageControllerDelegateWebOS::LaunchNetworkSettings(
     int target_id,
     int display_id) {
-  std::string target_string = MapTargetIdToString(target_id);
-  if (target_string.empty())
+  // The settings page is a whole app of its own, so the target picks the app
+  // rather than travelling as a parameter (see network_error_settings_app.h).
+  const std::string_view app_id = SettingsAppIdForTarget(target_id);
+  if (app_id.empty())
     return;
 
-  base::DictValue target;
-  target.Set(kTarget, target_string);
-  target.Set(kDisplayId, display_id);
+  base::DictValue params;
+  params.Set(kDisplayId, display_id);
 
   base::DictValue resource;
-  resource.Set("id", kSettingsApplicationId);
-  resource.Set(kParams, std::move(target));
+  resource.Set("id", app_id);
+  resource.Set(kParams, std::move(params));
 
   std::string payload;
   base::JSONWriter::Write(base::Value(std::move(resource)), &payload);
-  unsigned token;
   luna_client_->Call(
       luna::GetServiceURI(luna::service_uri::kApplicationManager,
                           kLaunchingMethod),
