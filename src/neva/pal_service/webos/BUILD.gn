@@ -29,6 +29,7 @@ source_set("pal_service_webos") {
     "memorymanager_delegate_webos.h",
     "network_error_page_controller_delegate_webos.cc",
     "network_error_page_controller_delegate_webos.h",
+    "network_error_settings_app.h",
     "notification_manager_delegate_webos.cc",
     "notification_manager_delegate_webos.h",
     "pal_platform_factory_webos.cc",
@@ -82,4 +83,15 @@ if (enable_pwa_manager_webapi) {
     "//media/mojo/mojom:remoting",
     "//services/cert_verifier/public/mojom:mojom",
   ]
+}
+
+source_set("unittests") {
+  testonly = true
+
+  sources = [
+    "network_error_settings_app.h",
+    "network_error_settings_app_unittest.cc",
+  ]
+
+  deps = [ "//testing/gtest" ]
 }
