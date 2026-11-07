@@ -57,6 +57,21 @@ struct OpenURLInfo {
   bool user_gesture;
 };
 
+// How PrintToPDF lays the page out. Lengths are in inches, as Chromium's
+// print-to-PDF takes them; one left out takes its default (US Letter paper,
+// 0.4 inch margins, scale 1, no backgrounds, portrait).
+struct PrintToPDFOptions {
+  double? paper_width;
+  double? paper_height;
+  double? margin_top;
+  double? margin_bottom;
+  double? margin_left;
+  double? margin_right;
+  double? scale;
+  bool? landscape;
+  bool? print_background;
+};
+
 struct PageContentsCreationInfo {
   bool active_state;
   bool error_page_hiding;
@@ -133,6 +148,10 @@ interface PageContents {
   GoBack();
   GoForward();
   LoadURL(string url) => (string url);
+  // Prints the page as a PDF file the engine writes in the profile, which
+  // only the browser's user can read. On success |path| names the file and
+  // |error| is empty; on failure |path| is empty and |error| says why.
+  PrintToPDF(PrintToPDFOptions options) => (string path, string error);
   Reload();
   ResumeDOM();
   ResumeMedia();

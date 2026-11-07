@@ -17,6 +17,9 @@
 #include "neva/browser_shell/service/browser_shell_page_contents_impl.h"
 
 #include "base/logging.h"
+#include "content/public/browser/browser_context.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/web_contents.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 #include "neva/app_runtime/app/app_runtime_page_contents.h"
 #include "neva/app_runtime/app/app_runtime_page_view.h"
@@ -26,6 +29,21 @@
 #include "neva/app_runtime/public/app_runtime_constants.h"
 #include "neva/browser_shell/service/browser_shell_service_impl.h"
 #include "neva/logging.h"
+#include "printing/buildflags/buildflags.h"
+
+#if BUILDFLAG(ENABLE_PRINTING)
+#include <utility>
+#include <variant>
+
+#include "base/files/file_path.h"
+#include "base/memory/ref_counted_memory.h"
+#include "base/task/thread_pool.h"
+#include "base/time/time.h"
+#include "components/printing/browser/headless/headless_print_manager.h"
+#include "components/printing/browser/print_to_pdf/pdf_print_result.h"
+#include "components/printing/browser/print_to_pdf/pdf_print_utils.h"
+#include "neva/browser_shell/service/browser_shell_printed_pdf.h"
+#endif  // BUILDFLAG(ENABLE_PRINTING)
 
 namespace browser_shell {
 
@@ -177,6 +195,93 @@ void PageContentsImpl::LoadURL(const std::string& url,
                                LoadURLCallback callback) {
   page_contents_->LoadURL(url);
   std::move(callback).Run(url);
+}
+
+#if BUILDFLAG(ENABLE_PRINTING)
+namespace {
+
+// Runs on the thread pool: the PDF is written there, not on the UI thread.
+std::pair<std::string, std::string> SavePrintedPdf(
+    const base::FilePath& dir,
+    scoped_refptr<base::RefCountedMemory> data) {
+  std::string error;
+  const base::FilePath path = WritePrintedPdf(
+      dir, base::span(*data), base::Time::Now(), kPrintedPdfMaxAge, &error);
+  return {path.value(), error};
+}
+
+void OnPdfSaved(mojom::PageContents::PrintToPDFCallback callback,
+                std::pair<std::string, std::string> result) {
+  std::move(callback).Run(result.first, result.second);
+}
+
+void OnPdfPrinted(const base::FilePath& dir,
+                  mojom::PageContents::PrintToPDFCallback callback,
+                  print_to_pdf::PdfPrintResult result,
+                  scoped_refptr<base::RefCountedMemory> data) {
+  if (result != print_to_pdf::PdfPrintResult::kPrintSuccess || !data) {
+    std::move(callback).Run(std::string(),
+                            print_to_pdf::PdfPrintResultToString(result));
+    return;
+  }
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE,
+      {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(&SavePrintedPdf, dir, std::move(data)),
+      base::BindOnce(&OnPdfSaved, std::move(callback)));
+}
+
+}  // namespace
+#endif  // BUILDFLAG(ENABLE_PRINTING)
+
+void PageContentsImpl::PrintToPDF(mojom::PrintToPDFOptionsPtr options,
+                                  PrintToPDFCallback callback) {
+#if BUILDFLAG(ENABLE_PRINTING)
+  content::WebContents* web_contents =
+      page_contents_ ? page_contents_->GetWebContents() : nullptr;
+  if (!web_contents) {
+    std::move(callback).Run(std::string(), "No page to print");
+    return;
+  }
+  content::RenderFrameHost* frame = web_contents->GetPrimaryMainFrame();
+  if (!frame || !frame->IsRenderFrameLive()) {
+    std::move(callback).Run(std::string(), "The page is not loaded");
+    return;
+  }
+
+  // Header and footer stay off: their templates are resources this engine
+  // does not pack. The page's own @page size is not used either, so that the
+  // paper the printer was asked for is the paper the PDF has.
+  auto params = print_to_pdf::GetPrintPagesParams(
+      frame->GetLastCommittedURL(), options->landscape,
+      /*display_header_footer=*/false, options->print_background,
+      options->scale, options->paper_width, options->paper_height,
+      options->margin_top, options->margin_bottom, options->margin_left,
+      options->margin_right, /*header_template=*/std::nullopt,
+      /*footer_template=*/std::nullopt, /*prefer_css_page_size=*/false,
+      /*generate_tagged_pdf=*/std::nullopt,
+      /*generate_document_outline=*/std::nullopt);
+  if (std::holds_alternative<std::string>(params)) {
+    std::move(callback).Run(std::string(), std::get<std::string>(params));
+    return;
+  }
+
+  // The engine never enables the print compositor (it would only be needed
+  // to print out-of-process frames), so the renderer answers with a PDF that
+  // PdfPrintJob reports as it is.
+  headless::HeadlessPrintManager::CreateForWebContents(web_contents);
+  headless::HeadlessPrintManager::FromWebContents(web_contents)
+      ->PrintToPdf(
+          frame, /*page_ranges=*/std::string(),
+          std::move(std::get<printing::mojom::PrintPagesParamsPtr>(params)),
+          base::BindOnce(&OnPdfPrinted,
+                         web_contents->GetBrowserContext()->GetPath().Append(
+                             FILE_PATH_LITERAL("Print")),
+                         std::move(callback)));
+#else
+  std::move(callback).Run(std::string(), "This engine is built without printing");
+#endif  // BUILDFLAG(ENABLE_PRINTING)
 }
 
 void PageContentsImpl::Reload() {

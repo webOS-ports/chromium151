@@ -80,6 +80,7 @@ class BrowserShellPageContents
   static char kGoForwardMethodName[];
   static char kLoadFileMethodName[];
   static char kLoadURLMethodName[];
+  static char kPrintToPDFMethodName[];
   static char kReloadMethodName[];
   static char kResumeDOMMethodName[];
   static char kResumeMediaMethodName[];
@@ -236,6 +237,7 @@ class BrowserShellPageContents
   bool IsAlive() const;
   void LoadFile(gin::Arguments* args);
   void LoadURL(const std::string& url);
+  void PrintToPDF(gin::Arguments* args);
   void Reload();
   void ResumeDOM();
   void ResumeMedia();
@@ -259,6 +261,9 @@ class BrowserShellPageContents
   void OnCaptureVisibleRegionReply(
       std::unique_ptr<v8::Persistent<v8::Function>> callback,
       const std::string& base64_data);
+  void OnPrintToPDFReply(std::unique_ptr<v8::Persistent<v8::Function>> callback,
+                         const std::string& path,
+                         const std::string& error);
 
   gin::ObjectTemplateBuilder GetObjectTemplateBuilder(
       v8::Isolate* isolate) override;

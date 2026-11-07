@@ -32,6 +32,7 @@
 #include "neva/app_runtime/renderer/app_runtime_page_load_timing_render_frame_observer.h"
 #include "neva/app_runtime/renderer/app_runtime_render_frame_observer.h"
 #include "neva/app_runtime/renderer/app_runtime_text_check_client.h"
+#include "printing/buildflags/buildflags.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url_error.h"
@@ -53,6 +54,11 @@
 
 #if defined(USE_NEVA_MEDIA)
 #include "content/renderer/render_thread_impl.h"
+#endif
+
+#if BUILDFLAG(ENABLE_PRINTING)
+#include "components/printing/renderer/print_render_frame_helper.h"
+#include "neva/app_runtime/renderer/app_runtime_print_render_frame_helper_delegate.h"
 #endif
 
 #if defined(USE_NEVA_CHROME_EXTENSIONS)
@@ -124,6 +130,16 @@ void AppRuntimeContentRendererClient::RenderFrameCreated(
   if (render_frame->IsMainFrame()) {
     new AppRuntimePageLoadTimingRenderFrameObserver(render_frame);
   }
+#if BUILDFLAG(ENABLE_PRINTING)
+  // Prints the page for the browser_shell's PageContents.PrintToPDF, which
+  // prints the main frame (and the frames in its process with it). The
+  // helper destroys itself when the RenderFrame is destroyed.
+  if (render_frame->IsMainFrame()) {
+    new printing::PrintRenderFrameHelper(
+        render_frame,
+        std::make_unique<AppRuntimePrintRenderFrameHelperDelegate>());
+  }
+#endif
 }
 
 bool AppRuntimeContentRendererClient::IsAccessAllowedForURL(

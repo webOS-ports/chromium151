@@ -75,6 +75,8 @@ class PageContentsImpl : public mojom::PageContents,
   void GoBack() override;
   void GoForward() override;
   void LoadURL(const std::string& url, LoadURLCallback callback) override;
+  void PrintToPDF(mojom::PrintToPDFOptionsPtr options,
+                  PrintToPDFCallback callback) override;
   void Reload() override;
   void ResumeDOM() override;
   void ResumeMedia() override;

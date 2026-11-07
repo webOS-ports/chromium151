@@ -19,6 +19,7 @@ import("//build/config/ui.gni")
 import("//build/util/process_version.gni")
 import("//neva/app_runtime/app_runtime_locales.gni")
 import("//neva/neva.gni")
+import("//printing/buildflags/buildflags.gni")
 import("//third_party/widevine/cdm/widevine.gni")
 import("//tools/grit/repack.gni")
 
@@ -402,6 +403,16 @@ static_library("app_runtime") {
       "//neva/pal_service/luna:luna_client",
       "//services/device/public/cpp/geolocation",
     ]
+  }
+
+  deps += [ "//printing/buildflags" ]
+  if (enable_printing) {
+    # The renderer's half of the browser_shell's PageContents.PrintToPDF.
+    sources += [
+      "renderer/app_runtime_print_render_frame_helper_delegate.cc",
+      "renderer/app_runtime_print_render_frame_helper_delegate.h",
+    ]
+    deps += [ "//components/printing/renderer" ]
   }
 
   if (use_neva_cdm) {

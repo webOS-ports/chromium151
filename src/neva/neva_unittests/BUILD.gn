@@ -15,6 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import("//neva/neva.gni")
+import("//printing/buildflags/buildflags.gni")
 import("//testing/test.gni")
 import("//third_party/widevine/cdm/widevine.gni")
 
@@ -27,6 +28,10 @@ test("neva_unittests") {
 
   if (is_webos) {
     deps += [ "../pal_service/webos:unittests" ]
+  }
+
+  if (enable_printing) {
+    deps += [ "../browser_shell/service:unittests" ]
   }
 
   if (enable_widevine && !use_neva_cdm) {
