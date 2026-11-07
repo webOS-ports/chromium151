@@ -1,0 +1,186 @@
+/* Copyright 2026 Herman van Hazendonk <github.com@herrie.org>
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The network error page in the webOS Enyo 1 "Onyx" look: Prelude, the
+ * #d8d8d8 card background, a light header, the group outline and the
+ * border-image buttons. The images are drawn with "fill", as the
+ * -webkit-border-image Enyo uses does: their centre carries the gloss.
+ * Values follow Enyo 1.0's framework/build/enyo-build.css
+ * and the images in images/ are its images-1.5 Onyx theme art (Copyright
+ * Hewlett-Packard Development Company, L.P., Apache-2.0). grit's flattenhtml
+ * inlines both into the page.
+ *
+ * Sizes are CSS pixels, as in Enyo, so the page follows the device scale and
+ * the app's zoom instead of assuming a 1920x1080 TV. */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+html, body, button {
+  font-family: Prelude, "Prelude Medium", "Segoe UI", Arial, Helvetica,
+      sans-serif;
+  font-size: 20px;
+  cursor: default;
+}
+
+body {
+  background-color: #d8d8d8;
+  color: #333;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-text-size-adjust: none;
+}
+
+/* enyo-header */
+.header {
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 13px 12px;
+  border-style: solid;
+  border-width: 2px 0;
+  border-image: url(images/header.png) 3 0 fill;
+  background-color: #ccc;
+  color: #444;
+  display: flex;
+  align-items: center;
+}
+
+.header-title {
+  flex: 1;
+  margin: 0;
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}
+
+.header-code {
+  margin-inline-start: 10px;
+  font-size: 14px;
+  color: #7a7a7a;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.content {
+  box-sizing: border-box;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 10px 10px 16px;
+}
+
+/* enyo-group, unlabeled */
+.group {
+  margin: 8px 3px;
+  border-style: solid;
+  border-width: 14px;
+  border-image: url(images/group-unlabeled.png) 21 21 stretch stretch;
+}
+
+/* As enyo-group-inner: the content reaches into the frame's border. */
+.group-inner {
+  margin: -12px;
+}
+
+.row {
+  margin: 0;
+  padding: 8px 12px;
+  overflow-wrap: anywhere;
+}
+
+.row:empty {
+  display: none;
+}
+
+.details {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+}
+
+.guide {
+  font-size: 16px;
+  color: #4c4c4c;
+}
+
+.info {
+  font-size: 14px;
+  color: #7a7a7a;
+}
+
+.buttons {
+  display: flex;
+  flex-direction: column;
+  margin: 12px 0 0;
+}
+
+/* enyo-button, at Enyo's own size: the Onyx art is drawn for it, and a taller
+ * button stretches its highlight into a washed-out gradient. */
+.button {
+  box-sizing: content-box;
+  display: block;
+  min-height: 20px;
+  margin: 3px;
+  padding: 4px 8px;
+  border-style: solid;
+  border-width: 4px;
+  border-radius: 5px;
+  border-image: url(images/button-up.png) 6 6 6 6 fill stretch stretch;
+  background-color: rgba(255, 255, 255, 0.8);
+  color: #292929;
+  font-size: 16px;
+  line-height: 20px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  outline: none;
+}
+
+.button:active,
+.button.down {
+  border-image: url(images/button-down.png) 6 6 6 6 fill stretch stretch;
+}
+
+.button:focus-visible {
+  box-shadow: 0 0 0 2px #2071bb;
+}
+
+/* enyo-button-blue: the action the page suggests */
+.button.primary {
+  background-color: #2071bb;
+  color: #fff;
+}
+
+/* A tablet or a landscape phone has room for one row of buttons. */
+@media (min-width: 560px) {
+  /* The suggested action comes first in the page, last (at the end) in
+   * the row. row-reverse follows the text direction, so RTL mirrors it. */
+  .buttons {
+    flex-direction: row-reverse;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .button {
+    flex: 0 1 auto;
+    min-width: 120px;
+  }
+}
