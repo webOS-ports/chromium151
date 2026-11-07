@@ -15,6 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import("//neva/browser_shell/service/browser_shell_service.gni")
+import("//printing/buildflags/buildflags.gni")
 import("//services/service_manager/public/cpp/service_executable.gni")
 
 component("shell_service") {
@@ -39,8 +40,21 @@ component("shell_service") {
 
   deps = [
     "//base",
+    "//content/public/browser",
     "//neva/app_runtime",
+    "//printing/buildflags",
   ]
+
+  # PageContents.PrintToPDF: the page as a PDF file, which Atlas sends to the
+  # print service. Built like headless Chrome's Page.printToPDF.
+  if (enable_printing) {
+    deps += [
+      ":printed_pdf",
+      "//components/printing/browser/headless",
+      "//components/printing/browser/print_to_pdf",
+      "//printing/mojom",
+    ]
+  }
 
   public_deps = [
     "//mojo/public/cpp/bindings",
@@ -49,4 +63,28 @@ component("shell_service") {
   ]
 
   defines = browser_shell_service_defines
+}
+
+if (enable_printing) {
+  # Only //base, so that the unit tests need nothing of the engine.
+  static_library("printed_pdf") {
+    sources = [
+      "browser_shell_printed_pdf.cc",
+      "browser_shell_printed_pdf.h",
+    ]
+    deps = [ "//base" ]
+  }
+
+  source_set("unittests") {
+    testonly = true
+
+    sources = [ "browser_shell_printed_pdf_unittest.cc" ]
+
+    deps = [
+      ":printed_pdf",
+      "//base",
+      "//base/test:test_support",
+      "//testing/gtest",
+    ]
+  }
 }

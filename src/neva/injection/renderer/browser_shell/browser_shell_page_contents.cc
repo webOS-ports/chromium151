@@ -30,6 +30,9 @@
 #include "neva/injection/renderer/browser_shell/browser_shell_permission_request.h"
 #include "url/gurl.h"
 
+#include <cmath>
+#include <optional>
+
 namespace injections {
 
 namespace events {
@@ -99,6 +102,7 @@ char BrowserShellPageContents::kGoBackMethodName[] = "goBack";
 char BrowserShellPageContents::kGoForwardMethodName[] = "goForward";
 char BrowserShellPageContents::kLoadFileMethodName[] = "loadFile";
 char BrowserShellPageContents::kLoadURLMethodName[] = "loadURL";
+char BrowserShellPageContents::kPrintToPDFMethodName[] = "printToPDF";
 char BrowserShellPageContents::kReloadMethodName[] = "reload";
 char BrowserShellPageContents::kResumeDOMMethodName[] = "resumeDOM";
 char BrowserShellPageContents::kResumeMediaMethodName[] = "resumeMedia";
@@ -257,6 +261,90 @@ void BrowserShellPageContents::CaptureVisibleRegion(gin::Arguments* args) {
   remote_->CaptureVisibleRegion(
       format, quality,
       base::BindOnce(&BrowserShellPageContents::OnCaptureVisibleRegionReply,
+                     GetAsWeakPtr(), std::move(callback_ptr)));
+}
+
+namespace {
+
+// A finite number at |name| of |details|, if there is one.
+std::optional<double> GetNumber(v8::Isolate* isolate,
+                                v8::Local<v8::Context> context,
+                                v8::Local<v8::Object> details,
+                                const char* name) {
+  v8::Local<v8::Value> value;
+  if (!details->Get(context, gin::StringToV8(isolate, name))
+           .ToLocal(&value) ||
+      !value->IsNumber()) {
+    return std::nullopt;
+  }
+  const double number = value.As<v8::Number>()->Value();
+  if (!std::isfinite(number))
+    return std::nullopt;
+  return number;
+}
+
+std::optional<bool> GetBool(v8::Isolate* isolate,
+                            v8::Local<v8::Context> context,
+                            v8::Local<v8::Object> details,
+                            const char* name) {
+  v8::Local<v8::Value> value;
+  if (!details->Get(context, gin::StringToV8(isolate, name))
+           .ToLocal(&value) ||
+      !value->IsBoolean()) {
+    return std::nullopt;
+  }
+  return value.As<v8::Boolean>()->Value();
+}
+
+}  // namespace
+
+// printToPDF([options], callback(path, error)): the page as a PDF file. The
+// options are in inches: paperWidth, paperHeight, marginTop, marginBottom,
+// marginLeft, marginRight; and scale, landscape, printBackground. One that
+// is missing, or not a finite number or a boolean, takes its default.
+void BrowserShellPageContents::PrintToPDF(gin::Arguments* args) {
+  v8::Isolate* isolate = args->isolate();
+  v8::Local<v8::Function> local_func;
+  v8::Local<v8::Object> details;
+  auto options = browser_shell::mojom::PrintToPDFOptions::New();
+
+  // GetNext moves on even when the argument is not of the type asked for, so
+  // whether options come first is decided by looking.
+  v8::Local<v8::Value> first = args->PeekNext();
+  if (first.IsEmpty())
+    return;
+  if (first->IsFunction()) {
+    if (!args->GetNext(&local_func))
+      return;
+  } else {
+    if (!args->GetNext(&details) || !args->GetNext(&local_func))
+      return;
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();
+    options->paper_width = GetNumber(isolate, context, details, "paperWidth");
+    options->paper_height =
+        GetNumber(isolate, context, details, "paperHeight");
+    options->margin_top = GetNumber(isolate, context, details, "marginTop");
+    options->margin_bottom =
+        GetNumber(isolate, context, details, "marginBottom");
+    options->margin_left = GetNumber(isolate, context, details, "marginLeft");
+    options->margin_right =
+        GetNumber(isolate, context, details, "marginRight");
+    options->scale = GetNumber(isolate, context, details, "scale");
+    options->landscape = GetBool(isolate, context, details, "landscape");
+    options->print_background =
+        GetBool(isolate, context, details, "printBackground");
+  }
+
+  auto callback_ptr =
+      std::make_unique<v8::Persistent<v8::Function>>(isolate, local_func);
+  if (!remote_.is_bound()) {
+    OnPrintToPDFReply(std::move(callback_ptr), std::string(),
+                      "The page is closed");
+    return;
+  }
+  remote_->PrintToPDF(
+      std::move(options),
+      base::BindOnce(&BrowserShellPageContents::OnPrintToPDFReply,
                      GetAsWeakPtr(), std::move(callback_ptr)));
 }
 
@@ -1091,6 +1179,35 @@ void BrowserShellPageContents::OnCaptureVisibleRegionReply(
   std::ignore = local_callback->Call(context, wrapper, argc, argv);
 }
 
+void BrowserShellPageContents::OnPrintToPDFReply(
+    std::unique_ptr<v8::Persistent<v8::Function>> callback,
+    const std::string& path,
+    const std::string& error) {
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::HandleScope handle_scope(isolate);
+  v8::Local<v8::Object> wrapper;
+  if (!GetWrapper(isolate).ToLocal(&wrapper)) {
+    LOG(ERROR) << __func__ << "(): can not get wrapper";
+    return;
+  }
+
+  v8::Local<v8::Context> context;
+  if (!wrapper->GetCreationContext().ToLocal(&context)) {
+    LOG(ERROR) << __func__ << "(): can not get context";
+    return;
+  }
+
+  v8::MicrotasksScope microtasksScope(context,
+                                      v8::MicrotasksScope::kRunMicrotasks);
+  v8::Context::Scope context_scope(context);
+  v8::Local<v8::Function> local_callback = callback->Get(isolate);
+
+  const int argc = 2;
+  v8::Local<v8::Value> argv[] = {gin::StringToV8(isolate, path),
+                                 gin::StringToV8(isolate, error)};
+  std::ignore = local_callback->Call(context, wrapper, argc, argv);
+}
+
 gin::ObjectTemplateBuilder BrowserShellPageContents::GetObjectTemplateBuilder(
     v8::Isolate* isolate) {
   return gin::Wrappable<BrowserShellPageContents>::GetObjectTemplateBuilder(
@@ -1127,6 +1244,7 @@ gin::ObjectTemplateBuilder BrowserShellPageContents::GetObjectTemplateBuilder(
       .SetMethod(kGoForwardMethodName, &BrowserShellPageContents::GoForward)
       .SetMethod(kLoadFileMethodName, &BrowserShellPageContents::LoadFile)
       .SetMethod(kLoadURLMethodName, &BrowserShellPageContents::LoadURL)
+      .SetMethod(kPrintToPDFMethodName, &BrowserShellPageContents::PrintToPDF)
       .SetMethod(kReloadMethodName, &BrowserShellPageContents::Reload)
       .SetMethod(kResumeDOMMethodName, &BrowserShellPageContents::ResumeDOM)
       .SetMethod(kResumeMediaMethodName, &BrowserShellPageContents::ResumeMedia)
