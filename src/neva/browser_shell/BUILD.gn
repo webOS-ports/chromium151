@@ -38,6 +38,7 @@ source_set("browser_shell_lib") {
   public_deps = [ "//neva/app_runtime" ]
 
   deps = [
+    ":relaunch_event",
     "//base",
     "//components/embedder_support",
     "//neva/browser_shell/service:shell_service",
@@ -46,6 +47,29 @@ source_set("browser_shell_lib") {
   ]
 
   include_dirs = [ "." ]
+}
+
+# What a relaunch tells the app's page. Only //base, so that the unit tests
+# need nothing of the engine.
+static_library("relaunch_event") {
+  sources = [
+    "app/relaunch_event.cc",
+    "app/relaunch_event.h",
+  ]
+  deps = [ "//base" ]
+}
+
+source_set("unittests") {
+  testonly = true
+
+  sources = [ "app/relaunch_event_unittest.cc" ]
+
+  deps = [
+    ":relaunch_event",
+    "//base",
+    "//base/test:test_support",
+    "//testing/gtest",
+  ]
 }
 
 executable("browser_shell") {

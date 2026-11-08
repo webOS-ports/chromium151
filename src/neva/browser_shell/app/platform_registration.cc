@@ -21,18 +21,10 @@
 #include "neva/app_runtime/app/app_runtime_page_contents.h"
 #include "neva/app_runtime/app/app_runtime_page_view.h"
 #include "neva/app_runtime/app/app_runtime_shell_window.h"
+#include "neva/browser_shell/app/relaunch_event.h"
 #include "neva/browser_shell/common/browser_shell_switches.h"
 #include "neva/pal_service/pal_platform_factory.h"
 #include "neva/pal_service/public/application_registrator_delegate.h"
-
-namespace {
-
-const char kAction[] = "action";
-const char kIntentService[] = "com.webos.service.intent";
-const char kTarget[] = "target";
-const char kUri[] = "uri";
-
-}  // namespace
 
 namespace browser_shell {
 
@@ -79,20 +71,7 @@ void PlatformRegistration::OnMessage(const std::string& event,
       return;
     }
 
-    base::DictValue js_detail;
-    if (reason == kIntentService) {
-      const std::string* action = params->FindString(kAction);
-      const std::string* uri = params->FindString(kUri);
-      if (action && !action->empty() && uri && !uri->empty()) {
-        js_detail.Set("action", action->c_str());
-        js_detail.Set("uri", uri->c_str());
-      }
-    } else {
-      const std::string* target_url = params->FindString(kTarget);
-      if (target_url && target_url->size()) {
-        js_detail.Set("url", target_url->c_str());
-      }
-    }
+    base::DictValue js_detail = RelaunchEventDetail(reason, *params);
 
     if (!js_detail.empty()) {
       base::DictValue js_data;
