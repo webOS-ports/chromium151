@@ -459,6 +459,14 @@ void WaylandInputMethodContext::Blur(bool skip_virtual_keyboard_update) {
 }
 
 void WaylandInputMethodContext::SetCursorLocation(const gfx::Rect& rect) {
+#if defined(OS_WEBOS)
+  // The webOS text model carries the caret too: the compositor uses it to tell
+  // a press on the field being typed into from a press anywhere else in the
+  // page (LuneOS's Cut/Copy/Paste pill is only for the former).
+  if (webos_text_model_wrapper_) {
+    webos_text_model_wrapper_->SetCursorLocation(rect);
+  }
+#endif  // defined(OS_WEBOS)
   if (!text_input_v3_ && !text_input_v1_) {
     return;
   }
