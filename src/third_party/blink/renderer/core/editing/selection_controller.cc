@@ -598,16 +598,11 @@ bool SelectionController::HandleTapInsideSelection(
     return true;
   }
 
-  if (Selection().IsHandleVisible()) {
-#if defined(OS_WEBOS)
-    // webOS left a selection alone when it was tapped - the tap is what raised
-    // the cut/copy/paste pill for it, which the shell draws. Collapsing it
-    // here would leave the pill nothing to cut or copy.
-    return true;
-#else
+  // A selection whose handles are showing has had its tap: the long press
+  // that made it, or a tap on it before, raised the shell's cut/copy/paste
+  // pill. The next tap is a tap into the text, and puts the caret there.
+  if (Selection().IsHandleVisible())
     return false;
-#endif
-  }
 
   // We need to trigger a repaint on the selection endpoints if the selection is
   // tapped when the selection handle was previously not visible. Repainting
@@ -1243,7 +1238,10 @@ bool SelectionController::HandleMouseReleaseEvent(
   // editing, place the caret.
   if (mouse_down_was_single_click_in_selection_ &&
 #if defined(OS_WEBOS)
-      // A touch tap on a selection keeps it, as above.
+      // The first touch tap on a selection keeps it: on webOS that is the tap
+      // that raises the shell's cut/copy/paste pill for it, and collapsing it
+      // here would leave the pill nothing to cut or copy. The tap after that
+      // places the caret on the press instead, above.
       !event.Event().FromTouch() &&
 #endif
       selection_state_ != SelectionState::kExtendedSelection &&
