@@ -19,9 +19,11 @@
 #define UI_OZONE_PLATFORM_WAYLAND_EXTENSIONS_WEBOS_HOST_WEBOS_TEXT_MODEL_WRAPPER_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "ui/base/ime/neva/input_content_type.h"
+#include "ui/gfx/geometry/rect.h"
 #include "ui/ozone/platform/wayland/extensions/webos/common/wayland_webos_object.h"
 
 namespace ui {
@@ -62,6 +64,10 @@ class WebosTextModelWrapper {
                           std::int32_t y,
                           std::int32_t width,
                           std::int32_t height);
+
+  // Sets the cursor rectangle from the caret bounds in screen DIPs, as
+  // WaylandInputMethodContext::SetCursorLocation() is given them.
+  void SetCursorLocation(const gfx::Rect& caret_in_screen_dip);
 
   // Sets content purpose and hint to the input panel.
   void SetContentType(InputContentType type, int flags);
@@ -174,6 +180,9 @@ class WebosTextModelWrapper {
 
   bool is_activated_ = false;
   std::int32_t preedit_cursor_ = 0;
+  // The caret last sent with text_model_set_cursor_rectangle(), so that the
+  // same one is not sent again for every caret bounds update.
+  std::optional<gfx::Rect> cursor_rectangle_sent_;
 };
 
 }  // namespace ui

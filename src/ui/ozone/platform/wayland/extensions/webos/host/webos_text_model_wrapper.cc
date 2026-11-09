@@ -205,7 +205,29 @@ void WebosTextModelWrapper::SetCursorRectangle(std::int32_t x,
                                                std::int32_t y,
                                                std::int32_t width,
                                                std::int32_t height) {
-  NOTIMPLEMENTED_LOG_ONCE();
+  // A caret is often a line with no width; one with no height, or a negative
+  // size, is not a caret.
+  if (width < 0 || height <= 0) {
+    return;
+  }
+
+  const gfx::Rect rect(x, y, width, height);
+  if (cursor_rectangle_sent_ && *cursor_rectangle_sent_ == rect) {
+    return;
+  }
+
+  VLOG(1) << "SetCursorRectangle " << rect.ToString();
+  text_model_set_cursor_rectangle(text_model_.get(), x, y, width, height);
+  cursor_rectangle_sent_ = rect;
+}
+
+void WebosTextModelWrapper::SetCursorLocation(
+    const gfx::Rect& caret_in_screen_dip) {
+  // Surface coordinates are the window's own DIPs, as for text-input-v1/v3 in
+  // WaylandInputMethodContext::SetCursorLocation().
+  const gfx::Rect rect =
+      caret_in_screen_dip - window_->GetBoundsInDIP().OffsetFromOrigin();
+  SetCursorRectangle(rect.x(), rect.y(), rect.width(), rect.height());
 }
 
 void WebosTextModelWrapper::SetContentType(InputContentType type, int flags) {
