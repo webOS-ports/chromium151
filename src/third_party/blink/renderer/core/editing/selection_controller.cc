@@ -59,6 +59,7 @@
 #include "third_party/blink/renderer/core/html/forms/text_control_element.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/input/event_handler.h"
+#include "third_party/blink/renderer/core/layout/hit_test_location.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/page/focus_controller.h"
 #include "third_party/blink/renderer/core/page/page.h"
@@ -140,6 +141,33 @@ DocumentMarkerGroup* SpellCheckMarkerGroupAtPosition(
     const PositionInFlatTree& position) {
   return document_marker_controller.FirstMarkerGroupAroundPosition(
       position, DocumentMarker::MarkerTypes::Misspelling());
+}
+
+// A press on an editable element itself, in its padding beside its text
+// rather than on the text, is a press on the text it is level with: on that
+// line, where it is along it. Otherwise a press above the first line put the
+// caret at the start of the text and one below the last at its end. A text
+// control does this for itself (LayoutTextControl::HitInnerEditorElement);
+// this does the same for any other editable, such as a contenteditable field
+// with padding round its text. The point and the box are both in the
+// coordinates of the frame the element is in, which does the hit test again.
+HitTestResult HitTestResultOnEditableText(const HitTestResult& result) {
+  Node* const node = result.InnerNode();
+  if (!node || !IsEditable(*node) || !IsRootEditableElement(*node)) {
+    return result;
+  }
+  LocalFrame* const frame = node->GetDocument().GetFrame();
+  if (!frame) {
+    return result;
+  }
+  const gfx::Point point = result.RoundedPointInInnerNodeFrame();
+  const gfx::Point on_text =
+      ClampPointToEditableContent(To<Element>(*node), point);
+  if (on_text == point) {
+    return result;
+  }
+  return frame->GetEventHandler().HitTestResultAtLocation(
+      HitTestLocation(on_text), result.GetHitTestRequest().GetType());
 }
 
 void MarkSelectionEndpointsForRepaint(const SelectionInFlatTree& selection) {
@@ -432,7 +460,8 @@ bool SelectionController::HandleSingleClick(
 
   const PositionInFlatTreeWithAffinity visible_hit_position =
       CreateVisiblePosition(
-          PositionWithAffinityOfHitTestResult(event.GetHitTestResult()))
+          PositionWithAffinityOfHitTestResult(
+              HitTestResultOnEditableText(event.GetHitTestResult())))
           .ToPositionWithAffinity();
   const PositionInFlatTreeWithAffinity& position_to_use =
       visible_hit_position.IsNull()

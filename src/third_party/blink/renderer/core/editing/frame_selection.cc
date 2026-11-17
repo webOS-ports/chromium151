@@ -212,8 +212,11 @@ void FrameSelection::MoveCaretSelection(const gfx::Point& point) {
   if (!editable)
     return;
 
-  const VisiblePosition position = CreateVisiblePosition(
-      PositionForContentsPointRespectingEditingBoundary(point, GetFrame()));
+  // A finger sliding the caret along may be above or below the letters, in
+  // the field's padding: it means the line it is beside.
+  const VisiblePosition position =
+      CreateVisiblePosition(PositionForContentsPointRespectingEditingBoundary(
+          ClampPointToEditableContent(*editable, point), GetFrame()));
   SelectionInDomTree::Builder builder;
   if (position.IsNotNull())
     builder.Collapse(position.ToPositionWithAffinity());
