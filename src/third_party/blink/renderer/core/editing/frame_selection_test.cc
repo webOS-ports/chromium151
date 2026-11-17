@@ -1740,6 +1740,48 @@ TEST_F(FrameSelectionPaddedFieldTest, SlideAlongPaddingOfInput) {
   EXPECT_EQ(on_letters, CaretOffsetAfter(editor, at.below, slide));
 }
 
+// A finger sliding the caret along drifts off the field, or into the empty
+// part of a tall one: the caret stays on the line, where the finger is along
+// it, not at the start or the end of the text.
+TEST_F(FrameSelectionPaddedFieldTest, SlideOffTheText) {
+  SetBodyContent(
+      "<div id=field contenteditable style='margin-top: 100px; padding: 20px; "
+      "width: 400px; height: 200px; font: 20px/1 Ahem'>abcdefghijklmnop</div>");
+  Element& field = *GetElementById("field");
+  field.Focus();
+  const gfx::Rect box = field.BoundsInWidget();
+  const int x = box.x() + 20 + 7 * 20 + 5;
+  auto slide = [this](const gfx::Point& p) { Slide(p); };
+  ASSERT_EQ(7, CaretOffsetAfter(field, gfx::Point(x, box.y() + 30), slide));
+  // Below the line, in the field.
+  EXPECT_EQ(7, CaretOffsetAfter(field, gfx::Point(x, box.y() + 120), slide));
+  // Below the field, and above it.
+  EXPECT_EQ(7, CaretOffsetAfter(field, gfx::Point(x, box.bottom() + 40), slide));
+  EXPECT_EQ(7, CaretOffsetAfter(field, gfx::Point(x, box.y() - 40), slide));
+}
+
+// Of several lines, off the text is the first or the last of them.
+TEST_F(FrameSelectionPaddedFieldTest, SlideOffTheTextOfSeveralLines) {
+  SetBodyContent(
+      "<div id=field contenteditable style='margin-top: 100px; padding: 20px; "
+      "width: 300px; height: 300px; font: 20px/40px Ahem'>"
+      "abcdefgh<br>ijklmnop<br>qrstuvwx</div>");
+  Element& field = *GetElementById("field");
+  field.Focus();
+  const gfx::Rect box = field.BoundsInWidget();
+  const int x = box.x() + 20 + 3 * 20 + 5;
+  auto text_after = [this](const gfx::Point& p) {
+    Slide(p);
+    const Position focus = Selection().GetSelectionInDomTree().Focus();
+    EXPECT_EQ(3, focus.ComputeOffsetInContainerNode());
+    return focus.AnchorNode() ? focus.AnchorNode()->textContent() : String();
+  };
+  EXPECT_EQ("ijklmnop", text_after(gfx::Point(x, box.y() + 20 + 60)));
+  EXPECT_EQ("qrstuvwx", text_after(gfx::Point(x, box.y() + 250)));
+  EXPECT_EQ("qrstuvwx", text_after(gfx::Point(x, box.bottom() + 40)));
+  EXPECT_EQ("abcdefgh", text_after(gfx::Point(x, box.y() - 40)));
+}
+
 TEST_F(FrameSelectionPaddedFieldTest, TapInPaddingOfContentEditable) {
   SetBodyContent(
       "<div id=field contenteditable style='padding: 30px; width: 400px; "
