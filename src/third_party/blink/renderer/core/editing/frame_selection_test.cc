@@ -10,6 +10,8 @@
 #include "base/memory/scoped_refptr.h"
 #include "testing/gmock/include/gmock/gmock-matchers.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/common/input/web_gesture_event.h"
+#include "third_party/blink/public/web/web_text_check_client.h"
 #include "third_party/blink/public/web/web_range.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
@@ -17,6 +19,7 @@
 #include "third_party/blink/renderer/core/editing/ephemeral_range.h"
 #include "third_party/blink/renderer/core/editing/frame_caret.h"
 #include "third_party/blink/renderer/core/editing/iterators/text_iterator.h"
+#include "third_party/blink/renderer/core/editing/markers/document_marker_controller.h"
 #include "third_party/blink/renderer/core/editing/selection_controller.h"
 #include "third_party/blink/renderer/core/editing/selection_modifier.h"
 #include "third_party/blink/renderer/core/editing/selection_template.h"
@@ -25,8 +28,10 @@
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/html/html_body_element.h"
 #include "third_party/blink/renderer/core/html/forms/text_control_element.h"
+#include "third_party/blink/renderer/core/input/context_menu_allowed_scope.h"
 #include "third_party/blink/renderer/core/input/event_handler.h"
 #include "third_party/blink/renderer/core/layout/layout_block.h"
+#include "third_party/blink/renderer/core/loader/empty_clients.h"
 #include "third_party/blink/renderer/core/page/context_menu_controller.h"
 #include "third_party/blink/renderer/core/paint/paint_info.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
@@ -1772,6 +1777,139 @@ TEST_F(FrameSelectionPaddedFieldTest, TapOnALineOfSeveralStaysOnIt) {
   Tap(below);
   EXPECT_EQ(second_line,
             Selection().GetSelectionInDomTree().Focus().AnchorNode());
+}
+
+// Legacy webOS: a long press in the field being edited puts the caret under
+// the finger, where the shell's edit menu then pastes - inside a word if need
+// be - and from where a slide carries it on. Anywhere else a long press still
+// selects the word.
+class FrameSelectionLongPressTest : public FrameSelectionPaddedFieldTest {
+ protected:
+  void LongPress(const gfx::Point& point) {
+    WebGestureEvent event(WebInputEvent::Type::kGestureLongPress,
+                          WebInputEvent::kNoModifiers,
+                          WebInputEvent::GetStaticTimeStampForTests(),
+                          WebGestureDevice::kTouchscreen);
+    event.SetPositionInWidget(gfx::PointF(point));
+    event.SetPositionInScreen(gfx::PointF(point));
+    event.data.long_press.width = 5;
+    event.data.long_press.height = 5;
+    event.SetFrameScale(1);
+    // As the widget does for input from the user: the long press's context
+    // menu, and the selection it makes for it, happen inside this.
+    ContextMenuAllowedScope context_menu_allowed;
+    GetFrame().GetEventHandler().HandleGestureEvent(event);
+  }
+
+  // Spell checking on, as the device's keyboard has it, with |text| - all of
+  // it - marked as misspelled.
+  void MarkMisspelled(Node& text) {
+    class Enabled : public WebTextCheckClient {
+     public:
+      bool IsSpellCheckingEnabled() const override { return true; }
+    };
+    DEFINE_STATIC_LOCAL(Enabled, enabled, ());
+    static_cast<EmptyLocalFrameClient*>(GetFrame().Client())
+        ->SetTextCheckerClientForTesting(&enabled);
+    GetDocument().Markers().AddSpellingMarker(
+        EphemeralRange(Position(&text, 0), Position(&text, 16)));
+    UpdateAllLifecyclePhasesForTest();
+  }
+
+  // Two fields of the same sixteen letters, one word: |a| above |b|.
+  void SetUpTwoFields() {
+    SetBodyContent(
+        "<div id=a contenteditable style='padding: 30px; width: 400px; "
+        "font: 20px/1 Ahem'>abcdefghijklmnop</div>"
+        "<div id=b contenteditable style='padding: 30px; width: 400px; "
+        "font: 20px/1 Ahem'>abcdefghijklmnop</div>");
+  }
+};
+
+TEST_F(FrameSelectionLongPressTest, InFieldBeingEditedPutsCaretThere) {
+  SetUpTwoFields();
+  Element& field = *GetElementById("a");
+  field.Focus();
+  const Points at = PointsFor(field, 30);
+  auto press = [this](const gfx::Point& p) { LongPress(p); };
+  EXPECT_EQ(7, CaretOffsetAfter(field, at.on_letters, press));
+  // Its padding too, on the line the finger is level with.
+  EXPECT_EQ(7, CaretOffsetAfter(field, at.above, press));
+  EXPECT_EQ(7, CaretOffsetAfter(field, at.below, press));
+}
+
+TEST_F(FrameSelectionLongPressTest, InInputBeingEditedPutsCaretThere) {
+  SetBodyContent(
+      "<input id=field value=abcdefghijklmnop style='padding: 30px; "
+      "width: 400px; font: 20px/1 Ahem'>");
+  auto& field = To<TextControlElement>(*GetElementById("field"));
+  field.Focus();
+  Element& editor = *field.InnerEditorElement();
+  const Points at = PointsFor(field, 30);
+  auto press = [this](const gfx::Point& p) { LongPress(p); };
+  EXPECT_EQ(7, CaretOffsetAfter(editor, at.on_letters, press));
+  EXPECT_EQ(7, CaretOffsetAfter(editor, at.above, press));
+}
+
+// A selection in the field is still the field being edited: the long press
+// drops it for the caret, as legacy's did.
+TEST_F(FrameSelectionLongPressTest, OnSelectionInFieldPutsCaretThere) {
+  SetUpTwoFields();
+  Element& field = *GetElementById("a");
+  field.Focus();
+  Node* const text = field.firstChild();
+  Selection().SetSelection(SelectionInDomTree::Builder()
+                               .Collapse(Position(text, 0))
+                               .Extend(Position(text, 16))
+                               .Build(),
+                           SetSelectionOptions());
+  UpdateAllLifecyclePhasesForTest();
+  LongPress(PointsFor(field, 30).on_letters);
+  EXPECT_TRUE(Selection().GetSelectionInDomTree().IsCaret());
+  EXPECT_EQ(Position(text, 7), Selection().GetSelectionInDomTree().Focus());
+}
+
+// Nor when the word is misspelled: the context menu the long press opens
+// leaves the caret where the press put it, rather than selecting the word.
+TEST_F(FrameSelectionLongPressTest, OnMisspelledWordInFieldPutsCaretThere) {
+  SetUpTwoFields();
+  Element& field = *GetElementById("a");
+  field.Focus();
+  MarkMisspelled(*field.firstChild());
+  auto press = [this](const gfx::Point& p) { LongPress(p); };
+  EXPECT_EQ(7, CaretOffsetAfter(field, PointsFor(field, 30).on_letters, press));
+}
+
+// A misspelled word in a field not being edited is still selected.
+TEST_F(FrameSelectionLongPressTest, OnMisspelledWordInAnotherFieldSelectsIt) {
+  SetUpTwoFields();
+  GetElementById("a")->Focus();
+  Element& other = *GetElementById("b");
+  MarkMisspelled(*other.firstChild());
+  LongPress(PointsFor(other, 30).on_letters);
+  EXPECT_TRUE(Selection().GetSelectionInDomTree().IsRange());
+}
+
+// Another field than the one being edited: the word, as before.
+TEST_F(FrameSelectionLongPressTest, InAnotherFieldSelectsTheWord) {
+  SetUpTwoFields();
+  GetElementById("a")->Focus();
+  Element& other = *GetElementById("b");
+  LongPress(PointsFor(other, 30).on_letters);
+  const SelectionInDomTree& selection = Selection().GetSelectionInDomTree();
+  EXPECT_TRUE(selection.IsRange());
+  EXPECT_EQ(Position(other.firstChild(), 0), selection.ComputeStartPosition());
+  EXPECT_EQ(Position(other.firstChild(), 16), selection.ComputeEndPosition());
+}
+
+// No field being edited: the word, as before.
+TEST_F(FrameSelectionLongPressTest, WithNothingBeingEditedSelectsTheWord) {
+  SetUpTwoFields();
+  Selection().Clear();
+  UpdateAllLifecyclePhasesForTest();
+  Element& field = *GetElementById("a");
+  LongPress(PointsFor(field, 30).on_letters);
+  EXPECT_TRUE(Selection().GetSelectionInDomTree().IsRange());
 }
 
 }  // namespace blink
