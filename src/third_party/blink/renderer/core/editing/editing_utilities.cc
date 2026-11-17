@@ -25,6 +25,7 @@
 
 #include "third_party/blink/renderer/core/editing/editing_utilities.h"
 
+#include <algorithm>
 #include <array>
 #include <string_view>
 
@@ -91,6 +92,7 @@
 #include "third_party/blink/renderer/core/input_type_names.h"
 #include "third_party/blink/renderer/core/layout/hit_test_result.h"
 #include "third_party/blink/renderer/core/layout/layout_block.h"
+#include "third_party/blink/renderer/core/layout/layout_box.h"
 #include "third_party/blink/renderer/core/layout/layout_image.h"
 #include "third_party/blink/renderer/core/layout/layout_object.h"
 #include "third_party/blink/renderer/core/svg/svg_image_element.h"
@@ -101,6 +103,7 @@
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 #include "third_party/blink/renderer/platform/wtf/text/unicode.h"
 #include "ui/base/clipboard/clipboard_constants.h"
+#include "ui/gfx/geometry/rect_conversions.h"
 
 namespace blink {
 
@@ -1967,6 +1970,22 @@ HTMLImageElement* ImageElementFromImageDocument(const Document* document) {
     return nullptr;
 
   return DynamicTo<HTMLImageElement>(body->firstChild());
+}
+
+gfx::Point ClampPointToEditableContent(const Element& editable,
+                                       const gfx::Point& contents_point) {
+  const LayoutBox* const box = editable.GetLayoutBox();
+  if (!box) {
+    return contents_point;
+  }
+  const gfx::Rect content =
+      gfx::ToEnclosedRect(box->AbsoluteContentQuad().BoundingBox());
+  if (content.IsEmpty()) {
+    return contents_point;
+  }
+  return gfx::Point(
+      std::clamp(contents_point.x(), content.x(), content.right() - 1),
+      std::clamp(contents_point.y(), content.y(), content.bottom() - 1));
 }
 
 }  // namespace blink

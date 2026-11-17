@@ -34,6 +34,7 @@
 #include "third_party/blink/renderer/platform/text/text_direction.h"
 #include "third_party/blink/renderer/platform/wtf/forward.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
+#include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/quad_f.h"
 
 namespace blink {
@@ -419,6 +420,16 @@ CORE_EXPORT void InsertTextAndSendInputEventsOfTypeInsertReplacementText(
     LocalFrame&,
     const String&,
     bool allow_edit_context = false);
+
+// |contents_point| brought inside |editable|'s content box: a point in its
+// padding or border, beside its text rather than on it, onto the text it is
+// level with. A finger above the letters of a padded field means the line it
+// is beside, where it is along that line - not the start of the text, which
+// is what a position for the point itself is. Returns |contents_point| as it
+// is when it is already inside, or when |editable| has no box.
+CORE_EXPORT gfx::Point ClampPointToEditableContent(
+    const Element& editable,
+    const gfx::Point& contents_point);
 }  // namespace blink
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_CORE_EDITING_EDITING_UTILITIES_H_

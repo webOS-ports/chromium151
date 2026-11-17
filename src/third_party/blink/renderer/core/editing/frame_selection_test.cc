@@ -24,6 +24,7 @@
 #include "third_party/blink/renderer/core/editing/visible_position.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/html/html_body_element.h"
+#include "third_party/blink/renderer/core/html/forms/text_control_element.h"
 #include "third_party/blink/renderer/core/input/event_handler.h"
 #include "third_party/blink/renderer/core/layout/layout_block.h"
 #include "third_party/blink/renderer/core/page/context_menu_controller.h"
@@ -1649,6 +1650,128 @@ TEST_F(FrameSelectionBidiTest, ModifyOverridesAffinityAtBidiBoundary) {
   }
   EXPECT_TRUE(found_same_level_move || found_level_transition)
       << "Should have observed at least one bidi-aware affinity override";
+}
+
+// A finger above or below the letters of a padded field, in its padding,
+// means the line it is beside, where it is along that line: sliding the caret
+// (swipe to move the cursor) and tapping both take it there, rather than to
+// the start of the text from above it and the end from below.
+class FrameSelectionPaddedFieldTest : public FrameSelectionTest {
+ protected:
+  // The caret's offset after |place| put it at |point|, starting from 0.
+  template <typename Place>
+  int CaretOffsetAfter(Element& field, const gfx::Point& point, Place place) {
+    Selection().SetSelection(
+        SelectionInDomTree::Builder()
+            .Collapse(Position::FirstPositionInNode(field))
+            .Build(),
+        SetSelectionOptions());
+    UpdateAllLifecyclePhasesForTest();
+    place(point);
+    UpdateAllLifecyclePhasesForTest();
+    const Position caret = Selection().GetSelectionInDomTree().Focus();
+    EXPECT_TRUE(Selection().GetSelectionInDomTree().IsCaret());
+    return caret.ComputeOffsetInContainerNode();
+  }
+
+  void Slide(const gfx::Point& point) {
+    Selection().MoveCaretSelection(point);
+  }
+
+  void Tap(const gfx::Point& point) {
+    WebMouseEvent press(WebMouseEvent::Type::kMouseDown, 0,
+                        WebInputEvent::GetStaticTimeStampForTests());
+    press.SetPositionInWidget(point.x(), point.y());
+    press.SetPositionInScreen(point.x(), point.y());
+    press.button = WebMouseEvent::Button::kLeft;
+    press.click_count = 1;
+    press.SetFrameScale(1);
+    GetFrame().GetEventHandler().HandleMousePressEvent(press);
+  }
+
+  // In the left half of the eighth letter - before which the caret's offset
+  // is 7, as every Ahem letter is 20px wide - on its line, and the same point
+  // in the field's top and its bottom padding.
+  struct Points {
+    gfx::Point on_letters, above, below;
+  };
+  Points PointsFor(Element& field, int padding) {
+    const gfx::Rect box = field.BoundsInWidget();
+    const int x = box.x() + padding + 7 * 20 + 5;
+    return {gfx::Point(x, box.y() + box.height() / 2),
+            gfx::Point(x, box.y() + padding / 3),
+            gfx::Point(x, box.bottom() - padding / 3)};
+  }
+};
+
+TEST_F(FrameSelectionPaddedFieldTest, SlideAlongPaddingOfContentEditable) {
+  SetBodyContent(
+      "<div id=field contenteditable style='padding: 30px; width: 400px; "
+      "font: 20px/1 Ahem'>abcdefghijklmnop</div>");
+  Element& field = *GetElementById("field");
+  field.Focus();
+  const Points at = PointsFor(field, 30);
+  auto slide = [this](const gfx::Point& p) { Slide(p); };
+  const int on_letters = CaretOffsetAfter(field, at.on_letters, slide);
+  ASSERT_EQ(7, on_letters);
+  EXPECT_EQ(on_letters, CaretOffsetAfter(field, at.above, slide));
+  EXPECT_EQ(on_letters, CaretOffsetAfter(field, at.below, slide));
+}
+
+TEST_F(FrameSelectionPaddedFieldTest, SlideAlongPaddingOfInput) {
+  SetBodyContent(
+      "<input id=field value=abcdefghijklmnop style='padding: 30px; "
+      "width: 400px; font: 20px/1 Ahem'>");
+  auto& field = To<TextControlElement>(*GetElementById("field"));
+  field.Focus();
+  Element& editor = *field.InnerEditorElement();
+  const Points at = PointsFor(field, 30);
+  auto slide = [this](const gfx::Point& p) { Slide(p); };
+  const int on_letters = CaretOffsetAfter(editor, at.on_letters, slide);
+  ASSERT_EQ(7, on_letters);
+  EXPECT_EQ(on_letters, CaretOffsetAfter(editor, at.above, slide));
+  EXPECT_EQ(on_letters, CaretOffsetAfter(editor, at.below, slide));
+}
+
+TEST_F(FrameSelectionPaddedFieldTest, TapInPaddingOfContentEditable) {
+  SetBodyContent(
+      "<div id=field contenteditable style='padding: 30px; width: 400px; "
+      "font: 20px/1 Ahem'>abcdefghijklmnop</div>");
+  Element& field = *GetElementById("field");
+  field.Focus();
+  const Points at = PointsFor(field, 30);
+  auto tap = [this](const gfx::Point& p) { Tap(p); };
+  const int on_letters = CaretOffsetAfter(field, at.on_letters, tap);
+  ASSERT_EQ(7, on_letters);
+  EXPECT_EQ(on_letters, CaretOffsetAfter(field, at.above, tap));
+  EXPECT_EQ(on_letters, CaretOffsetAfter(field, at.below, tap));
+}
+
+// Only the padding is brought onto the text: a tap on a second line still
+// goes to that line.
+TEST_F(FrameSelectionPaddedFieldTest, TapOnALineOfSeveralStaysOnIt) {
+  SetBodyContent(
+      "<div id=field contenteditable style='padding: 30px; width: 300px; "
+      "font: 20px/40px Ahem'>abcdefgh<br>ijklmnop</div>");
+  Element& field = *GetElementById("field");
+  field.Focus();
+  const gfx::Rect box = field.BoundsInWidget();
+  // The second line's middle, and the padding below it.
+  const gfx::Point second(box.x() + 31, box.y() + 30 + 60);
+  const gfx::Point below(box.x() + 31, box.bottom() - 10);
+  Selection().SetSelection(SelectionInDomTree::Builder()
+                               .Collapse(Position::FirstPositionInNode(field))
+                               .Build(),
+                           SetSelectionOptions());
+  UpdateAllLifecyclePhasesForTest();
+  Tap(second);
+  const Node* second_line =
+      Selection().GetSelectionInDomTree().Focus().AnchorNode();
+  ASSERT_TRUE(second_line);
+  EXPECT_EQ("ijklmnop", second_line->textContent());
+  Tap(below);
+  EXPECT_EQ(second_line,
+            Selection().GetSelectionInDomTree().Focus().AnchorNode());
 }
 
 }  // namespace blink
