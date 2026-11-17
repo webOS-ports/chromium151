@@ -27,6 +27,7 @@
 
 #include <stdio.h>
 
+#include <algorithm>
 #include <optional>
 
 #include "base/auto_reset.h"
@@ -214,9 +215,27 @@ void FrameSelection::MoveCaretSelection(const gfx::Point& point) {
 
   // A finger sliding the caret along may be above or below the letters, in
   // the field's padding: it means the line it is beside.
-  const VisiblePosition position =
-      CreateVisiblePosition(PositionForContentsPointRespectingEditingBoundary(
-          ClampPointToEditableContent(*editable, point), GetFrame()));
+  gfx::Point along = ClampPointToEditableContent(*editable, point);
+  // It may drift off the field, or into the empty part of a tall one, as it
+  // goes: above the first line it means the first line, below the last line
+  // the last line, where it is along that line - not the start or the end of
+  // the text, which is where a point above or below the text goes.
+  if (const LayoutObject* const layout = editable->GetLayoutObject();
+      layout && layout->StyleRef().IsHorizontalWritingMode()) {
+    const gfx::Rect first = AbsoluteCaretBoundsOf(
+        CreateVisiblePosition(Position::FirstPositionInNode(*editable))
+            .ToPositionWithAffinity());
+    const gfx::Rect last = AbsoluteCaretBoundsOf(
+        CreateVisiblePosition(Position::LastPositionInNode(*editable))
+            .ToPositionWithAffinity());
+    // A caret may have no width; one with no height is no line.
+    if (first.height() > 0 && last.height() > 0 &&
+        first.y() < last.bottom()) {
+      along.set_y(std::clamp(along.y(), first.y(), last.bottom() - 1));
+    }
+  }
+  const VisiblePosition position = CreateVisiblePosition(
+      PositionForContentsPointRespectingEditingBoundary(along, GetFrame()));
   SelectionInDomTree::Builder builder;
   if (position.IsNotNull())
     builder.Collapse(position.ToPositionWithAffinity());
