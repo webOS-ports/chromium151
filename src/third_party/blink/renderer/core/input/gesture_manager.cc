@@ -522,6 +522,13 @@ WebInputEventResult GestureManager::HandleGestureLongPress(
       inner_node && inner_node->GetLayoutObject() &&
       selection_controller_->HandleGestureLongPress(hit_test_result)) {
     mouse_event_manager_->FocusDocumentView();
+    // The finger now carries the caret, as on legacy webOS, where the page
+    // could not stop that: a page that cancels its touchmoves (Enyo 1 apps
+    // do, for their own drags) would otherwise stop the slide before it
+    // starts.
+    if (selection_controller_->LongPressPutCaret()) {
+      pointer_event_manager_->MakeTouchMovesUncancelable();
+    }
   }
 
   if (frame_->GetSettings() &&

@@ -5,6 +5,7 @@
 #include "third_party/blink/renderer/core/input/touch_event_manager.h"
 
 #include <array>
+#include <cmath>
 #include <memory>
 
 #include "third_party/blink/public/common/input/web_coalesced_input_event.h"
@@ -158,6 +159,8 @@ void TouchEventManager::Clear() {
   last_coalesced_touch_event_ = WebTouchEvent();
   suppressing_touchmoves_within_slop_ = false;
   current_touch_action_ = TouchAction::kAuto;
+  moves_uncancelable_ = false;
+  slide_decided_ = false;
 }
 
 void TouchEventManager::Trace(Visitor* visitor) const {
@@ -270,6 +273,10 @@ WebCoalescedInputEvent TouchEventManager::GenerateWebCoalescedInputEvent() {
   }
   event->SetType(touch_event_type);
   last_coalesced_touch_event_.SetType(touch_event_type);
+  if (moves_uncancelable_ &&
+      touch_event_type == WebInputEvent::Type::kTouchMove) {
+    event->dispatch_type = WebInputEvent::DispatchType::kEventNonBlocking;
+  }
 
   // Create all coalesced touch events based on pointerevents
   struct {
@@ -371,6 +378,22 @@ TouchEventManager::DispatchTouchEventFromAccumulatdTouchPoints() {
 
   if (any_touch_canceled_or_ended || touch_attribute_map_.size() > 1)
     suppressing_touchmoves_within_slop_ = false;
+
+  if (!slide_decided_ && touch_attribute_map_.size() == 1) {
+    const WebPointerEvent& event = touch_attribute_map_.begin()->value->event_;
+    if (event.GetType() == WebInputEvent::Type::kPointerMove &&
+        event.moved_beyond_slop_region) {
+      slide_decided_ = true;
+      // A page that cancels every touchmove (Enyo 2 apps do whenever they
+      // fill the window) would stop the caret before it moves.
+      if (SlideMovesCaret(current_touch_action_,
+                          event.PositionInWidget() - touch_start_position_)) {
+        moves_uncancelable_ = true;
+      }
+    }
+  } else if (touch_attribute_map_.size() > 1) {
+    slide_decided_ = true;
+  }
 
   if (suppressing_touchmoves_within_slop_) {
     // There is exactly one touch point here otherwise
@@ -623,6 +646,10 @@ void TouchEventManager::HandleTouchPoint(
   attributes->event_ = event;
   attributes->coalesced_events_ = coalesced_events;
   attributes->stale_ = false;
+  if (event.GetType() == WebInputEvent::Type::kPointerDown &&
+      touch_attribute_map_.size() == 1) {
+    touch_start_position_ = event.PositionInWidget();
+  }
 }
 
 WebInputEventResult TouchEventManager::FlushEvents() {
@@ -673,6 +700,17 @@ void TouchEventManager::AllTouchesReleasedCleanup() {
   // (https://crbug.com/345372).
   delayed_effective_touch_action_ = std::nullopt;
   should_enforce_vertical_scroll_ = false;
+  moves_uncancelable_ = false;
+  slide_decided_ = false;
+}
+
+// static
+bool TouchEventManager::SlideMovesCaret(TouchAction touch_action,
+                                        const gfx::Vector2dF& first_move) {
+  return (touch_action & TouchAction::kPanX) != TouchAction::kNone &&
+         (touch_action & TouchAction::kInternalPanXScrolls) ==
+             TouchAction::kNone &&
+         std::abs(first_move.x()) > std::abs(first_move.y());
 }
 
 void TouchEventManager::HandlePseudoElementRemoval(PseudoElement& pseudo) {

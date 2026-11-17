@@ -1508,6 +1508,10 @@ bool PointerEventManager::IsAnyTouchActive() const {
   return touch_event_manager_->IsAnyTouchActive();
 }
 
+void PointerEventManager::MakeTouchMovesUncancelable() {
+  touch_event_manager_->MakeMovesUncancelable();
+}
+
 bool PointerEventManager::PrimaryPointerdownCanceled(
     uint32_t unique_touch_event_id) {
   // It's safe to assume that uniqueTouchEventIds won't wrap back to 0 from
