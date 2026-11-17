@@ -1376,6 +1376,25 @@ bool SelectionController::HandleGestureLongPress(
   if (!inner_node_is_selectable)
     return false;
 
+  // Legacy webOS (libWebKitLuna, ClipboardController::tapAndHoldCb): a long
+  // press in the text field being edited puts the caret under the finger
+  // instead of selecting a word. The edit menu the shell shows then pastes
+  // there, inside a word if need be, and a slide that follows moves the
+  // caret on (the touch action filter lets it). Its Select item selects the
+  // word. A long press anywhere else selects the word as before.
+  const HitTestResult on_text = HitTestResultOnEditableText(hit_test_result);
+  if (Node* const pressed = on_text.InnerPossiblyPseudoNode();
+      pressed && IsEditable(*pressed)) {
+    const Element* const editing =
+        Selection()
+            .ComputeVisibleSelectionInDomTreeDeprecated()
+            .RootEditableElement();
+    if (editing && editing == RootEditableElement(*pressed)) {
+      SetCaretAtHitTestResult(on_text);
+      return Selection().IsAvailable();
+    }
+  }
+
   if (SelectClosestWordFromHitTestResult(hit_test_result,
                                          AppendTrailingWhitespace::kDontAppend,
                                          SelectInputEventType::kTouch))
@@ -1433,6 +1452,16 @@ void SelectionController::UpdateSelectionForContextMenuEvent(
   // Context menu events are always allowed to perform a selection.
   base::AutoReset<bool> mouse_down_may_start_select_change(
       &mouse_down_may_start_select_, true);
+
+  // A long press that left a caret put it under the finger in the field being
+  // edited (HandleGestureLongPress, as legacy webOS did): the menu is for that
+  // caret, so a misspelled word under it is not selected either. Its
+  // suggestions come from a tap on it, as legacy's spelling widget's did.
+  if (mouse_event->GetMenuSourceType() ==
+          ui::mojom::blink::MenuSourceType::kLongPress &&
+      Selection().ComputeVisibleSelectionInDomTreeDeprecated().IsCaret()) {
+    return;
+  }
 
   if (mouse_event->GetMenuSourceType() !=
           ui::mojom::blink::MenuSourceType::kTouchHandle &&

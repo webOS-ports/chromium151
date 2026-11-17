@@ -876,6 +876,71 @@ TEST_F(TouchActionFilterTest, DoubleTap) {
   filter_.DecreaseActiveTouches();
 }
 
+// Swipe to move the cursor, on webOS. |on_text| is a touch that began on
+// editable text, where Blink clears kInternalPanXScrolls. Returns whether the
+// scroll that follows a tap down - and a long press, if |long_press| - is the
+// cursor's.
+bool CursorControlAfter(TouchActionFilter& filter,
+                        bool on_text,
+                        bool long_press,
+                        float dx,
+                        float dy) {
+  WebGestureEvent tap_down = SyntheticWebGestureEventBuilder::Build(
+      WebInputEvent::Type::kGestureTapDown, kSourceDevice);
+  WebGestureEvent long_press_event = SyntheticWebGestureEventBuilder::Build(
+      WebInputEvent::Type::kGestureLongPress, kSourceDevice);
+  WebGestureEvent scroll_begin =
+      SyntheticWebGestureEventBuilder::BuildScrollBegin(dx, dy, kSourceDevice);
+  WebGestureEvent scroll_end = SyntheticWebGestureEventBuilder::Build(
+      WebInputEvent::Type::kGestureScrollEnd, kSourceDevice);
+
+  filter.OnSetTouchAction(on_text ? cc::TouchAction::kAuto &
+                                        ~cc::TouchAction::kInternalPanXScrolls
+                                  : cc::TouchAction::kAuto);
+  filter.IncreaseActiveTouches();
+  EXPECT_EQ(filter.FilterGestureEvent(&tap_down),
+            FilterGestureEventResult::kAllowed);
+  if (long_press) {
+    EXPECT_EQ(filter.FilterGestureEvent(&long_press_event),
+              FilterGestureEventResult::kAllowed);
+  }
+  EXPECT_EQ(filter.FilterGestureEvent(&scroll_begin),
+            FilterGestureEventResult::kAllowed);
+  EXPECT_EQ(filter.FilterGestureEvent(&scroll_end),
+            FilterGestureEventResult::kAllowed);
+  filter.DecreaseActiveTouches();
+  filter.ReportAndResetTouchAction();
+  return scroll_begin.data.scroll_begin.cursor_control;
+}
+
+// Without a long press only a sideways swipe on the text moves the cursor.
+TEST_F(TouchActionFilterTest, CursorControlForASidewaysSwipeOnText) {
+  EXPECT_TRUE(CursorControlAfter(filter_, true, false, 10, 2));
+  EXPECT_FALSE(CursorControlAfter(filter_, true, false, 2, 10));
+  EXPECT_FALSE(CursorControlAfter(filter_, false, false, 10, 2));
+}
+
+// Legacy webOS: after a long press on the text, the finger carries the caret
+// whichever way it goes.
+TEST_F(TouchActionFilterTest, CursorControlAnyWayAfterALongPressOnText) {
+  EXPECT_TRUE(CursorControlAfter(filter_, true, true, 10, 2));
+  EXPECT_TRUE(CursorControlAfter(filter_, true, true, 2, 10));
+  EXPECT_TRUE(CursorControlAfter(filter_, true, true, -3, -10));
+}
+
+// Not off the text, long press or not.
+TEST_F(TouchActionFilterTest, NoCursorControlAfterALongPressOffText) {
+  EXPECT_FALSE(CursorControlAfter(filter_, false, true, 10, 2));
+  EXPECT_FALSE(CursorControlAfter(filter_, false, true, 2, 10));
+}
+
+// The long press belongs to its own touch: the next touch's vertical scroll
+// on the text scrolls.
+TEST_F(TouchActionFilterTest, LongPressDoesNotCarryToTheNextTouch) {
+  EXPECT_TRUE(CursorControlAfter(filter_, true, true, 2, 10));
+  EXPECT_FALSE(CursorControlAfter(filter_, true, false, 2, 10));
+}
+
 TEST_F(TouchActionFilterTest, SingleTapWithTouchActionAuto) {
   WebGestureEvent tap_down = SyntheticWebGestureEventBuilder::Build(
       WebInputEvent::Type::kGestureTapDown, kSourceDevice);

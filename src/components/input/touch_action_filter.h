@@ -139,10 +139,15 @@ class COMPONENT_EXPORT(INPUT) TouchActionFilter {
   bool has_deferred_events_ = false;
 
   // True if scroll gestures are allowed to be used for cursor control. We set
-  // this to false if a long press or double press has occurred in the current
-  // gesture sequence, to prevent the cursor control feature from interfering
-  // with long press drag selection and double press drag selection.
+  // this to false if a double press has occurred in the current gesture
+  // sequence, to prevent the cursor control feature from interfering with
+  // double press drag selection. A long press leaves it on: as on legacy
+  // webOS, the finger moves the caret after a long press in a text field.
   bool allow_cursor_control_ = true;
+
+  // True after a long press in the current gesture sequence. The scroll that
+  // follows then controls the cursor in any direction, not only sideways.
+  bool long_press_in_sequence_ = false;
 
   // Increment at receiving ACK for touch start and decrement at touch end.
   int num_of_active_touches_ = 0;

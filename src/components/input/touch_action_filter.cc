@@ -32,16 +32,24 @@ bool IsXAxisActionDisallowed(cc::TouchAction action) {
 }
 
 void SetCursorControlIfNecessary(WebGestureEvent* event,
-                                 cc::TouchAction action) {
+                                 cc::TouchAction action,
+                                 bool any_direction) {
   if (event->data.scroll_begin.pointer_count != 1)
     return;
   const float abs_delta_x = fabs(event->data.scroll_begin.delta_x_hint);
   const float abs_delta_y = fabs(event->data.scroll_begin.delta_y_hint);
-  if (abs_delta_x <= abs_delta_y)
-    return;
-
-  // We shouldn't reach here if kPanX is not allowed for horizontal scroll.
-  DCHECK_NE(action & cc::TouchAction::kPanX, cc::TouchAction::kNone);
+  if (any_direction) {
+    // After a long press on an editable, as on legacy webOS, the finger
+    // carries the caret whichever way it goes. kInternalPanXScrolls is clear
+    // only for a touch that began on editable text.
+    if ((action & cc::TouchAction::kPan) == cc::TouchAction::kNone)
+      return;
+  } else {
+    if (abs_delta_x <= abs_delta_y)
+      return;
+    // We shouldn't reach here if kPanX is not allowed for horizontal scroll.
+    DCHECK_NE(action & cc::TouchAction::kPanX, cc::TouchAction::kNone);
+  }
   if ((action & cc::TouchAction::kInternalPanXScrolls) ==
       cc::TouchAction::kInternalPanXScrolls)
     return;
@@ -114,7 +122,8 @@ FilterGestureEventResult TouchActionFilter::FilterGestureEvent(
       FilterGestureEventResult res;
       if (!drop_scroll_events_) {
         if (allow_cursor_control_) {
-          SetCursorControlIfNecessary(gesture_event, touch_action);
+          SetCursorControlIfNecessary(gesture_event, touch_action,
+                                      long_press_in_sequence_);
         }
         res = FilterGestureEventResult::kAllowed;
       } else if (active_touch_action_.has_value()) {
@@ -242,6 +251,7 @@ FilterGestureEventResult TouchActionFilter::FilterGestureEvent(
 
     case WebInputEvent::Type::kGestureTapDown:
       gesture_sequence_in_progress_ = true;
+      long_press_in_sequence_ = false;
       allow_cursor_control_ =
           !::features::IsTouchTextEditingRedesignEnabled() ||
           gesture_event->data.tap_down.tap_down_count <= 1;
@@ -254,7 +264,10 @@ FilterGestureEventResult TouchActionFilter::FilterGestureEvent(
       break;
 
     case WebInputEvent::Type::kGestureLongPress:
-      allow_cursor_control_ = false;
+      // Legacy webOS: a long press in a text field puts the caret under the
+      // finger, and the finger then moves the caret (the shell's magnifier
+      // follows it) instead of selecting text.
+      long_press_in_sequence_ = true;
       break;
 
     case WebInputEvent::Type::kGestureLongTap:
@@ -348,6 +361,7 @@ void TouchActionFilter::ReportAndResetTouchAction() {
   if (num_of_active_touches_ <= 0) {
     ResetTouchAction();
     allow_cursor_control_ = true;
+    long_press_in_sequence_ = false;
   }
 }
 
