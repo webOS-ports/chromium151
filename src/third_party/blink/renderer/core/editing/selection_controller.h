@@ -61,6 +61,9 @@ class CORE_EXPORT SelectionController final
                                const PhysicalOffset&);
   bool HandlePasteGlobalSelection(const WebMouseEvent&);
   bool HandleGestureLongPress(const HitTestResult&);
+  // Whether the last HandleGestureLongPress() put the caret under the finger
+  // in the field being edited, rather than selecting a word.
+  bool LongPressPutCaret() const { return long_press_put_caret_; }
   void HandleGestureTwoFingerTap(const GestureEventWithHitTestResults&);
 
   void UpdateSelectionForMouseDrag(const PhysicalOffset&,
@@ -143,6 +146,7 @@ class CORE_EXPORT SelectionController final
   PositionInFlatTreeWithAffinity original_anchor_in_flat_tree_;
   bool mouse_down_may_start_select_;
   bool mouse_down_was_single_click_on_caret_ = false;
+  bool long_press_put_caret_ = false;
   bool mouse_down_was_single_click_in_selection_;
   bool mouse_down_allows_multi_click_;
   enum class SelectionState {

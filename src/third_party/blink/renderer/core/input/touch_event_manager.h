@@ -18,6 +18,8 @@
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
+#include "ui/gfx/geometry/point_f.h"
+#include "ui/gfx/geometry/vector2d_f.h"
 
 namespace blink {
 
@@ -45,6 +47,20 @@ class CORE_EXPORT TouchEventManager final
 
   // Resets the internal state of this object.
   void Clear();
+
+  // The touchmoves of the touch sequence under way are dispatched as not
+  // cancelable from now on, so a page cannot stop what the touch does next
+  // (the caret it carries after a long press). Ends with the sequence.
+  void MakeMovesUncancelable() { moves_uncancelable_ = true; }
+
+  // Whether a single touch with |touch_action| whose first move past the slop
+  // region went |first_move| from where it came down slides the caret
+  // (SwipeToMoveCursor): sideways, on editable text that can take it. This is
+  // the browser's own test for it (TouchActionFilter), made before the page
+  // sees the move so that it cannot stop the slide.
+  static bool SlideMovesCaret(TouchAction touch_action,
+                              const gfx::Vector2dF& first_move);
+
   void HandlePseudoElementRemoval(PseudoElement&);
 
   // Returns whether there is any touch on the screen.
@@ -121,6 +137,13 @@ class CORE_EXPORT TouchEventManager final
   Member<Document> touch_sequence_document_;
 
   bool suppressing_touchmoves_within_slop_;
+
+  // Set by MakeMovesUncancelable(), or for a slide that moves the caret.
+  bool moves_uncancelable_ = false;
+  // Where the touch under way came down, and whether its first move past the
+  // slop region has been looked at for SlideMovesCaret().
+  gfx::PointF touch_start_position_;
+  bool slide_decided_ = false;
 
   // This is used to created a consistent sequence of coalesced events compared
   // to the last frame.

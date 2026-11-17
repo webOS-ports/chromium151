@@ -105,4 +105,22 @@ TEST_F(TouchEventManagerTest, AbosolutePosWithScrollAndZoom) {
   EXPECT_NEAR(23, ParseToDoubleForNumberType(input->Value()), 1);
 }
 
+// A slide moves the caret - and its touchmoves cannot be canceled by the page
+// - when it goes sideways from the start on editable text that can take it
+// (SwipeToMoveCursor clears kInternalPanXScrolls there), as the browser's
+// TouchActionFilter decides it.
+TEST(TouchEventManagerSlideTest, SlideMovesCaret) {
+  const TouchAction off_text = TouchAction::kAuto;
+  const TouchAction on_text = off_text & ~TouchAction::kInternalPanXScrolls;
+  EXPECT_TRUE(TouchEventManager::SlideMovesCaret(on_text, {20, 0}));
+  EXPECT_TRUE(TouchEventManager::SlideMovesCaret(on_text, {-20, 8}));
+  // Up or down, or as much one way as the other: the page's.
+  EXPECT_FALSE(TouchEventManager::SlideMovesCaret(on_text, {3, 20}));
+  EXPECT_FALSE(TouchEventManager::SlideMovesCaret(on_text, {15, -15}));
+  // Not on such text, or where the page does not let it pan sideways.
+  EXPECT_FALSE(TouchEventManager::SlideMovesCaret(off_text, {20, 0}));
+  EXPECT_FALSE(TouchEventManager::SlideMovesCaret(TouchAction::kPanY, {20, 0}));
+  EXPECT_FALSE(TouchEventManager::SlideMovesCaret(TouchAction::kNone, {20, 0}));
+}
+
 }  // namespace blink

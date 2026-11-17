@@ -114,6 +114,10 @@ class CORE_EXPORT PointerEventManager final
   // |touch_ids_for_canceled_pointerdowns_|.
   bool PrimaryPointerdownCanceled(uint32_t unique_touch_event_id);
 
+  // The touchmoves of the touch now on the screen are dispatched as not
+  // cancelable, until it lifts.
+  void MakeTouchMovesUncancelable();
+
   void RemoveLastMousePosition();
 
   Element* GetMouseCaptureTarget();

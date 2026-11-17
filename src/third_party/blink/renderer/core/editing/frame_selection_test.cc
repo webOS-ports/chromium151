@@ -11,9 +11,11 @@
 #include "testing/gmock/include/gmock/gmock-matchers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/input/web_gesture_event.h"
+#include "third_party/blink/public/common/input/web_pointer_event.h"
 #include "third_party/blink/public/web/web_text_check_client.h"
 #include "third_party/blink/public/web/web_range.h"
 #include "third_party/blink/renderer/core/dom/document.h"
+#include "third_party/blink/renderer/core/dom/events/native_event_listener.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/text.h"
 #include "third_party/blink/renderer/core/editing/ephemeral_range.h"
@@ -1909,6 +1911,89 @@ TEST_F(FrameSelectionLongPressTest, WithNothingBeingEditedSelectsTheWord) {
   UpdateAllLifecyclePhasesForTest();
   Element& field = *GetElementById("a");
   LongPress(PointsFor(field, 30).on_letters);
+  EXPECT_TRUE(Selection().GetSelectionInDomTree().IsRange());
+}
+
+// What a page's touchmove handler sees of a finger that rests and then moves:
+// whether it could cancel the move, as Enyo 1 apps try to for their drags.
+class FrameSelectionHoldAndMoveTest : public FrameSelectionLongPressTest {
+ protected:
+  class CancelableListener final : public NativeEventListener {
+   public:
+    void Invoke(ExecutionContext*, Event* event) override {
+      cancelable_.push_back(event->cancelable());
+      event->preventDefault();
+    }
+    Vector<bool> cancelable_;
+  };
+
+  void SetUp() override {
+    FrameSelectionLongPressTest::SetUp();
+    listener_ = MakeGarbageCollected<CancelableListener>();
+  }
+
+  void Touch(WebInputEvent::Type type, const gfx::Point& point) {
+    WebPointerEvent event(
+        type,
+        WebPointerProperties(1, WebPointerProperties::PointerType::kTouch,
+                             WebPointerProperties::Button::kLeft,
+                             gfx::PointF(point), gfx::PointF(point)),
+        5, 5);
+    event.SetFrameScale(1);
+    event.moved_beyond_slop_region = true;
+    EventHandler& handler = GetFrame().GetEventHandler();
+    handler.HandlePointerEvent(event, Vector<WebPointerEvent>(),
+                               Vector<WebPointerEvent>());
+    handler.DispatchBufferedTouchEvents();
+  }
+
+  // A finger down at |from|, a long press there if |hold|, a move along to
+  // |to| and up: whether the page could cancel the move.
+  bool MoveWasCancelable(const gfx::Point& from, const gfx::Point& to,
+                         bool hold) {
+    GetDocument().addEventListener(event_type_names::kTouchmove, listener_);
+    listener_->cancelable_.clear();
+    Touch(WebInputEvent::Type::kPointerDown, from);
+    if (hold) {
+      LongPress(from);
+    }
+    Touch(WebInputEvent::Type::kPointerMove, to);
+    Touch(WebInputEvent::Type::kPointerUp, to);
+    GetDocument().removeEventListener(event_type_names::kTouchmove, listener_,
+                                      false);
+    EXPECT_EQ(1u, listener_->cancelable_.size());
+    return !listener_->cancelable_.empty() && listener_->cancelable_[0];
+  }
+
+  Persistent<CancelableListener> listener_;
+};
+
+// Legacy webOS: after a long press in the field being edited the finger
+// carries the caret, whatever the page does with its touchmoves.
+TEST_F(FrameSelectionHoldAndMoveTest, AfterAHoldInFieldBeingEdited) {
+  SetUpTwoFields();
+  Element& field = *GetElementById("a");
+  field.Focus();
+  const gfx::Point at = PointsFor(field, 30).on_letters;
+  EXPECT_FALSE(MoveWasCancelable(at, at + gfx::Vector2d(60, 0), true));
+  // That touch only: the next one is the page's again.
+  EXPECT_TRUE(MoveWasCancelable(at, at + gfx::Vector2d(60, 0), false));
+}
+
+TEST_F(FrameSelectionHoldAndMoveTest, WithoutAHold) {
+  SetUpTwoFields();
+  Element& field = *GetElementById("a");
+  field.Focus();
+  const gfx::Point at = PointsFor(field, 30).on_letters;
+  EXPECT_TRUE(MoveWasCancelable(at, at + gfx::Vector2d(60, 0), false));
+}
+
+// A long press that selects a word leaves the page its touchmoves.
+TEST_F(FrameSelectionHoldAndMoveTest, AfterAHoldThatSelectsTheWord) {
+  SetUpTwoFields();
+  GetElementById("a")->Focus();
+  const gfx::Point at = PointsFor(*GetElementById("b"), 30).on_letters;
+  EXPECT_TRUE(MoveWasCancelable(at, at + gfx::Vector2d(60, 0), true));
   EXPECT_TRUE(Selection().GetSelectionInDomTree().IsRange());
 }
 
