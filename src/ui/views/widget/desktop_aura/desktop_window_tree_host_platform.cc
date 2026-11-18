@@ -1469,6 +1469,18 @@ void DesktopWindowTreeHostPlatform::ScheduleRelayout() {
 }
 
 void DesktopWindowTreeHostPlatform::SetVisible(bool visible) {
+#if defined(USE_NEVA_APPRUNTIME)
+  // Between BeginPrepareStackForWebApp() and FinishPrepareStackForWebApp() the
+  // display is not told about visibility, so it does not draw. A compositor
+  // made visible now would submit a frame that is never acknowledged and keep
+  // taking BeginFrames for as long as the window lives. A window state change
+  // can get here for a window that was never shown, such as the hidden window
+  // of a noWindow app that is raised on relaunch.
+  if (visible && compositor() && !compositor()->IsDisplayVisibilityEnabled()) {
+    return;
+  }
+#endif  // defined(USE_NEVA_APPRUNTIME)
+
   if (compositor()) {
     compositor()->SetVisible(visible);
   }

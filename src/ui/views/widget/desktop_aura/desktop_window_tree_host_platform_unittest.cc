@@ -21,6 +21,7 @@
 #include "ui/aura/window_tree_host_observer.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/base/ui_base_features.h"
+#include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/display/display_switches.h"
 #include "ui/display/test/test_screen.h"
@@ -240,6 +241,39 @@ TEST_F(DesktopWindowTreeHostPlatformTest,
                                       ui::PlatformWindowState::kNormal);
   EXPECT_TRUE(widget->GetNativeWindow()->IsVisible());
 }
+
+#if defined(USE_NEVA_APPRUNTIME)
+// A window state change must not make the compositor of a web app window
+// visible before the window is shown: its display would never draw, so the
+// compositor's frame would never be acknowledged.
+TEST_F(DesktopWindowTreeHostPlatformTest,
+       WindowStateChangeKeepsPreparedWebAppWindowHidden) {
+  std::unique_ptr<Widget> widget = CreateWidgetWithNativeWidget();
+  auto* host_platform = DesktopWindowTreeHostPlatform::GetHostForWidget(
+      widget->GetNativeWindow()->GetHost()->GetAcceleratedWidget());
+  ASSERT_TRUE(host_platform);
+  ui::Compositor* compositor = widget->GetCompositor();
+  ASSERT_TRUE(compositor);
+
+  host_platform->BeginPrepareStackForWebApp();
+  EXPECT_FALSE(compositor->IsVisible());
+
+  host_platform->OnWindowStateChanged(ui::PlatformWindowState::kMinimized,
+                                      ui::PlatformWindowState::kFullScreen);
+  EXPECT_FALSE(compositor->IsVisible());
+
+  host_platform->FinishPrepareStackForWebApp();
+  EXPECT_TRUE(compositor->IsVisible());
+
+  // Once the window is shown, leaving the minimized state shows it again.
+  host_platform->OnWindowStateChanged(ui::PlatformWindowState::kFullScreen,
+                                      ui::PlatformWindowState::kMinimized);
+  EXPECT_FALSE(compositor->IsVisible());
+  host_platform->OnWindowStateChanged(ui::PlatformWindowState::kMinimized,
+                                      ui::PlatformWindowState::kFullScreen);
+  EXPECT_TRUE(compositor->IsVisible());
+}
+#endif  // defined(USE_NEVA_APPRUNTIME)
 
 // Tests that the window shape is updated from the
 // |NonClientView::GetWindowMask|.

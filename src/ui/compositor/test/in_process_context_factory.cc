@@ -179,6 +179,7 @@ class InProcessContextFactory::PerCompositorData
 
 #if defined(USE_NEVA_APPRUNTIME)
   void RenderProcessGone() override {}
+  void SetFirstActivateTimeout(base::TimeDelta timeout) override {}
 #endif
 
   void SetSurfaceHandle(gpu::SurfaceHandle surface_handle) {

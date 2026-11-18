@@ -502,6 +502,9 @@ class COMPOSITOR_EXPORT Compositor
   void ResumeDrawing();
   void RenderProcessGone();
   void SetDisplayVisibilityEnabled(bool enabled);
+  bool IsDisplayVisibilityEnabled() const {
+    return display_visibility_enabled_;
+  }
   void SetDisplayFirstActivateTimeout(base::TimeDelta timeout);
 #endif
 
