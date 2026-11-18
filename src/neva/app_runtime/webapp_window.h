@@ -146,6 +146,9 @@ class WebAppWindow : public views::NativeEventDelegate,
   std::u16string GetWindowTitle() const override;
   void WindowClosing() override;
 
+  // Overridden from views::View
+  void Layout(PassKey) override;
+
   void CreateGroup(const WindowGroupConfiguration& config);
   void AttachToGroup(const std::string& group, const std::string& layer);
   void FocusGroupOwner();
@@ -213,10 +216,8 @@ class WebAppWindow : public views::NativeEventDelegate,
   bool is_shifted_content_ = false;
   int viewport_shift_y_ = 0;
   // The input panel's rectangle as the compositor sent it, in the window's
-  // own pixels, and the contents' height from before they were made room
-  // around it.
+  // own pixels.
   gfx::Rect input_panel_raw_rect_;
-  int content_height_for_restoring_ = 0;
   bool is_resized_for_input_panel_ = false;
 
   bool input_panel_visible_ = false;
