@@ -277,6 +277,8 @@ static_library("app_runtime") {
     "file_security_origin.cc",
     "webapp_injection_manager.cc",
     "webapp_injection_manager.h",
+    "input_panel_content_bounds.cc",
+    "input_panel_content_bounds.h",
     "webapp_window.cc",
     "webapp_window.h",
     "webapp_window_base.cc",
@@ -664,4 +666,20 @@ process_version("version_header") {
   ]
   template_file = "common/chrome_version.h.in"
   output = "$target_gen_dir/chrome_version.h"
+}
+
+source_set("unittests") {
+  testonly = true
+
+  sources = [
+    "input_panel_content_bounds.cc",
+    "input_panel_content_bounds.h",
+    "input_panel_content_bounds_unittest.cc",
+  ]
+
+  deps = [
+    "//base",
+    "//testing/gtest",
+    "//ui/gfx/geometry",
+  ]
 }

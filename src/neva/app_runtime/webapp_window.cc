@@ -15,19 +15,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "neva/app_runtime/webapp_window.h"
-#include "base/logging.h"
-#include "base/notimplemented.h"
 
 #include <algorithm>
 #include <climits>
-#include <utility>
 #include <cstdint>
+#include <utility>
 
+#include "base/logging.h"
+#include "base/notimplemented.h"
 #include "base/strings/utf_string_conversions.h"
 #include "content/browser/web_contents/web_contents_view.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
+#include "neva/app_runtime/input_panel_content_bounds.h"
 #include "neva/app_runtime/public/app_runtime_event.h"
 #include "neva/app_runtime/public/webapp_window_delegate.h"
 #include "neva/app_runtime/public/window_group_configuration.h"
@@ -522,25 +523,15 @@ void WebAppWindow::ResizeContentForInputPanel() {
   const int full_height =
       webview_ && webview_->height() > 0 ? webview_->height() : bounds.height();
 
-  if (!wanted) {
-    if (is_resized_for_input_panel_) {
-      view->SetBounds(
-          gfx::Rect(bounds.x(), bounds.y(), bounds.width(), full_height));
-      is_resized_for_input_panel_ = false;
-    }
-    return;
-  }
-
   // The panel's top edge, in the same units as the contents' bounds.
   const int panel_top =
-      static_cast<int>(input_panel_raw_rect_.y() / scale_factor_);
-  const int height = std::clamp(panel_top - bounds.y(), 0, full_height);
-
-  if (height == bounds.height() && is_resized_for_input_panel_)
-    return;
-
-  view->SetBounds(gfx::Rect(bounds.x(), bounds.y(), bounds.width(), height));
-  is_resized_for_input_panel_ = true;
+      wanted ? static_cast<int>(input_panel_raw_rect_.y() / scale_factor_) : 0;
+  const InputPanelContentBounds result = ComputeInputPanelContentBounds(
+      bounds, full_height, wanted, panel_top, is_resized_for_input_panel_);
+  is_resized_for_input_panel_ = result.resized_for_panel;
+  if (result.bounds != bounds) {
+    view->SetBounds(result.bounds);
+  }
 }
 
 // The views lay the contents out at the window's full size whenever the window

@@ -34,6 +34,7 @@ test("neva_unittests") {
     deps += [ "../browser_shell/service:unittests" ]
   }
 
+  deps += [ "../app_runtime:unittests" ]
   deps += [ "../browser_shell:unittests" ]
 
   if (enable_widevine && !use_neva_cdm) {
