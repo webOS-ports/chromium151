@@ -514,29 +514,42 @@ void WebAppWindow::ResizeContentForInputPanel() {
   const bool wanted = input_panel_visible_ && !input_panel_raw_rect_.IsEmpty() &&
                       scale_factor_ > 0;
 
+  // The contents' height with no panel: the web view's, which the views keep
+  // at the window's size as it is resized and rotated. A height remembered
+  // from when the panel came up is the other orientation's after a rotation;
+  // shown in landscape and turned to portrait, Memos was held at 905 pixels
+  // of 2045, and kept that height when the panel was shown again.
+  const int full_height =
+      webview_ && webview_->height() > 0 ? webview_->height() : bounds.height();
+
   if (!wanted) {
     if (is_resized_for_input_panel_) {
-      view->SetBounds(gfx::Rect(bounds.x(), bounds.y(), bounds.width(),
-                                content_height_for_restoring_));
+      view->SetBounds(
+          gfx::Rect(bounds.x(), bounds.y(), bounds.width(), full_height));
       is_resized_for_input_panel_ = false;
     }
     return;
   }
 
-  if (!is_resized_for_input_panel_)
-    content_height_for_restoring_ = bounds.height();
-
   // The panel's top edge, in the same units as the contents' bounds.
   const int panel_top =
       static_cast<int>(input_panel_raw_rect_.y() / scale_factor_);
-  const int height = std::clamp(panel_top - bounds.y(), 0,
-                                content_height_for_restoring_);
+  const int height = std::clamp(panel_top - bounds.y(), 0, full_height);
 
   if (height == bounds.height() && is_resized_for_input_panel_)
     return;
 
   view->SetBounds(gfx::Rect(bounds.x(), bounds.y(), bounds.width(), height));
   is_resized_for_input_panel_ = true;
+}
+
+// The views lay the contents out at the window's full size whenever the window
+// changes size - on every rotation - so the room for the panel is made again
+// after them.
+void WebAppWindow::Layout(PassKey) {
+  LayoutSuperclass<views::WidgetDelegateView>(this);
+  if (is_resized_for_input_panel_)
+    ResizeContentForInputPanel();
 }
 
 void WebAppWindow::CheckShiftContent() {
