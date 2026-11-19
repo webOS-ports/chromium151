@@ -241,6 +241,13 @@ WaylandSurfaceFactory::GetAllowedGLImplementations() {
     // webOS advertising only a backend the image cannot provide (no libvulkan,
     // no ICD), so GL initialisation failed outright.
     impls.emplace_back(gl::kGLImplementationEGLGLES2);
+    // Also offer ANGLE's GL/GLES backend as an opt-in, selectable with
+    // --use-gl=angle --use-angle=gles. Native EGL/GLES2 above stays the
+    // default and ANGLE is only used when explicitly requested. ANGLE's GL
+    // backend drives the device's native ES 2.0 driver and, unlike the native
+    // passthrough path, provides a working WebGL context on GPUs whose driver
+    // the passthrough decoder would otherwise assume to be ANGLE.
+    impls.emplace_back(gl::ANGLEImplementation::kOpenGLES);
 #else
     impls.emplace_back(gl::ANGLEImplementation::kVulkan);
 #endif  // defined(OS_WEBOS)
