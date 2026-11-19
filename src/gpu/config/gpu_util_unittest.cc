@@ -86,6 +86,41 @@ TEST(GpuUtilTest, GetGpuFeatureInfo_WorkaroundFromCommandLine) {
   }
 }
 
+#if defined(OS_WEBOS)
+TEST(GpuUtilTest, GetGpuFeatureInfo_WebGLBlocklistedWithoutANGLE) {
+  base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
+  GpuPreferences gpu_preferences;
+  // WebAppMgr runs with --ignore-gpu-blocklist; that must not bring it back.
+  gpu_preferences.ignore_gpu_blocklist = true;
+  GPUInfo gpu_info;
+  gpu_info.gl_implementation_parts =
+      gl::GLImplementationParts(gl::kGLImplementationEGLGLES2);
+  GpuFeatureInfo gpu_feature_info =
+      ComputeGpuFeatureInfo(gpu_info, gpu_preferences, &command_line, nullptr);
+  EXPECT_EQ(kGpuFeatureStatusBlocklisted,
+            gpu_feature_info.status_values[GPU_FEATURE_TYPE_ACCELERATED_WEBGL]);
+  EXPECT_EQ(
+      kGpuFeatureStatusBlocklisted,
+      gpu_feature_info.status_values[GPU_FEATURE_TYPE_ACCELERATED_WEBGL2]);
+}
+
+TEST(GpuUtilTest, GetGpuFeatureInfo_WebGLEnabledWithANGLE) {
+  base::CommandLine command_line(base::CommandLine::NO_PROGRAM);
+  GpuPreferences gpu_preferences;
+  gpu_preferences.ignore_gpu_blocklist = true;
+  GPUInfo gpu_info;
+  gpu_info.gl_implementation_parts =
+      gl::GLImplementationParts(gl::ANGLEImplementation::kDefault);
+  GpuFeatureInfo gpu_feature_info =
+      ComputeGpuFeatureInfo(gpu_info, gpu_preferences, &command_line, nullptr);
+  EXPECT_EQ(kGpuFeatureStatusEnabled,
+            gpu_feature_info.status_values[GPU_FEATURE_TYPE_ACCELERATED_WEBGL]);
+  EXPECT_EQ(
+      kGpuFeatureStatusEnabled,
+      gpu_feature_info.status_values[GPU_FEATURE_TYPE_ACCELERATED_WEBGL2]);
+}
+#endif  // defined(OS_WEBOS)
+
 TEST(GpuUtilTest, GetGpuFeatureInfo_WorkaroundFromFeatureFlag) {
   {
     GPUInfo gpu_info;

@@ -685,6 +685,21 @@ GpuFeatureInfo ComputeGpuFeatureInfo(const GPUInfo& gpu_info,
       GetWebGLFeatureStatus(blocklisted_features, use_software_gl);
   gpu_feature_info.status_values[GPU_FEATURE_TYPE_ACCELERATED_WEBGL2] =
       GetWebGL2FeatureStatus(blocklisted_features, use_software_gl);
+#if defined(OS_WEBOS)
+  // webOS runs the passthrough decoder on the native GLES2 driver, without
+  // ANGLE. That decoder only accepts a WebGL context on ANGLE (it needs
+  // GL_ANGLE_webgl_compatibility and the other ANGLE extensions), and without
+  // ANGLE nothing validates or translates the page's shaders before the driver
+  // sees them. Mark WebGL blocklisted, so ContextGroup refuses the context and
+  // pages get no WebGL rather than a context that can never work. This is set
+  // after the blocklist, so --ignore-gpu-blocklist does not undo it.
+  if (gpu_info.gl_implementation_parts.gl == gl::kGLImplementationEGLGLES2) {
+    gpu_feature_info.status_values[GPU_FEATURE_TYPE_ACCELERATED_WEBGL] =
+        kGpuFeatureStatusBlocklisted;
+    gpu_feature_info.status_values[GPU_FEATURE_TYPE_ACCELERATED_WEBGL2] =
+        kGpuFeatureStatusBlocklisted;
+  }
+#endif  // defined(OS_WEBOS)
   gpu_feature_info.status_values[GPU_FEATURE_TYPE_ACCELERATED_WEBGPU] =
       GetWebGPUFeatureStatus(blocklisted_features, gpu_preferences,
                              use_software_gl);
