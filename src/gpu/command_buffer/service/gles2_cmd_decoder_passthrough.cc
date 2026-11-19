@@ -1012,8 +1012,16 @@ gpu::ContextResult GLES2DecoderPassthroughImpl::Initialize(
   // only enable debug logging if requested.
   bool log_non_errors =
       group_->gpu_preferences().enable_gpu_driver_debug_logging;
-  InitializeGLDebugLogging(log_non_errors, PassthroughGLDebugMessageCallback,
-                           this);
+  // ANGLE always exposes GL_KHR_debug, but a native driver need not (the
+  // Adreno 220 GLES2 driver does not), and glDebugMessageControlKHR is then
+  // unbound. Such a context fails the GL_KHR_debug check below anyway, so skip
+  // the logging rather than calling a null entry point. Destroy() removes the
+  // callback only if it was installed here.
+  if (context->HasExtension("GL_KHR_debug")) {
+    InitializeGLDebugLogging(log_non_errors, PassthroughGLDebugMessageCallback,
+                             this);
+    debug_logging_initialized_ = true;
+  }
 
   // Create GPU Tracer for timing values.
   gpu_tracer_ = std::make_unique<GPUTracer>(this);
@@ -1340,9 +1348,10 @@ void GLES2DecoderPassthroughImpl::Destroy(bool have_context) {
     group_ = nullptr;
   }
 
-  if (have_context) {
+  if (have_context && debug_logging_initialized_) {
     api()->glDebugMessageCallbackKHRFn(nullptr, nullptr);
   }
+  debug_logging_initialized_ = false;
 
   if (context_.get()) {
     context_->ReleaseCurrent(nullptr);

@@ -517,6 +517,9 @@ class GPU_GLES2_EXPORT GLES2DecoderPassthroughImpl
   scoped_refptr<gl::GLSurface> surface_;
   scoped_refptr<gl::GLContext> context_;
   bool offscreen_;
+  // Whether Initialize() installed the GL_KHR_debug message callback, which
+  // Destroy() then has to remove again.
+  bool debug_logging_initialized_ = false;
 
   // The ContextGroup for this decoder uses to track resources.
   scoped_refptr<ContextGroup> group_;
