@@ -271,7 +271,11 @@ egl::Error FunctionsEGL::initialize(EGLAttrib platformType, EGLNativeDisplayType
         {
             mEGLDisplay = getPlatformDisplay(platformType, nativeDisplay);
         }
-        else
+        // getPlatformDisplay needs EGL_EXT_platform_base, which libhybris does
+        // not advertise even though it implements eglGetPlatformDisplayEXT, so
+        // the call above returns no display. Fall back to eglGetDisplay rather
+        // than giving up when the platform-display path produced nothing.
+        if (mEGLDisplay == EGL_NO_DISPLAY)
         {
             mEGLDisplay = mFnPtrs->getDisplayPtr(nativeDisplay);
         }
